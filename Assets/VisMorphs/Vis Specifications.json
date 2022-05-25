@@ -1,0 +1,192 @@
+[
+{
+    "width": 500,
+    "height": 500,
+    "data": {
+    "values": [
+            {"keyword": "A", "category": "A", "count1": 28, "count2": 52},
+            {"keyword": "B", "category": "A", "count1": 55, "count2": 13},
+            {"keyword": "C", "category": "A", "count1": 43, "count2": 42},
+            {"keyword": "D", "category": "B", "count1": 91, "count2": 75},
+            {"keyword": "E", "category": "B", "count1": 81, "count2": 86},
+            {"keyword": "F", "category": "C", "count1": 53, "count2": 68},
+            {"keyword": "G", "category": "C", "count1": 19, "count2": 41},
+            {"keyword": "H", "category": "C", "count1": 87, "count2": 17},
+            {"keyword": "I", "category": "C", "count1": 52, "count2": 49}
+        ]
+    },
+    "mark": "cube",
+    "encoding": {
+        "x": {
+            "field": "keyword",
+            "type": "nominal"
+        },
+        "y": {
+            "field": "count1",
+            "type": "quantitative"
+        },
+        "height": {
+            "field": "count1",
+            "type": "quantitative"
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "width": {
+            "value": 40
+      }
+    }
+}
+,
+
+{
+    "signals": [{
+            "name": "sliderX",
+            "source": {
+                "type": "gameobject",
+                "ref": "handle",
+                "select": "transform.position.x"
+            },
+            "value": 0
+        }, {
+            "name": "sliderY",
+            "source": {
+                "type": "gameobject",
+                "ref": "handle",
+                "select": "transform.position.y"
+            },
+            "value": 0
+            }, {
+                "name": "tweener1",
+                "source": {
+                    "type": "signal",
+                    "ref": "sliderX"
+                },
+                "transform": {
+                    "clamp": [0, 1]
+                }
+            }, {
+                "name": "tweener2",
+                "source": {
+                    "type": "signal",
+                    "ref": "sliderX"
+                },
+                "transform": {
+                    "clamp": [1.5, 2.5],
+                    "add": -1.5
+                }
+            }
+    ],
+
+    "predicates": [{
+            "name": "active",
+            "expression": "0 <= sliderY && sliderY <= 1"
+        }
+    ],
+
+    "states": [
+        {
+            "name": "first barchart",
+            "base": {
+                "mark": "cube",
+                "encoding": {
+                    "x": {
+                        "type": "nominal"
+                    },
+                    "y": {
+                        "type": "quantitative"
+                    },
+                    "height": {
+                        "type": "quantitative"
+                    }
+                }
+            },
+            "excludes": {
+                "encoding": {
+                    "z": {
+                        "field": "*",
+                        "type": "*"
+                    },
+                    "depth" : {
+                        "value": "*"
+                    }
+                }
+            }
+        },
+        {
+            "name": "second barchart",
+            "base": {
+                "mark": "cube",
+                "encoding": {
+                    "z": {
+                        "field": "category",
+                        "type": "nominal"
+                    },
+                    "depth" : {
+                        "value": 160
+                    }
+                }
+            },
+            "excludes": {
+                "encoding": {
+                    "color": {
+                        "field": "*",
+                        "type": "*"
+                    }
+                }
+            }
+        },
+        {
+            "name": "third barchart",
+            "base": {
+                "mark": "cube",
+                "encoding": {
+                    "color": {
+                        "field": "category",
+                        "type": "nominal"
+                    }
+                }
+            }
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "z extrusion",
+            "states": ["first barchart", "second barchart"],
+            "triggers": ["active"],
+            "timing": {
+                "control": "tweener1",
+                "easing": "inoutcubic"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        },
+        {
+            "name": "colour change",
+            "states": ["second barchart", "third barchart"],
+            "triggers": ["active"],
+            "timing": {
+                "control": "tweener2",
+                "easing": "inoutcubic"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        }
+    ]
+}
+
+
+
+
+
+
+
+
+]

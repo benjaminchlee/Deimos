@@ -13,8 +13,8 @@ namespace DxR
         static string dataBaseDir = "/DxRData/";
 
         /// <summary>
-        ///  Read specifications in JSON file specified by specsFilename as 
-        ///  well as data file (if needed) and expand to a JSONNode scene specs with the 
+        ///  Read specifications in JSON file specified by specsFilename as
+        ///  well as data file (if needed) and expand to a JSONNode scene specs with the
         ///  data represented as a JSON object.
         /// </summary>
         public void Parse(string specsFilename, out JSONNode visSpecs)
@@ -25,6 +25,27 @@ namespace DxR
             if(visSpecs == null)
             {
                 CreateEmptyTemplateSpecs(specsFilename, ref visSpecs);
+            }
+
+            ExpandDataSpecs(ref visSpecs);
+        }
+
+        /// <summary>
+        /// Reads specifications from a JSON string specified by specs instead of a file.
+        /// Otherwise functions identically to the Parse function
+        /// </summary>
+        public void ParseString(string specs, out JSONNode visSpecs)
+        {
+            visSpecs = JSON.Parse(specs);
+
+            // If the specs file is empty, provide the boiler plate data and marks specs.
+            if(visSpecs == null)
+            {
+                JSONNode emptySpecs = new JSONObject();
+                JSONNode dataSpecs = new JSONObject();
+                dataSpecs.Add("url", new JSONString(DxR.Vis.UNDEFINED));
+                emptySpecs.Add("data", dataSpecs);
+                emptySpecs.Add("mark", new JSONString(DxR.Vis.UNDEFINED));
             }
 
             ExpandDataSpecs(ref visSpecs);
@@ -115,7 +136,7 @@ namespace DxR
                 JSONNode valuesJSONNode = JSON.ParseCSV(GetStringFromFile(filename));
                 dataSpecs.Add("values", valuesJSONNode);
             }
-            
+
             foreach (KeyValuePair<string, JSONNode> kvp in dataSpecs["values"][0].AsObject)
             {
                 fieldNames.Add(kvp.Key);
@@ -126,7 +147,7 @@ namespace DxR
 
         internal List<string> GetDataFieldsListFromValues(JSONNode valuesSpecs)
         {
-            List<string> fieldNames = new List<string>(); 
+            List<string> fieldNames = new List<string>();
             foreach (KeyValuePair<string, JSONNode> kvp in valuesSpecs[0].AsObject)
             {
                 fieldNames.Add(kvp.Key);

@@ -8,6 +8,8 @@ using System.IO;
 
 namespace DxR
 {
+    using UniRx;
+
     /// <summary>
     /// Base class for Mark classes (e.g., MarkPoint for point mark).
     /// Contains methods for setting common mark channels such as position and size.
@@ -21,6 +23,19 @@ namespace DxR
         public Vector3 forwardDirection = Vector3.up;
         Vector3 curDirection;
 
+        private IObservable<float> tweeningObservable;
+        private MarkGeometricValues initialMarkValues;
+        private MarkGeometricValues finalMarkValues;
+        private CompositeDisposable morphingSubscriptions;
+
+        private struct MarkGeometricValues
+        {
+            public Vector3 localPosition;
+            public Vector3 localEulerAngles;
+            public Vector3 localScale;
+            public Color colour;
+        }
+
         public Mark()
         {
 
@@ -31,9 +46,99 @@ namespace DxR
             curDirection = forwardDirection;
         }
 
+        public void ApplyMarkTween(IObservable<float> tweeningObservable)
+        {
+            this.tweeningObservable = tweeningObservable;
+
+            // Store all current channel values
+        }
+
         public virtual List<string> GetChannelsList()
         {
             return new List<string> { "x", "y", "z", "color", "size", "width", "height", "depth", "opacity", "xrotation", "yrotation", "zrotation", "length", "xdirection", "ydirection", "zdirection" };
+        }
+
+
+        public void StoreInitialMarkValues()
+        {
+            initialMarkValues = new MarkGeometricValues
+            {
+                localPosition = transform.localPosition,
+                localEulerAngles = transform.localEulerAngles,
+                localScale = transform.localScale,
+                colour = GetComponent<Renderer>().material.color
+            };
+        }
+
+        public void StoreFinalMarkValues()
+        {
+            finalMarkValues = new MarkGeometricValues
+            {
+                localPosition = transform.localPosition,
+                localEulerAngles = transform.localEulerAngles,
+                localScale = transform.localScale,
+                colour = GetComponent<Renderer>().material.color
+            };
+        }
+
+        public void LoadInitialMarkValues()
+        {
+            LoadMarkValues(initialMarkValues);
+        }
+
+        public void LoadFinalMarkValues()
+        {
+            LoadMarkValues(finalMarkValues);
+        }
+
+        private void LoadMarkValues(MarkGeometricValues markValues)
+        {
+            transform.localPosition = markValues.localPosition;
+            transform.localEulerAngles = markValues.localEulerAngles;
+            transform.localScale = markValues.localScale;
+            GetComponent<Renderer>().material.color = markValues.colour;
+        }
+
+        public void InitialiseMorphing(IObservable<float> tweeningObservable)
+        {
+            morphingSubscriptions = new CompositeDisposable();
+
+            // TODO: For now, we make a subscription for each geometric value that has actually changed
+            // There probably is a more elegant way of doing this though
+            if (initialMarkValues.localPosition != finalMarkValues.localPosition)
+            {
+                tweeningObservable.Subscribe(t =>
+                {
+                    transform.localPosition = Vector3.Lerp(initialMarkValues.localPosition, finalMarkValues.localPosition, t);
+                }).AddTo(morphingSubscriptions);
+            }
+            if (initialMarkValues.localEulerAngles != finalMarkValues.localEulerAngles)
+            {
+                tweeningObservable.Subscribe(t =>
+                {
+                    transform.localEulerAngles = Vector3.Lerp(initialMarkValues.localEulerAngles, finalMarkValues.localEulerAngles, t);
+                }).AddTo(morphingSubscriptions);
+            }
+            if (initialMarkValues.localScale != finalMarkValues.localScale)
+            {
+                tweeningObservable.Subscribe(t =>
+                {
+                    transform.localScale = Vector3.Lerp(initialMarkValues.localScale, finalMarkValues.localScale, t);
+                }).AddTo(morphingSubscriptions);
+            }
+            if (initialMarkValues.colour != finalMarkValues.colour)
+            {
+                Renderer renderer = GetComponent<Renderer>();
+                tweeningObservable.Subscribe(t =>
+                {
+                    renderer.material.color = Color.Lerp(initialMarkValues.colour, finalMarkValues.colour, t);
+                }).AddTo(morphingSubscriptions);
+            }
+        }
+
+        public void DisableMorphing()
+        {
+            morphingSubscriptions.Dispose();
         }
 
         public virtual void SetChannelValue(string channel, string value)
@@ -119,7 +224,7 @@ namespace DxR
                 return 0;
 
             } else if(  Math.Abs(direction.y) > Math.Abs(direction.x) &&
-                        Math.Abs(direction.y) > Math.Abs(direction.z)) 
+                        Math.Abs(direction.y) > Math.Abs(direction.z))
             {
                 return 1;
             }
@@ -127,7 +232,7 @@ namespace DxR
             return 2;
         }
 
-        public void Infer(Data data, JSONNode specsOrig, out JSONNode specs, 
+        public void Infer(Data data, JSONNode specsOrig, out JSONNode specs,
             string specsFilename)
         {
             specs = null;
@@ -208,7 +313,7 @@ namespace DxR
                         }
 
                         ch.channel = "color";
-                        
+
                         switch (node["type"].Value)
                         {
                             case "toggleFilter":
@@ -241,7 +346,7 @@ namespace DxR
                 Debug.Log("orig mark:" + specsOrig["mark"].Value);
                 */
         }
-        
+
         //public void Infer(Data data, ref JSONNode specs, string specsFilename) { }
         /*
         public void Infer(Data data, ref JSONNode specs, string specsFilename)
@@ -273,9 +378,9 @@ namespace DxR
                             throw new Exception("Missing field data type in channel " + channelEncoding.channel);
                         }
                     }
-                    
+
                     InferScaleSpecsForChannel(ref channelEncoding, ref specs, data);
-                    
+
                     if (channelEncoding.channel == "x" || channelEncoding.channel == "y" ||
                         channelEncoding.channel == "z" || channelEncoding.channel == "width" ||
                         channelEncoding.channel == "height" || channelEncoding.channel == "depth")
@@ -325,7 +430,7 @@ namespace DxR
                 legendSpecsObj.Add("filter", new JSONBool(false));
             }
 
-            // TODO: Add proper inference. 
+            // TODO: Add proper inference.
             // HACK: For now, always use hard coded options.
             if (legendSpecsObj["gradientWidth"] == null)
             {
@@ -371,7 +476,7 @@ namespace DxR
             {
                 legendSpecsObj.Add("title", new JSONString("Legend: " + channelSpecs["field"]));
             }
-            
+
             specs["encoding"][channelEncoding.channel].Add("legend", legendSpecsObj);
         }
 
@@ -483,14 +588,14 @@ namespace DxR
             {
                 axisSpecsObj.Add("ticks", new JSONBool(true));
             }
-            
+
             if(axisSpecsObj["values"] == null)
             {
                 JSONArray tickValues = new JSONArray();
                 JSONNode domain = specs["encoding"][channelEncoding.channel]["scale"]["domain"];
                 JSONNode values = channelEncoding.fieldDataType == "quantitative" ? new JSONArray() : domain;
 
-                if (channelEncoding.fieldDataType == "quantitative" && 
+                if (channelEncoding.fieldDataType == "quantitative" &&
                     (channel == "x" || channel == "y" || channel == "z"))
                 {
                     // Round domain into a nice number.
@@ -511,7 +616,7 @@ namespace DxR
                         values.Add(new JSONString(tickVal.ToString()));
                     }
                 }
-                
+
                 axisSpecsObj.Add("values", values.AsArray);
             }
 
@@ -556,8 +661,8 @@ namespace DxR
             if(markName == "bar" || markName == "rect")
             {
                 // Set size of bar or rect along dimension for type band or point.
-                
-                
+
+
                 if (specs["encoding"]["x"] != null && specs["encoding"]["width"] == null &&
                     specs["encoding"]["x"]["scale"]["type"] == "band")
                 {
@@ -616,7 +721,7 @@ namespace DxR
             JSONNode channelSpecs = specs["encoding"][channelEncoding.channel];
             JSONNode scaleSpecs = channelSpecs["scale"];
             JSONObject scaleSpecsObj = (scaleSpecs == null) ? new JSONObject() : scaleSpecs.AsObject;
-            
+
             if(scaleSpecs["type"] == null)
             {
                 InferScaleType(channelEncoding.channel, channelEncoding.fieldDataType, ref scaleSpecsObj);
@@ -765,7 +870,7 @@ namespace DxR
                 {
                     scaleSpecsObj.Add("range", new JSONString("ramp"));
                 }
-                
+
             } else if(channel == "shape")
             {
                 range.Add(new JSONString("symbol"));
@@ -794,13 +899,13 @@ namespace DxR
             {
                 sortType = specs["encoding"][channelEncoding.channel]["sort"].Value.ToString();
             }
-          
+
             string channel = channelEncoding.channel;
             JSONArray domain = new JSONArray();
             if (channelEncoding.fieldDataType == "quantitative" &&
                 (channel == "x" || channel == "y" || channel == "z" ||
                 channel == "width" || channel == "height" || channel == "depth" || channel == "length" ||
-                channel == "color" || channel == "xrotation" || channel == "yrotation" 
+                channel == "color" || channel == "xrotation" || channel == "yrotation"
                 || channel == "zrotation" || channel == "size" || channel == "xdirection")
                 || channel == "ydirection" || channel == "zdirection" || channel == "opacity")
             {
@@ -831,7 +936,7 @@ namespace DxR
                 }
             } else
             {
-                List<string> uniqueValues = new List<string>(); 
+                List<string> uniqueValues = new List<string>();
                 GetUniqueValues(data, channelEncoding.field, ref uniqueValues);
 
                 if (sortType == "ascending")
@@ -907,7 +1012,7 @@ namespace DxR
                     throw new Exception("Invalid field data type: " + fieldDataType);
                 }
             } else if (channel == "width" || channel == "height" || channel == "depth" || channel == "length"
-                || channel == "xrotation" || channel == "yrotation" || channel == "zrotation" 
+                || channel == "xrotation" || channel == "yrotation" || channel == "zrotation"
                 || channel == "xdirection" || channel == "ydirection" || channel == "zdirection")
             {
                 if (fieldDataType == "nominal" || fieldDataType == "ordinal")
@@ -957,12 +1062,12 @@ namespace DxR
 
             scaleSpecsObj.Add("type", new JSONString(type));
         }
-        
+
         private void WriteStringToFile(string str, string outputName)
         {
             System.IO.File.WriteAllText(outputName, str);
         }
-        
+
         public void InitTooltip(ref GameObject tooltipObject)
         {
             Renderer renderer = transform.GetComponent<Renderer>();
@@ -1135,13 +1240,13 @@ namespace DxR
         }
 
         public void OnFocusEnter()
-        {            
+        {
             if(tooltip != null)
             {
                 tooltip.SetActive(true);
 
                 Vector3 markPos = gameObject.transform.localPosition;
-                
+
                 string datumTooltipString = BuildTooltipString();
                 float tooltipXOffset = 0.05f;
                 float tooltipZOffset = -0.05f;

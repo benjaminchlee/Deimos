@@ -1,16 +1,20 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using SimpleJSON;
 using System.IO;
 using System;
+using System.Linq;
+using UnityEngine.Events;
 
 namespace DxR
 {
+    using UniRx; // The namespace for this has to be here for now to fix an ambiguous namespace. This is fixed in 2021.3.3f
+
     /// <summary>
-    /// This component can be attached to any GameObject (_parentObject) to create a 
+    /// This component can be attached to any GameObject (_parentObject) to create a
     /// data visualization. This component takes a JSON specification as input, and
-    /// generates an interactive visualization as output. The JSON specification 
+    /// generates an interactive visualization as output. The JSON specification
     /// describes the visualization using ONE type of mark and one or more channels.
     /// </summary>
     public class Vis : MonoBehaviour
@@ -24,7 +28,7 @@ namespace DxR
         public static string UNDEFINED = "undefined";                   // Value used for undefined objects in the JSON vis specs.
         public static float SIZE_UNIT_SCALE_FACTOR = 1.0f / 1000.0f;    // Conversion factor to convert each Unity unit to 1 meter.
         public static float DEFAULT_VIS_DIMS = 500.0f;                  // Default dimensions of a visualization, if not specified.
-                
+
         JSONNode visSpecs;                                              // Vis specs that is synced w/ the inferred vis specs and vis.
         JSONNode visSpecsInferred;                                      // This is the inferred vis specs and is ultimately used for construction.
 
@@ -63,9 +67,23 @@ namespace DxR
         private int frameCount = 0;
         public int FrameCount { get { return frameCount; } set { frameCount = value; } }
 
+        private static readonly string[] supportedViewTransforms = new string[] { "aggregate", "bin", "density", "filter", "stack", "timeUnit" };
+        private static readonly string[] supportedFieldTransforms = new string[] { "aggregate", "bin", "density", "filter", "stack", "timeUnit" };
+
+        [Serializable]
+        public class VisUpdatedEvent : UnityEvent<Vis, JSONNode> { }
+        public VisUpdatedEvent VisUpdated;
+        private JSONNode initialMorphSpecs;
+        private JSONNode finalMorphSpecs;
+        private bool isMorphing = false;
+        private CompositeDisposable morphSubscriptions;
 
         private void Awake()
         {
+            if (VisUpdated == null)
+                VisUpdated = new VisUpdatedEvent();
+            DxR.VisMorphs.MorphManager.Instance.RegisterVisualisation(this);
+
             // Initialize objects:
             parentObject = gameObject;
             viewParentObject = gameObject.transform.Find("DxRView").gameObject;
@@ -80,8 +98,18 @@ namespace DxR
 
             parser = new Parser();
 
-            // Parse the vis specs URL into the vis specs object.
-            parser.Parse(visSpecsURL, out visSpecs);
+            // If there is no visSpecsURL defined, and a RuntimeInspectorVisSpecs component is also attached
+            // to this GameObject, then we parse the JSON string specification contained in it instead
+            if (visSpecsURL == "" && GetComponent<RuntimeInspectorVisSpecs>() != null)
+            {
+                string visSpecsString = GetComponent<RuntimeInspectorVisSpecs>().JsonSpecification;
+                parser.ParseString(visSpecsString, out visSpecs);
+            }
+            else
+            {
+                // Parse the vis specs URL into the vis specs object.
+                parser.Parse(visSpecsURL, out visSpecs);
+            }
 
             InitDataList();
             InitMarksList();
@@ -89,7 +117,7 @@ namespace DxR
             // Initialize the GUI based on the initial vis specs.
             InitGUI();
             InitTooltip();
-            
+
             // Update vis based on the vis specs.
             UpdateVis();
             isReady = true;
@@ -98,6 +126,11 @@ namespace DxR
         private void Update()
         {
             FrameCount++;
+        }
+
+        private void OnDestroy()
+        {
+            DxR.VisMorphs.MorphManager.Instance.DeregisterVisualisation(this);
         }
 
         public JSONNode GetVisSpecs()
@@ -130,7 +163,7 @@ namespace DxR
         /// Currently, deletes everything and reconstructs everything from scratch.
         /// TODO: Only reconstruct newly updated properties.
         /// </summary>
-        private void UpdateVis()
+        private void UpdateVis(bool callUpdateEvent = true)
         {
             DeleteAll();
 
@@ -143,6 +176,9 @@ namespace DxR
             InferVisSpecs();
 
             ConstructVis(visSpecsInferred);
+
+            if (callUpdateEvent)
+                VisUpdated.Invoke(this, GetVisSpecs());
         }
 
         private void ConstructVis(JSONNode specs)
@@ -153,7 +189,7 @@ namespace DxR
 
             ApplyChannelEncodings();
 
-            // Interactions need to be constructed 
+            // Interactions need to be constructed
             // before axes and legends
             ConstructInteractions(specs);
 
@@ -161,6 +197,166 @@ namespace DxR
 
             ConstructLegends(specs);
         }
+
+        #region Morph specific functions
+
+        /// <summary>
+        /// Update the visualisation based on the given newVisSpecs object and applies a morph (i.e., animated transition)
+        /// using the given tweeningObservable stream. This stream should return a value between 0 and 1.
+        /// </summary>
+        public void ApplyVisMorph(JSONNode newVisSpecs, IObservable<float> tweeningObservable)
+        {
+            // TODO: For now, if there is any morph currently being applied, we ignore all further morph requests
+            if (isMorphing)
+                return;
+
+            isMorphing = true;
+            initialMorphSpecs = visSpecs;
+            finalMorphSpecs = newVisSpecs;
+            visSpecs = newVisSpecs;
+
+            // Required parts of DxR (part of UpdateVis)
+            UpdateVisConfig();
+            UpdateVisData();
+            UpdateMarkPrefab();
+            InferVisSpecs();
+
+            // Required parts of DxR (part of ConstructVis)
+            CreateChannelEncodingObjects(visSpecsInferred);
+            UpdateMarkInstances();  // NEW: Reuses existing mark instances rather than creating new ones from scratch each time
+            ApplyMorphingChannelEncodings(tweeningObservable);
+            ConstructInteractions(visSpecsInferred);
+            ConstructAxes(visSpecsInferred);
+            ConstructLegends(visSpecsInferred);
+
+            // // Subscribe to the tweeningObservable now to check for when the tweening ends
+            // // TODO: This doesn't work for certain easing types which go past 0 and 1
+            // // When the tweeningObservable returns 0 (i.e., goes back to the initial state)
+            // morphSubscriptions = new CompositeDisposable();
+            // tweeningObservable.Where(t => t == 0)
+            //     .Take(1)
+            //     .Subscribe(_ =>
+            //     {
+            //         StopVisMorph(false);
+            //     }).AddTo(morphSubscriptions);
+            // // When the tweeningObservable returns 0 (i.e., goes back to the initial state)
+            // tweeningObservable.Where(t => t == 1)
+            //     .Take(1)
+            //     .Subscribe(_ =>
+            //     {
+            //         StopVisMorph(true);
+            //     }).AddTo(morphSubscriptions);
+            // // TODO: When the tweeningObservable ends prematurely
+        }
+
+        public void StopVisMorph(bool goToEnd)
+        {
+            foreach (GameObject mark in markInstances)
+            {
+                mark.GetComponent<Mark>().DisableMorphing();
+            }
+
+            if (goToEnd)
+            {
+                isMorphing = false;
+                UpdateVisSpecsFromJSONNode(finalMorphSpecs); // This function already deletes all Marks
+                initialMorphSpecs = null;
+                finalMorphSpecs = null;
+            }
+            else
+            {
+                isMorphing = false;
+                UpdateVisSpecsFromJSONNode(initialMorphSpecs);
+                initialMorphSpecs = null;
+                finalMorphSpecs = null;
+            }
+
+            // morphSubscriptions.Dispose();
+        }
+
+        private void UpdateMarkInstances()
+        {
+            if (markInstances == null) markInstances = new List<GameObject>();
+
+            // Create one mark for each data point, creating marks if they do not exist
+            for (int i = 0; i < data.values.Count; i++)
+            {
+                Dictionary<string, string> dataValue = data.values[i];
+
+                GameObject markInstance;
+                // If there isn't a mark instance for this dataValue, create one
+                if (markInstances.Count < i)
+                {
+                    markInstance = InstantiateMark(markPrefab, marksParentObject.transform);
+                    markInstances.Add(markInstance);
+                }
+                else
+                {
+                    markInstance = markInstances[i];
+                }
+
+                // Copy datum in mark
+                Mark mark = markInstance.GetComponent<Mark>();
+                mark.datum = dataValue;
+
+                if (enableTooltip)
+                {
+                    mark.InitTooltip(ref tooltip);
+                }
+            }
+
+            // Delete all leftover marks
+            while (data.values.Count < markInstances.Count)
+            {
+                GameObject markInstance = markInstances[markInstances.Count - 1];
+                Destroy(markInstance);
+                markInstances.RemoveAt(markInstances.Count - 1);
+            }
+        }
+
+        private void ApplyMorphingChannelEncodings(IObservable<float> tweeningObservable)
+        {
+            List<Mark> marks = markInstances.Select(go => go.GetComponent<Mark>()).ToList();
+
+            // Before any channel encodings are applied, we make a call to the mark to store its starting geometric values
+            foreach (Mark mark in marks)
+            {
+                mark.StoreInitialMarkValues();
+            }
+
+            // Apply channel encoding changes
+            bool isDirectionChanged = false;
+            foreach (ChannelEncoding ch in channelEncodings)
+            {
+                ApplyChannelEncoding(ch, ref markInstances);
+
+                if(ch.channel == "xdirection" || ch.channel == "ydirection" || ch.channel == "zdirection")
+                {
+                    isDirectionChanged = true;
+                }
+            }
+
+            if (isDirectionChanged)
+            {
+                foreach (Mark mark in marks)
+                {
+                    mark.SetRotation();
+                }
+            }
+
+            // Now that all mark values have been set, store the final mark values and reload the initial state values
+            // We will interpolate between the inital and final stored mark values
+            foreach (Mark mark in marks)
+            {
+                mark.StoreFinalMarkValues();
+                mark.LoadInitialMarkValues();
+
+                // Lastly, we have the marks subscribe to the observable to interpolate between the initial and final mark values
+                mark.InitialiseMorphing(tweeningObservable);
+            }
+        }
+
+        #endregion // Morph specific functions
 
         private void ConstructInteractions(JSONNode specs)
         {
@@ -210,7 +406,7 @@ namespace DxR
             if(interactionsParentObject != null)
             {
                 interactionsParentObject.GetComponent<Interactions>().AddToggleFilter(interactionSpecs);
-            }            
+            }
         }
 
         private void ConstructLegends(JSONNode specs)
@@ -274,9 +470,9 @@ namespace DxR
             if (axisPrefab != null)
             {
                 channelEncoding.axis = Instantiate(axisPrefab, guidesParentObject.transform);
-                channelEncoding.axis.GetComponent<Axis>().Init(interactionsParentObject.GetComponent<Interactions>(), 
+                channelEncoding.axis.GetComponent<Axis>().Init(interactionsParentObject.GetComponent<Interactions>(),
                     channelEncoding.field);
-                channelEncoding.axis.GetComponent<Axis>().UpdateSpecs(axisSpecs, channelEncoding.scale);                
+                channelEncoding.axis.GetComponent<Axis>().UpdateSpecs(axisSpecs, channelEncoding.scale);
             }
             else
             {
@@ -302,7 +498,7 @@ namespace DxR
                 for (int i = 0; i < markInstances.Count; i++)
                 {
                     Mark markComponent = markInstances[i].GetComponent<Mark>();
-  
+
                     markComponent.SetRotation();
                 }
             }
@@ -475,7 +671,7 @@ namespace DxR
                         System.Text.Encoding.UTF8.GetBytes(visSpecsToWrite.ToString(2)));
 #endif
 
-                    
+
                 }
             }
             else
@@ -526,10 +722,13 @@ namespace DxR
                 visSpecs["data"].Add("values", parser.CreateValuesSpecs(visSpecs["data"]["url"]));
                 data_name = visSpecs["data"]["url"];
             }
-            
+
             JSONNode valuesSpecs = visSpecs["data"]["values"];
 
             Debug.Log("Data update " + visSpecs["data"]["values"].ToString());
+
+            // HACK: Apply data transforms in the visSpecs to the valuesSpecs before it is properly parsed
+            //valuesSpecs = ApplyDataTransforms(visSpecs, valuesSpecs);
 
             data = new Data();
 
@@ -561,7 +760,7 @@ namespace DxR
                         Debug.Log("value null found: ");
                         break;
                     }
-                   
+
                     d.Add(curFieldName, value[curFieldName]);
                 }
 
@@ -600,6 +799,108 @@ namespace DxR
             }
 
             System.IO.File.WriteAllText(outputName, output.ToString());
+        }
+
+        private JSONNode ApplyDataTransforms(JSONNode visSpecs, JSONNode valuesSpecs)
+        {
+            // // First, we check to see whether or not there are any data transforms to begin with
+            // if (!CheckVisSpecsContainsTransforms(visSpecs))
+            //     return valuesSpecs;
+
+            // // We need to manually construct a Deedle data frame in order to perform data transformations easily
+            // // We create a list of KVPs, where each element is a row in the data frame
+            // // Each Series within it is another collection of KVPs, where each element is a named column in the data frame
+            // var rows = new List<KeyValuePair<int, Deedle.Series<string, object>>>();
+
+            // int numDataFields = valuesSpecs[0].AsObject.Count;
+
+            // // Loop through the values in the specification (i.e., rows)
+            // foreach (JSONNode value in valuesSpecs.Children)
+            // {
+            //     var sb = new Deedle.SeriesBuilder<string>();
+
+            //     bool valueHasNullField = false;
+
+            //     foreach (KeyValuePair<string, JSONNode> kvp in value.AsObject)
+            //     {
+            //         string curFieldName = kvp.Key;
+
+            //         // TODO: Handle null / missing values properly.
+            //         if (kvp.Value.IsNull)
+            //         {
+            //             valueHasNullField = true;
+            //             Debug.Log("value null found: ");
+            //             break;
+            //         }
+
+            //         sb.Add(curFieldName, kvp.Value);
+            //     }
+
+            //     if (!valueHasNullField)
+            //     {
+            //         rows.Add(Deedle.KeyValue.Create(rows.Count, sb.Series));
+            //     }
+            // }
+
+            // var df = Deedle.Frame.FromRows(rows);
+
+            // // We now apply data transforms to the data frame, starting with view-level transforms
+            // // We resolve these in the same order that they are defined in the specification
+            // foreach (JSONNode transformation in visSpecs["transform"].Children)
+            // {
+            //     ApplyViewLevelTransform(transformation, ref df);
+            // }
+
+            return null;
+
+        }
+
+        private bool CheckVisSpecsContainsTransforms(JSONNode visSpecs)
+        {
+            if (visSpecs["transform"] == null)
+            {
+                // Then we check if any of the encodings has a defined transform that is supported
+                foreach (JSONNode encoding in visSpecs["encoding"].Children)
+                {
+                    foreach (KeyValuePair<string, JSONNode> kvp in encoding.AsObject)
+                    {
+                        if (supportedFieldTransforms.Contains(kvp.Key))
+                        {
+                            return true;
+                        }
+                    }
+                }
+                return false;
+            }
+            return true;
+        }
+
+        // private void ApplyViewLevelTransform(JSONNode transformation, ref Frame<int, string> df)
+        // {
+        //     // Get the name of the transformation being used
+        //     string name = GetViewLevelTransformName(transformation);
+
+        //     switch (name)
+        //     {
+        //         case "filter":
+        //             {
+        //                 string expr = transformation.AsObject["filter"];
+        //                 break;
+        //             }
+        //     }
+        // }
+
+        /// <summary>
+        /// Gets the name of the transformation being applied. This should always be the first key in the provided JSONNode object
+        /// </summary>
+        private string GetViewLevelTransformName(JSONNode transformation)
+        {
+            foreach (KeyValuePair<string, JSONNode> kvp in transformation.AsObject)
+            {
+                return kvp.Key;
+            }
+
+            return "";
         }
 
         private void CreateDataFields(JSONNode valuesSpecs, ref Data data)
@@ -695,13 +996,13 @@ namespace DxR
             // For now, just reset the vis specs to empty and
             // copy the contents of the text to vis specs; starting
             // everything from scratch. Later on, the new specs will have
-            // to be compared with the current specs to get a list of what 
+            // to be compared with the current specs to get a list of what
             // needs to be updated and only this list will be acted on.
 
             JSONNode guiSpecs = JSON.Parse(gui.GetGUIVisSpecs().ToString());
 
 
-            // Remove data values so that parsing can put them again. 
+            // Remove data values so that parsing can put them again.
             // TODO: Optimize this.
             if (guiSpecs["data"]["url"] != null)
             {
@@ -759,7 +1060,7 @@ namespace DxR
             {
                 string channelName = kvp.Key;
                 Debug.Log("Testing channel " + channelName);
-                
+
                 if (guiSpecs["encoding"][channelName]["value"] == null && visSpecs["encoding"][channelName] == null)
                 {
                     Debug.Log("Adding channel " + channelName);
@@ -784,7 +1085,7 @@ namespace DxR
             // Do the update:
             foreach (string fieldName in fieldsToUpdate)
             {
-                visSpecs["interaction"][GetFieldIndexInInteractionSpecs(visSpecs["interaction"], fieldName)]["type"] = 
+                visSpecs["interaction"][GetFieldIndexInInteractionSpecs(visSpecs["interaction"], fieldName)]["type"] =
                     guiSpecs["interaction"][GetFieldIndexInInteractionSpecs(visSpecs["interaction"], fieldName)]["type"];
             }
 
@@ -872,7 +1173,7 @@ namespace DxR
         {
             marksList = new List<string>();
             marksList.Add(DxR.Vis.UNDEFINED);
-            
+
             TextAsset marksListTextAsset = (TextAsset)Resources.Load("Marks/marks", typeof(TextAsset));
             if (marksListTextAsset != null)
             {
@@ -897,7 +1198,7 @@ namespace DxR
             string[] dirs = Directory.GetFiles("Assets/DxR/Resources/Marks");
             for (int i = 0; i < dirs.Length; i++)
             {
-                if (Path.GetExtension(dirs[i]) != ".meta" && Path.GetExtension(dirs[i]) != ".json" 
+                if (Path.GetExtension(dirs[i]) != ".meta" && Path.GetExtension(dirs[i]) != ".json"
                     && !marksList.Contains(Path.GetFileName(dirs[i])))
                 {
                     marksList.Add(Path.GetFileName(dirs[i]));
@@ -916,12 +1217,34 @@ namespace DxR
             return marksList;
         }
 
+        /// <summary>
+        /// Manually calls an update to update the VisSpecs from a given string, rather than from a file URL
+        /// </summary>
+        public void UpdateVisSpecsFromStringSpecs(string specs)
+        {
+            JSONNode textSpecs;
+            parser.ParseString(specs, out textSpecs);
+
+            visSpecs = textSpecs;
+
+            gui.UpdateGUISpecsFromVisSpecs();
+            UpdateVis();
+        }
+
+        public void UpdateVisSpecsFromJSONNode(JSONNode specs, bool callUpdateEvent = true)
+        {
+            visSpecs = specs;
+
+            gui.UpdateGUISpecsFromVisSpecs();
+            UpdateVis(callUpdateEvent);
+        }
+
         public void UpdateVisSpecsFromTextSpecs()
         {
             // For now, just reset the vis specs to empty and
             // copy the contents of the text to vis specs; starting
             // everything from scratch. Later on, the new specs will have
-            // to be compared with the current specs to get a list of what 
+            // to be compared with the current specs to get a list of what
             // needs to be updated and only this list will be acted on.
 
             JSONNode textSpecs;
@@ -963,7 +1286,7 @@ namespace DxR
 
         public void Rescale(float scaleFactor)
         {
-            viewParentObject.transform.localScale = Vector3.Scale(viewParentObject.transform.localScale, 
+            viewParentObject.transform.localScale = Vector3.Scale(viewParentObject.transform.localScale,
                 new Vector3(scaleFactor, scaleFactor, scaleFactor));
         }
 
@@ -976,8 +1299,8 @@ namespace DxR
 
         public void RotateAroundCenter(Vector3 rotationAxis, float angleDegrees)
         {
-            Vector3 center = viewParentObject.transform.parent.transform.position + 
-                new Vector3(width * SIZE_UNIT_SCALE_FACTOR / 2.0f, height * SIZE_UNIT_SCALE_FACTOR / 2.0f, 
+            Vector3 center = viewParentObject.transform.parent.transform.position +
+                new Vector3(width * SIZE_UNIT_SCALE_FACTOR / 2.0f, height * SIZE_UNIT_SCALE_FACTOR / 2.0f,
                 depth * SIZE_UNIT_SCALE_FACTOR / 2.0f);
             viewParentObject.transform.RotateAround(center, rotationAxis, angleDegrees);
         }
