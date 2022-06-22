@@ -1,0 +1,38 @@
+{
+    "width": 500,
+    "height": 500,
+    "data": {
+    "values": [
+            {"keyword": "A", "category": "A", "count1": 28, "count2": 52},
+            {"keyword": "B", "category": "A", "count1": 55, "count2": 13},
+            {"keyword": "C", "category": "A", "count1": 43, "count2": 42},
+            {"keyword": "D", "category": "B", "count1": 91, "count2": 75},
+            {"keyword": "E", "category": "B", "count1": 81, "count2": 86},
+            {"keyword": "F", "category": "C", "count1": 53, "count2": 68},
+            {"keyword": "G", "category": "C", "count1": 19, "count2": 41},
+            {"keyword": "H", "category": "C", "count1": 87, "count2": 17},
+            {"keyword": "I", "category": "C", "count1": 52, "count2": 49}
+        ]
+    },
+    "mark": "cube",
+    "encoding": {
+        "x": {
+            "field": "keyword",
+            "type": "nominal"
+        },
+        "y": {
+            "field": "count1",
+            "type": "quantitative"
+        },
+        "height": {
+            "field": "count1",
+            "type": "quantitative"
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "width": {
+            "value": 40
+        }
+    }
+}

@@ -3,16 +3,22 @@ using System.Collections.Generic;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
 using System;
+using System.Linq;
+using UniRx;
+using DynamicExpresso;
 
 namespace DxR.VisMorphs
 {
-    using UniRx;
-
+    /// <summary>
+    /// Generates and stores all observable streams for the Signals defined in the Morphing spec
+    /// </summary>
     public class SignalManager : MonoBehaviour
     {
         public static SignalManager Instance { get; private set; }
 
         public Dictionary<string, IObservable<dynamic>> Signals = new Dictionary<string, IObservable<dynamic>>();
+
+        private Interpreter interpreter;
 
         private void Awake()
         {
@@ -26,47 +32,73 @@ namespace DxR.VisMorphs
             }
         }
 
+        /// <summary>
+        /// Generates the observables for all Signals as defined in a given JToken
+        /// </summary>
         public bool GenerateSignals(JToken signalsJToken)
         {
             if (!signalsJToken.HasValues)
                 return false;
 
+            InitialiseInterpreter();
+
+            // First, we create observables for the Signals that are defined as Sources (i.e., have a source property)
             foreach (var signalJToken in signalsJToken)
             {
-                GenerateObservablesFromJson(signalJToken);
+                JToken sourceJToken = signalJToken.SelectToken("source");
+                if (sourceJToken == null) continue;
+
+                string observableName = signalJToken.SelectToken("name").ToString();
+
+                // Create the starting point for our observable based on what is defined in its "source"
+                IObservable<dynamic> signalObservable = GenerateObservableFromSource(sourceJToken);
+
+                // Save the observable so that other scripts can reference this later
+                SaveObservable(observableName, signalObservable);
+            }
+
+            // Next, we create observables for the Signals that are created using expressions (i.e., do not have a source property)
+            foreach (var signalJToken in signalsJToken)
+            {
+                if (signalJToken.SelectToken("source") != null) continue;
+
+                string observableName = signalJToken.SelectToken("name").ToString();
+                string expression = signalJToken.SelectToken("expression").ToString();
+
+                IObservable<dynamic> signalObservable = GenerateObservableFromExpression(expression);
+
+                // Save the observable so that other scripts can reference this later
+                SaveObservable(observableName, signalObservable);
             }
 
             return true;
         }
 
-        /// <summary>
-        /// Reads in a token for a specific signal and generates an observable based on the given parameters
-        /// </summary>
-        /// <param name="signalJToken"></param>
-        private void GenerateObservablesFromJson(JToken signalJToken)
+        private void InitialiseInterpreter()
         {
-            string observableName = signalJToken.SelectToken("name").ToString();
+            interpreter = new Interpreter();
 
-            JToken sourceJToken = signalJToken.SelectToken("source");
-            IObservable<dynamic> signalObservable = GenerateObservableFromSource(sourceJToken);
+            // Set functions
 
-            JToken transformJToken = signalJToken.SelectToken("transform");
-            if (transformJToken != null)
-            {
-                foreach (var kvp in (JObject)transformJToken)
-                {
-                    signalObservable = ApplyTransformToObservable(signalObservable, kvp.Key, kvp.Value);
-                }
-            }
+            // Clamp
+            Func<double, double, double, double> clamp = (input, min, max) => Math.Clamp(input, min, max);
+            interpreter.SetFunction("clamp", clamp);
 
-            SaveObservable(observableName, signalObservable);
+            // Normalise
+            Func<double, double, double, double, double, double> normalise1 = (input, i0, i1, j0, j1) => Utils.NormaliseValue(input, i0, i1, j0, j1);
+            Func<double, double, double, double> normalise2 = (input, i0, i1) => Utils.NormaliseValue(input, i0, i1);
+            interpreter.SetFunction("normalise", normalise1);
+            interpreter.SetFunction("normalise", normalise2);
         }
 
+        /// <summary>
+        /// Creates an observable object from a source object that is defined in the specs
+        /// </summary>
         private IObservable<dynamic> GenerateObservableFromSource(JToken sourceJToken)
         {
-            string sourceType = sourceJToken.SelectToken("type").ToString();
-            string reference = sourceJToken.SelectToken("ref").ToString();
-            string select = sourceJToken.SelectToken("select")?.ToString() ?? "";
+            string sourceType = sourceJToken.SelectToken("type").ToString();        // What type of source is this observable?
+            string reference = sourceJToken.SelectToken("ref").ToString();          // What is the name of the actual entity to get the value from?
+            string select = sourceJToken.SelectToken("select")?.ToString() ?? "";   // What specific value from this entity do we then extract?
 
             IObservable<dynamic> observable = null;
 
@@ -74,7 +106,8 @@ namespace DxR.VisMorphs
             {
                 case "event":
                     {
-                        observable = GenerateEventObservable(reference);
+                        // TODO: Hook into common events such as hand pinches and mouse clicks
+                        observable = null;
 
                         if (select != "")
                             observable.Select(x => x.GetPropValue(select));
@@ -86,58 +119,130 @@ namespace DxR.VisMorphs
                         if (select == "")
                             throw new Exception("Signal of type gameobject needs a select expression");
 
+                        // Find the referenced gameobject and emit values whenever the selected property has changed
                         observable = GameObject.Find(reference).ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(select));
                         break;
                     }
-
-                case "signal":
-                    {
-                        observable = GetObservable(reference);
-                        break;
-                    }
             }
 
             return observable;
         }
 
-        private IObservable<dynamic> GenerateEventObservable(string reference)
+        private IObservable<dynamic> GenerateObservableFromExpression(string expression)
         {
-            return null;
-        }
+            // 1. Find all observables that this expression references
+            // 2. When any of these emits:
+            //      a. Update the variable on the interpreter
+            //      b. Evaluate the interpreter expression
+            //      c. Emit a new value
 
-        private IObservable<dynamic> ApplyTransformToObservable(IObservable<dynamic> observable, string transformType, JToken value)
-        {
-            switch (transformType)
+            // Iterate through all Signals that this expression references
+            IObservable<dynamic> mergedObservable = null;
+            foreach (KeyValuePair<string, IObservable<dynamic>> kvp in Signals)
             {
-                case "clamp":
-                    {
-                        float min = (float)value[0];
-                        float max = (float)value[1];
-                        observable = observable.Select(x => (dynamic)Mathf.Clamp(x, min, max));
-                        break;
-                    }
+                string signalName = kvp.Key;
+                IObservable<dynamic> observable = kvp.Value;
 
-                case "normalise":
+                if (expression.Contains(signalName))
+                {
+                    // When this Signal emits, we want to first ensure its variable is updated in the interpreter
+                    var newObservable = observable.Select(x =>
                     {
-                        float i0 = (float)value[0];
-                        float i1 = (float)value[1];
-                        float j0 = value[2] != null ? (float)value[2] : 0;
-                        float j1 = value[3] != null ? (float)value[3] : 0;
+                        // This will be repeated when multiple expressions reference the same Signal,
+                        // but it should be okay performance wise I think
+                        interpreter.SetVariable(signalName, x);
+                        return x;
+                    });
 
-                        observable = observable.Select(x => (dynamic)Utils.NormaliseValue(x, i0, i1, j0, j1));
-                        break;
-                    }
-
-                case "add":
+                    if (mergedObservable == null)
                     {
-                        float n = (float)value;
-                        observable = observable.Select(x => x + n);
-                        break;
+                        mergedObservable = newObservable;
                     }
+                    else
+                    {
+                        mergedObservable = mergedObservable.Merge(newObservable);
+                    }
+                }
             }
 
-            return observable;
+            // If there was no merged observable created (i.e., no Signals were used)
+            if (mergedObservable != null)
+            {
+                var expressionObservable = mergedObservable.Select(_ =>
+                {
+                    return interpreter.Eval(expression);
+                });
+
+                return expressionObservable;
+            }
+            else
+            {
+                return Utils.CreateAnonymousObservable(interpreter.Eval(expression));
+            }
         }
+
+        private void ReevaluateExpressionObservables()
+        {
+
+        }
+
+        // private IObservable<dynamic> ApplyTransformToObservable(IObservable<dynamic> observable, string transformType, JToken value)
+        // {
+        //     switch (transformType)
+        //     {
+        //         case "clamp":
+        //             {
+        //                 float min = (float)value[0];
+        //                 float max = (float)value[1];
+        //                 observable = observable.Select(x => (dynamic)Mathf.Clamp(x, min, max));
+        //                 break;
+        //             }
+
+        //         case "normalise":
+        //             {
+        //                 float i0 = (float)value[0];
+        //                 float i1 = (float)value[1];
+        //                 float j0 = value[2] != null ? (float)value[2] : 0;
+        //                 float j1 = value[3] != null ? (float)value[3] : 0;
+        //                 observable = observable.Select(x => (dynamic)Utils.NormaliseValue(x, i0, i1, j0, j1));
+        //                 break;
+        //             }
+
+        //         case "add":
+        //             {
+        //                 if (value.Type == JTokenType.String)
+        //                 {
+        //                     string name = value.ToString();
+        //                     var otherObservable = GetObservable(name);
+        //                     observable = observable.CombineLatest(otherObservable, (x, y) =>
+        //                     {
+        //                         return x + y;
+        //                     });
+        //                 }
+        //                 else if (value.Type == JTokenType.String)
+        //                 {
+        //                     float n = (float)value;
+        //                     observable = observable.Select(x => x + n);
+        //                 }
+        //                 break;
+        //             }
+
+        //         case "conditional":
+        //             {
+        //                 string expression = value.ToString();
+        //                 DynamicExpresso.Interpreter interpreter = new DynamicExpresso.Interpreter();
+
+        //                 observable = observable.Select(x =>
+        //                 {
+        //                     interpreter.SetVariable("x", x);
+        //                     return interpreter.Eval<dynamic>(expression);
+        //                 });
+        //                 break;
+        //             }
+        //     }
+
+        //     return observable;
+        // }
 
         /// <summary>
         /// Saves a given observable such that it can be accessed later on
@@ -148,7 +253,7 @@ namespace DxR.VisMorphs
         {
             // Make the observable a ReplaySubject which returns the most recently emitted item as soon as it is subscribed to
             observable = observable.Replay(1).RefCount();
-            // WORKAROUND: To force the observable to behave like a hot observable, just use a dummy subscribe here
+            // WORKAROUND: To force the observable to behave like a hot observable, we would typically use a dummy subscription here
             observable.Subscribe();
 
             if (!Signals.ContainsKey(name))

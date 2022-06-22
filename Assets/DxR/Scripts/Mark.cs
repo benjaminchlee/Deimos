@@ -5,11 +5,11 @@ using SimpleJSON;
 using UnityEngine;
 using UnityEngine.UI;
 using System.IO;
+using UniRx;
+using System.Linq;
 
 namespace DxR
 {
-    using UniRx;
-
     /// <summary>
     /// Base class for Mark classes (e.g., MarkPoint for point mark).
     /// Contains methods for setting common mark channels such as position and size.
@@ -18,23 +18,18 @@ namespace DxR
     {
         public string markName = DxR.Vis.UNDEFINED;
         public Dictionary<string, string> datum = null;
+        public List<List<GeoJSON.Net.Geometry.IPosition>> polygons = null;
+        public GeoJSON.Net.Geometry.IPosition centre;
         GameObject tooltip = null;
 
         public Vector3 forwardDirection = Vector3.up;
         Vector3 curDirection;
 
         private IObservable<float> tweeningObservable;
-        private MarkGeometricValues initialMarkValues;
-        private MarkGeometricValues finalMarkValues;
+        private MarkGeometricValues initialGeoshapeValues;
+        private MarkGeometricValues finalGeoshapeValues;
         private CompositeDisposable morphingSubscriptions;
 
-        private struct MarkGeometricValues
-        {
-            public Vector3 localPosition;
-            public Vector3 localEulerAngles;
-            public Vector3 localScale;
-            public Color colour;
-        }
 
         public Mark()
         {
@@ -46,22 +41,24 @@ namespace DxR
             curDirection = forwardDirection;
         }
 
-        public void ApplyMarkTween(IObservable<float> tweeningObservable)
-        {
-            this.tweeningObservable = tweeningObservable;
-
-            // Store all current channel values
-        }
-
         public virtual List<string> GetChannelsList()
         {
             return new List<string> { "x", "y", "z", "color", "size", "width", "height", "depth", "opacity", "xrotation", "yrotation", "zrotation", "length", "xdirection", "ydirection", "zdirection" };
         }
 
+        #region Morphing functions
 
-        public void StoreInitialMarkValues()
+        protected class MarkGeometricValues
         {
-            initialMarkValues = new MarkGeometricValues
+            public Vector3 localPosition;
+            public Vector3 localEulerAngles;
+            public Vector3 localScale;
+            public Color colour;
+        }
+
+        public virtual void StoreInitialMarkValues()
+        {
+            initialGeoshapeValues = new MarkGeometricValues
             {
                 localPosition = transform.localPosition,
                 localEulerAngles = transform.localEulerAngles,
@@ -70,9 +67,9 @@ namespace DxR
             };
         }
 
-        public void StoreFinalMarkValues()
+        public virtual void StoreFinalMarkValues()
         {
-            finalMarkValues = new MarkGeometricValues
+            finalGeoshapeValues = new MarkGeometricValues
             {
                 localPosition = transform.localPosition,
                 localEulerAngles = transform.localEulerAngles,
@@ -81,17 +78,17 @@ namespace DxR
             };
         }
 
-        public void LoadInitialMarkValues()
+        public virtual void LoadInitialMarkValues()
         {
-            LoadMarkValues(initialMarkValues);
+            LoadMarkValues(initialGeoshapeValues);
         }
 
-        public void LoadFinalMarkValues()
+        public virtual void LoadFinalMarkValues()
         {
-            LoadMarkValues(finalMarkValues);
+            LoadMarkValues(finalGeoshapeValues);
         }
 
-        private void LoadMarkValues(MarkGeometricValues markValues)
+        protected virtual void LoadMarkValues(MarkGeometricValues markValues)
         {
             transform.localPosition = markValues.localPosition;
             transform.localEulerAngles = markValues.localEulerAngles;
@@ -99,46 +96,61 @@ namespace DxR
             GetComponent<Renderer>().material.color = markValues.colour;
         }
 
-        public void InitialiseMorphing(IObservable<float> tweeningObservable)
+        public virtual void InitialiseMorphing(IObservable<float> tweeningObservable)
         {
             morphingSubscriptions = new CompositeDisposable();
 
             // TODO: For now, we make a subscription for each geometric value that has actually changed
             // There probably is a more elegant way of doing this though
-            if (initialMarkValues.localPosition != finalMarkValues.localPosition)
+            if (initialGeoshapeValues.localPosition != finalGeoshapeValues.localPosition)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localPosition = Vector3.Lerp(initialMarkValues.localPosition, finalMarkValues.localPosition, t);
+                    transform.localPosition = Vector3.Lerp(initialGeoshapeValues.localPosition, finalGeoshapeValues.localPosition, t);
                 }).AddTo(morphingSubscriptions);
             }
-            if (initialMarkValues.localEulerAngles != finalMarkValues.localEulerAngles)
+            if (initialGeoshapeValues.localEulerAngles != finalGeoshapeValues.localEulerAngles)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localEulerAngles = Vector3.Lerp(initialMarkValues.localEulerAngles, finalMarkValues.localEulerAngles, t);
+                    transform.localEulerAngles = Vector3.Lerp(initialGeoshapeValues.localEulerAngles, finalGeoshapeValues.localEulerAngles, t);
                 }).AddTo(morphingSubscriptions);
             }
-            if (initialMarkValues.localScale != finalMarkValues.localScale)
+            if (initialGeoshapeValues.localScale != finalGeoshapeValues.localScale)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localScale = Vector3.Lerp(initialMarkValues.localScale, finalMarkValues.localScale, t);
+                    transform.localScale = Vector3.Lerp(initialGeoshapeValues.localScale, finalGeoshapeValues.localScale, t);
                 }).AddTo(morphingSubscriptions);
             }
-            if (initialMarkValues.colour != finalMarkValues.colour)
+            if (initialGeoshapeValues.colour != finalGeoshapeValues.colour)
             {
                 Renderer renderer = GetComponent<Renderer>();
                 tweeningObservable.Subscribe(t =>
                 {
-                    renderer.material.color = Color.Lerp(initialMarkValues.colour, finalMarkValues.colour, t);
+                    renderer.material.color = Color.Lerp(initialGeoshapeValues.colour, finalGeoshapeValues.colour, t);
                 }).AddTo(morphingSubscriptions);
             }
         }
 
-        public void DisableMorphing()
+        public virtual void DisableMorphing()
         {
+            // Cleanup subscriptions
             morphingSubscriptions.Dispose();
+            initialGeoshapeValues = null;
+            finalGeoshapeValues = null;
+
+            // The data values on this mark will also need to be reset. We will just have this be set externally
+        }
+
+        #endregion // Morphing functions
+
+        public virtual void ResetToDefault()
+        {
+            gameObject.transform.localPosition = Vector3.zero;
+            gameObject.transform.localRotation = Quaternion.identity;
+            gameObject.transform.localScale = Vector3.one;
+            gameObject.GetComponent<Renderer>().material.color = Color.white;
         }
 
         public virtual void SetChannelValue(string channel, string value)
@@ -934,7 +946,25 @@ namespace DxR
                     domain.Add(new JSONString("0"));
                     //domain.Add(new JSONString(minMax[0].ToString()));
                 }
-            } else
+            }
+            else if (channelEncoding.fieldDataType == "spatial")
+            {
+                string field = channelEncoding.field.ToLower();
+
+                if (field == "longitude")
+                {
+                    var flattened = data.polygons.SelectMany(x => x).SelectMany(x => x).Select(x => x.Longitude);
+                    domain.Add(new JSONString(flattened.Min().ToString()));
+                    domain.Add(new JSONString(flattened.Max().ToString()));
+                }
+                else if (field == "latitude")
+                {
+                    var flattened = data.polygons.SelectMany(x => x).SelectMany(x => x).Select(x => x.Latitude);
+                    domain.Add(new JSONString(flattened.Min().ToString()));
+                    domain.Add(new JSONString(flattened.Max().ToString()));
+                }
+            }
+            else
             {
                 List<string> uniqueValues = new List<string>();
                 GetUniqueValues(data, channelEncoding.field, ref uniqueValues);
@@ -1007,8 +1037,10 @@ namespace DxR
                 } else if (fieldDataType == "temporal")
                 {
                     type = "time";
-                } else
+                } else if (fieldDataType == "spatial")
                 {
+                    type = "spatial";
+                } else {
                     throw new Exception("Invalid field data type: " + fieldDataType);
                 }
             } else if (channel == "width" || channel == "height" || channel == "depth" || channel == "length"

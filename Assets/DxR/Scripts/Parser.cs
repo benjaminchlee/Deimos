@@ -4,6 +4,7 @@ using UnityEngine;
 using SimpleJSON;
 using System;
 using System.IO;
+using System.Linq;
 
 namespace DxR
 {
@@ -137,9 +138,23 @@ namespace DxR
                 dataSpecs.Add("values", valuesJSONNode);
             }
 
-            foreach (KeyValuePair<string, JSONNode> kvp in dataSpecs["values"][0].AsObject)
+            // Check special condition if the data is a geoJSON file
+            if (dataSpecs["values"]["type"] != null && dataSpecs["values"]["type"] == "FeatureCollection")
             {
-                fieldNames.Add(kvp.Key);
+                fieldNames.Add("Longitude");
+                fieldNames.Add("Latitude");
+                var featureCollection = Newtonsoft.Json.JsonConvert.DeserializeObject<GeoJSON.Net.Feature.FeatureCollection>(dataSpecs["values"].ToString());
+                foreach (var kvp in featureCollection.Features.First().Properties)
+                {
+                    fieldNames.Add(kvp.Key);
+                }
+            }
+            else
+            {
+                foreach (KeyValuePair<string, JSONNode> kvp in dataSpecs["values"][0].AsObject)
+                {
+                    fieldNames.Add(kvp.Key);
+                }
             }
 
             return fieldNames;

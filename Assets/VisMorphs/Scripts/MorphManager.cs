@@ -6,11 +6,10 @@ using SimpleJSON;
 using UnityEditor;
 using UnityEngine;
 using Newtonsoft.Json.Linq;
+using UniRx;
 
 namespace DxR.VisMorphs
 {
-    using UniRx;
-
     /// <summary>
     /// Reads in a Morph JSON specification and applies morphs to any eligible DxR Vis.
     ///
@@ -23,6 +22,8 @@ namespace DxR.VisMorphs
     public class MorphManager : MonoBehaviour
     {
         public static MorphManager Instance { get; private set; }
+
+        public TextAsset geoJson;
 
         [TextArea(5, 100)]
         public string Json;
@@ -83,7 +84,7 @@ namespace DxR.VisMorphs
             if (isInitialised)
             {
                 SignalManager.Instance.ResetObservables();
-                PredicateManager.Instance.ResetObservables();
+                // PredicateManager.Instance.ResetObservables();
             }
 
             transformationSpecification = transformationsSpecs;
@@ -93,8 +94,8 @@ namespace DxR.VisMorphs
             JToken signalJToken = jObject.SelectToken("signals");
             SignalManager.Instance.GenerateSignals(signalJToken);
 
-            JToken predicateJToken = jObject.SelectToken("predicates");
-            PredicateManager.Instance.GeneratePredicates(predicateJToken);
+            // JToken predicateJToken = jObject.SelectToken("predicates");
+            // PredicateManager.Instance.GeneratePredicates(predicateJToken);
 
             statesSpecification = transformationsSpecs["states"];
             transitionsSpecification = transformationsSpecs["transitions"];
@@ -131,7 +132,6 @@ namespace DxR.VisMorphs
             // If there is a matching state specification, we continue
             if (newCurrentState != null)
             {
-                Debug.Log("ASDASDASD");
                 // If the new state is the same as the old one, we ignore
                 // NOTE THIS MIGHT BREAK THINGS
                 if (newCurrentState == currentState)
@@ -194,11 +194,11 @@ namespace DxR.VisMorphs
         }
 
         /// <summary>
-        /// Creates all required subscriptions to a Transition's defined Triggers. These Triggers hook onto the Predicates defined separately in the Morph
+        /// Creates all required subscriptions to a Transition's defined Triggers. These Triggers hook onto the Signals defined separately in the Morph
         /// </summary>
         private void SubscribeToTransitionTriggers(JSONNode transitionSpecs, bool isReversed, ref List<Tuple<JSONNode, CompositeDisposable, bool>> candidateTransitions)
         {
-            var predicateNames = transitionSpecs["triggers"];
+            var triggerNames = transitionSpecs["triggers"];
 
             // Create an array of booleans that will be modified by the later observables
             // This is probably bad coding practice but eh it works for now
@@ -243,15 +243,15 @@ namespace DxR.VisMorphs
             }
 
             // Subscribe to the rest of the Predicates
-            for (int i = 0; i < predicateNames.Count; i++)
+            for (int i = 0; i < triggerNames.Count; i++)
             {
                 // Set the index that will be used to then modify the boolean in our boolArray
                 int index = boolList.Count;
                 boolList.Add(false);
 
-                // Get the corresponding Predicate observable by using its name
-                IObservable<bool> predicateObservable = PredicateManager.Instance.GetObservable(predicateNames[i]);
-                predicateObservable.Subscribe(b =>
+                // Get the corresponding Signal observable by using its name, casting it to a boolean
+                IObservable<bool> triggerObservable = SignalManager.Instance.GetObservable(triggerNames[i]).Select(x => (bool)x);
+                triggerObservable.Subscribe(b =>
                 {
                     boolList[index] = b;
 
@@ -302,7 +302,14 @@ namespace DxR.VisMorphs
             else
             {
                 finalState = GenerateNewVisSpecFromState(candidateVis.GetVisSpecs(), currentState, true);
-                initialState = GenerateNewVisSpecFromState(finalState, GetStateFromName(currentTransition["states"][0]));
+                initialState = GenerateNewVisSpecFromState(finalState, GetStateFromName(currentTransition["states"][0]), true);
+
+                var test = JSONNode.Parse(initialState.ToString());
+                test.Remove("data");
+                Debug.Log("initial " + test.ToString());
+                var test2 = JSONNode.Parse(finalState.ToString());
+                test2.Remove("data");
+                Debug.Log("final " + test2.ToString());
             }
 
             // Change to initial state instantly
@@ -489,7 +496,7 @@ namespace DxR.VisMorphs
             _visSpecs.Merge(_stateSpecs["override"]);
             if (includeBase)
             {
-                _visSpecs.Merge(_stateSpecs["base"]);
+                _visSpecs.Merge(_stateSpecs["base"], new JsonMergeSettings { MergeArrayHandling  = MergeArrayHandling.Replace });
             }
 
             // Remove properties from the visSpecs that are defined in the excludes part of the stateSpecs

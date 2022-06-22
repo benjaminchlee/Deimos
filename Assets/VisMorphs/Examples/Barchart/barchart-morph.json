@@ -1,0 +1,124 @@
+{
+    "signals": [{
+            "name": "sliderX",
+            "source": {
+                "type": "gameobject",
+                "ref": "handle",
+                "select": "transform.position.x"
+            }
+        }, {
+            "name": "sliderY",
+            "source": {
+                "type": "gameobject",
+                "ref": "handle",
+                "select": "transform.position.y"
+            }
+        }, {
+            "name": "tweener1",
+            "expression": "clamp(sliderX, 0, 1)"
+        }, {
+            "name": "tweener2",
+            "expression": "clamp(sliderX, 1.5, 2.5) - 1.5"
+        }, {
+            "name": "active",
+            "expression":"0 <= sliderY && sliderY <= 1"
+        }
+    ],
+
+    "states": [
+        {
+            "name": "first barchart",
+            "base": {
+                "mark": "cube",
+                "encoding": {
+                    "x": {
+                        "type": "nominal"
+                    },
+                    "y": {
+                        "type": "quantitative"
+                    },
+                    "height": {
+                        "type": "quantitative"
+                    }
+                }
+            },
+            "excludes": {
+                "encoding": {
+                    "z": {
+                        "field": "*",
+                        "type": "*"
+                    },
+                    "depth" : {
+                        "value": "*"
+                    }
+                }
+            }
+        },
+        {
+            "name": "second barchart",
+            "base": {
+                "mark": "cube",
+                "encoding": {
+                    "z": {
+                        "field": "category",
+                        "type": "nominal"
+                    },
+                    "depth" : {
+                        "value": 160
+                    }
+                }
+            },
+            "excludes": {
+                "encoding": {
+                    "color": {
+                        "field": "*",
+                        "type": "*"
+                    }
+                }
+            }
+        },
+        {
+            "name": "third barchart",
+            "base": {
+                "mark": "cube",
+                "encoding": {
+                    "color": {
+                        "field": "category",
+                        "type": "nominal"
+                    }
+                }
+            }
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "z extrusion",
+            "states": ["first barchart", "second barchart"],
+            "triggers": ["active"],
+            "timing": {
+                "control": "tweener1",
+                "easing": "inoutcubic"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        },
+        {
+            "name": "colour change",
+            "states": ["second barchart", "third barchart"],
+            "triggers": ["active"],
+            "timing": {
+                "control": "tweener2",
+                "easing": "inoutcubic"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        }
+    ]
+}

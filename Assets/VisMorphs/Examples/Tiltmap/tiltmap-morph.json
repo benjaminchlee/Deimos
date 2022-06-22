@@ -1,0 +1,171 @@
+{
+    "signals": [{
+            "name": "rotationX",
+            "source": {
+                "type": "gameobject",
+                "ref": "TiltMapHandle",
+                "select": "transform.eulerAngles.x"
+            }
+        }, {
+            "name": "tiltMapTrigger",
+            "expression": "0 <= rotationX && rotationX <= 90"
+        }, {
+            "name": "c2pTween",
+            "expression": "normalise(rotationX, 18, 36)"
+        }, {
+            "name": "p2bTween",
+            "expression":"normalise(rotationX, 54, 72)"
+        }
+    ],
+
+    "states": [
+        {
+            "name": "choropleth",
+            "base": {
+                "mark": "geoshape",
+                "encoding": {
+                    "x": {
+                        "field": "Longitude",
+                        "type": "spatial"
+                    },
+                    "y": {
+                        "field": "Latitude",
+                        "type": "spatial"
+                    },
+                    "color": {
+                        "field": "Population",
+                        "type": "quantitative"
+                    }
+                }
+            },
+            "excludes": {
+                "encoding": {
+                    "z": {
+                        "field": "*",
+                        "type": "*"
+                    },
+                    "zoffsetpct": {
+                        "value": 0
+                    },
+                    "depth" : {
+                        "value": "*"
+                    }
+                }
+            }
+        },
+        {
+            "name": "prism",
+            "base": {
+                "mark": "geoshape",
+                "encoding": {
+                    "x": {
+                        "field": "Longitude",
+                        "type": "spatial"
+                    },
+                    "y": {
+                        "field": "Latitude",
+                        "type": "spatial"
+                    },
+                    "z": {
+                        "field": "Population",
+                        "type": "quantitative"
+                    },
+                    "depth": {
+                        "field": "Population",
+                        "type": "quantitative"
+                    },
+                    "zoffsetpct": {
+                        "value": -0.5
+                    },
+                    "color": {
+                        "field": "Population",
+                        "type": "quantitative"
+                    }
+                }
+            },
+            "excludes": {
+                "encoding": {
+                    "width": {
+                        "value": 0
+                    },
+                    "height": {
+                        "field": "*"
+                    },
+                    "yoffsetpct": {
+                        "value": 0
+                    }
+                }
+            }
+        },
+        {
+            "name": "bar",
+            "base": {
+                "mark": "geoshape",
+                "encoding": {
+                    "x": {
+                        "field": "Name",
+                        "type": "nominal"
+                    },
+                    "z": {
+                        "field": "Population",
+                        "type": "quantitative"
+                    },
+                    "height": {
+                        "field": "Population",
+                        "type": "quantitative"
+                    },
+                    "zoffsetpct": {
+                        "value": -0.5
+                    },
+                    "width": {
+                        "value": 10
+                    }
+                }
+            },
+            "excludes": {
+                "encoding": {
+                    "y": {
+                        "value": 0
+                    },
+                    "yoffsetpct": {
+                        "value": 0
+                    },
+                    "height": {
+                        "value": 0
+                    }
+                }
+            }
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "c2p",
+            "states": ["choropleth", "prism"],
+            "triggers": ["tiltMapTrigger"],
+            "timing": {
+                "control": "c2pTween",
+                "easing": "inoutcubic"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        },
+        {
+            "name": "p2b",
+            "states": ["prism", "bar"],
+            "triggers": ["tiltMapTrigger"],
+            "timing": {
+                "control": "p2bTween",
+                "easing": "inoutcubic"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        }
+    ]
+}

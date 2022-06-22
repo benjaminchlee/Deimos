@@ -6,11 +6,14 @@ using System.IO;
 using System;
 using System.Linq;
 using UnityEngine.Events;
+using UniRx;
+using GeoJSON.Net.Geometry;
+using Newtonsoft.Json;
+using GeoJSON.Net.Feature;
+using GeoJSON.Net;
 
 namespace DxR
 {
-    using UniRx; // The namespace for this has to be here for now to fix an ambiguous namespace. This is fixed in 2021.3.3f
-
     /// <summary>
     /// This component can be attached to any GameObject (_parentObject) to create a
     /// data visualization. This component takes a JSON specification as input, and
@@ -82,7 +85,9 @@ namespace DxR
         {
             if (VisUpdated == null)
                 VisUpdated = new VisUpdatedEvent();
-            DxR.VisMorphs.MorphManager.Instance.RegisterVisualisation(this);
+
+            if (DxR.VisMorphs.MorphManager.Instance != null)
+                DxR.VisMorphs.MorphManager.Instance.RegisterVisualisation(this);
 
             // Initialize objects:
             parentObject = gameObject;
@@ -299,6 +304,13 @@ namespace DxR
                 Mark mark = markInstance.GetComponent<Mark>();
                 mark.datum = dataValue;
 
+                // Copy over polygons and centres for spatial data if applicable
+                if (data.polygons != null)
+                {
+                    mark.polygons = data.polygons[i];
+                    mark.centre = data.centres[i];
+                }
+
                 if (enableTooltip)
                 {
                     mark.InitTooltip(ref tooltip);
@@ -318,10 +330,12 @@ namespace DxR
         {
             List<Mark> marks = markInstances.Select(go => go.GetComponent<Mark>()).ToList();
 
-            // Before any channel encodings are applied, we make a call to the mark to store its starting geometric values
             foreach (Mark mark in marks)
             {
+                // Before any channel encodings are applied, we make a call to the mark to store its starting geometric values
                 mark.StoreInitialMarkValues();
+                // We then reset its geometric values to default in order to handle cases where channel encodings are removed
+                mark.ResetToDefault();
             }
 
             // Apply channel encoding changes
@@ -521,8 +535,20 @@ namespace DxR
                 }
                 else
                 {
-                    string channelValue = channelEncoding.scale.ApplyScale(markComponent.datum[channelEncoding.field]);
-                    markComponent.SetChannelValue(channelEncoding.channel, channelValue);
+                    // Special condition for channel encodings with spatial data types
+                    if (channelEncoding.fieldDataType.ToLower() == "spatial" &&
+                        (channelEncoding.field.ToLower() == "longitude" ||
+                         channelEncoding.field.ToLower() == "latitude"))
+                    {
+                        // The value that this mark receives will either be longitude or latitude
+                        ((MarkGeoshape)markComponent).SetChannelEncoding(channelEncoding);
+                        markComponent.SetChannelValue(channelEncoding.channel, channelEncoding.field.ToLower());
+                    }
+                    else
+                    {
+                        string channelValue = channelEncoding.scale.ApplyScale(markComponent.datum[channelEncoding.field]);
+                        markComponent.SetChannelValue(channelEncoding.channel, channelValue);
+                    }
                 }
             }
         }
@@ -532,21 +558,31 @@ namespace DxR
             markInstances = new List<GameObject>();
 
             // Create one mark prefab instance for each data point:
+            int idx = 0;
             foreach (Dictionary<string, string> dataValue in data.values)
             {
                 // Instantiate mark prefab, copying parentObject's transform:
                 GameObject markInstance = InstantiateMark(markPrefab, marksParentObject.transform);
 
                 // Copy datum in mark:
-                markInstance.GetComponent<Mark>().datum = dataValue;
+                Mark mark = markInstance.GetComponent<Mark>();
+                mark.datum = dataValue;
+
+                // Copy over polygons for spatial data if applicable
+                if (data.polygons != null)
+                {
+                    mark.polygons = data.polygons[idx];
+                    mark.centre = data.centres[idx];
+                }
 
                 // Assign tooltip:
                 if(enableTooltip)
                 {
-                    markInstance.GetComponent<Mark>().InitTooltip(ref tooltip);
+                    mark.InitTooltip(ref tooltip);
                 }
 
                 markInstances.Add(markInstance);
+                idx++;
             }
         }
 
@@ -609,6 +645,9 @@ namespace DxR
 
                 channelEncodings.Add(channelEncoding);
             }
+
+            // Make sure that the offsetpct channelEncodings are always applied last
+            channelEncodings = channelEncodings.OrderBy(ch => ch.channel.Contains("offsetpct")).ToList();
         }
 
         private void CreateScaleObject(JSONNode scaleSpecs, ref Scale scale)
@@ -620,6 +659,7 @@ namespace DxR
                     break;
 
                 case "linear":
+                case "spatial":
                     scale = new ScaleLinear(scaleSpecs);
                     break;
 
@@ -727,11 +767,29 @@ namespace DxR
 
             Debug.Log("Data update " + visSpecs["data"]["values"].ToString());
 
-            // HACK: Apply data transforms in the visSpecs to the valuesSpecs before it is properly parsed
-            //valuesSpecs = ApplyDataTransforms(visSpecs, valuesSpecs);
-
             data = new Data();
 
+            // Data gets parsed differently depending if its in a standard or geoJSON format
+            if (!IsDataGeoJSON(valuesSpecs))
+            {
+                PopulateTabularData(valuesSpecs, ref data);
+            }
+            else
+            {
+                PopulateGeoJSONData(valuesSpecs, ref data);
+            }
+        }
+
+        private bool IsDataGeoJSON(JSONNode valuesSpecs)
+        {
+            if (valuesSpecs["type"] != null)
+                return valuesSpecs["type"] == "FeatureCollection";
+
+            return false;
+        }
+
+        private void PopulateTabularData(JSONNode valuesSpecs, ref Data data)
+        {
             CreateDataFields(valuesSpecs, ref data);
 
             data.values = new List<Dictionary<string, string>>();
@@ -778,6 +836,122 @@ namespace DxR
                 }
             }
             //            SubsampleData(valuesSpecs, 8, "Assets/DxR/Resources/cars_subsampled.json");
+        }
+
+        private void PopulateGeoJSONData(JSONNode valuesSpecs, ref Data data)
+        {
+            data.values = new List<Dictionary<string, string>>();
+            data.polygons = new List<List<List<IPosition>>>();
+            data.centres = new List<IPosition>();
+
+            // We have to use geoJSON.NET here
+            var featureCollection = JsonConvert.DeserializeObject<FeatureCollection>(valuesSpecs.ToString());
+
+            // Create the data fields for the geoJSON feature properties (similar to CreateDataFields())
+            data.fieldNames = new List<string>();
+            // We also add two here for Longitude and Latitude
+            data.fieldNames.Add("Longitude");
+            data.fieldNames.Add("Latitude");
+            foreach (var kvp in featureCollection.Features.First().Properties)
+            {
+                data.fieldNames.Add(kvp.Key);
+            }
+
+            // Populate our data structures with those from the geoJSON
+            foreach (var feature in featureCollection.Features)
+            {
+                // Add values (i.e., properties)
+                Dictionary<string, string> d = new Dictionary<string, string>();
+                foreach (var kvp in feature.Properties)
+                {
+                    d.Add(kvp.Key, kvp.Value.ToString());
+                }
+                data.values.Add(d);
+
+                // Add polygons
+                List<List<IPosition>> featurePolygons = new List<List<IPosition>>();
+                switch (feature.Geometry.Type)
+                {
+                    case GeoJSONObjectType.Polygon:
+                        {
+                            var polygon = feature.Geometry as Polygon;
+                            foreach (LineString lineString in polygon.Coordinates)
+                            {
+                                List<IPosition> positions = new List<IPosition>();
+
+                                foreach (IPosition position in lineString.Coordinates)
+                                {
+                                    positions.Add(position);
+                                }
+
+                                // If the last position is the same as the first one, remove the last position
+                                var firstPos = positions[0];
+                                var lastPos = positions[positions.Count - 1];
+                                if (firstPos.Latitude == lastPos.Latitude && firstPos.Longitude == lastPos.Longitude)
+                                    positions.RemoveAt(positions.Count - 1);
+
+                                featurePolygons.Add(positions);
+                            }
+                            break;
+                        }
+
+                    case GeoJSONObjectType.MultiPolygon:
+                        {
+                            MultiPolygon multiPolygon = feature.Geometry as MultiPolygon;
+                            foreach (Polygon polygon in multiPolygon.Coordinates)
+                            {
+                                foreach (LineString lineString in polygon.Coordinates)
+                                {
+                                    List<IPosition> positions = new List<IPosition>();
+                                    foreach (IPosition position in lineString.Coordinates)
+                                    {
+                                        positions.Add(position);
+                                    }
+
+                                    // If the last position is the same as the first one, remove the last position
+                                    var firstPos = positions[0];
+                                    var lastPos = positions[positions.Count - 1];
+                                    if (firstPos.Latitude == lastPos.Latitude && firstPos.Longitude == lastPos.Longitude)
+                                        positions.RemoveAt(positions.Count - 1);
+
+                                    featurePolygons.Add(positions);
+                                }
+                            }
+                            break;
+                        }
+                }
+
+                data.polygons.Add(featurePolygons);
+
+                // Find the centre position of these polygons as well
+                // From https://stackoverflow.com/questions/6671183/calculate-the-center-point-of-multiple-latitude-longitude-coordinate-pairs
+                var flattenedPositions = featurePolygons.SelectMany(x => x);
+                double x = 0;
+                double y = 0;
+                double z = 0;
+
+                foreach (var position in flattenedPositions)
+                {
+                    var latitude = position.Latitude * Math.PI / 180;
+                    var longitude = position.Longitude * Math.PI / 180;
+
+                    x += Math.Cos(latitude) * Math.Cos(longitude);
+                    y += Math.Cos(latitude) * Math.Sin(longitude);
+                    z += Math.Sin(latitude);
+                }
+
+                var total = flattenedPositions.Count();
+
+                x = x / total;
+                y = y / total;
+                z = z / total;
+
+                var centralLongitude = Math.Atan2(y, x);
+                var centralSquareRoot = Math.Sqrt(x * x + y * y);
+                var centralLatitude = Math.Atan2(z, centralSquareRoot);
+
+                data.centres.Add(new Position(centralLatitude * 180 / Math.PI, centralLongitude * 180 / Math.PI));
+            }
         }
 
         public string GetDataName()
