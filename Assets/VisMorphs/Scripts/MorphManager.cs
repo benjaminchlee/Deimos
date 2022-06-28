@@ -23,7 +23,7 @@ namespace DxR.VisMorphs
     {
         public static MorphManager Instance { get; private set; }
 
-        public TextAsset geoJson;
+        public bool DebugStates = false;
 
         [TextArea(5, 100)]
         public string Json;
@@ -198,8 +198,6 @@ namespace DxR.VisMorphs
         /// </summary>
         private void SubscribeToTransitionTriggers(JSONNode transitionSpecs, bool isReversed, ref List<Tuple<JSONNode, CompositeDisposable, bool>> candidateTransitions)
         {
-            var triggerNames = transitionSpecs["triggers"];
-
             // Create an array of booleans that will be modified by the later observables
             // This is probably bad coding practice but eh it works for now
             List<bool> boolList = new List<bool>();
@@ -242,43 +240,47 @@ namespace DxR.VisMorphs
                 }
             }
 
-            // Subscribe to the rest of the Predicates
-            for (int i = 0; i < triggerNames.Count; i++)
+            // Subscribe to the rest of the Triggers. If no triggers are defined, then we can just skip this process entirely
+            var triggerNames = transitionSpecs["triggers"];
+            if (triggerNames != null)
             {
-                // Set the index that will be used to then modify the boolean in our boolArray
-                int index = boolList.Count;
-                boolList.Add(false);
-
-                // Get the corresponding Signal observable by using its name, casting it to a boolean
-                IObservable<bool> triggerObservable = SignalManager.Instance.GetObservable(triggerNames[i]).Select(x => (bool)x);
-                triggerObservable.Subscribe(b =>
+                for (int i = 0; i < triggerNames.Count; i++)
                 {
-                    boolList[index] = b;
+                    // Set the index that will be used to then modify the boolean in our boolArray
+                    int index = boolList.Count;
+                    boolList.Add(false);
 
-                    // If all of the predicates for this Transition returned true...
-                    if (!boolList.Contains(false))
+                    // Get the corresponding Signal observable by using its name, casting it to a boolean
+                    IObservable<bool> triggerObservable = SignalManager.Instance.GetObservable(triggerNames[i]).Select(x => (bool)x);
+                    triggerObservable.Subscribe(b =>
                     {
-                        // AND there is not an already active transition, we can then formally activate the Transition
-                        if (!isTransitionActive)
-                            ActivateTransition(transitionSpecs, isReversed);
-                    }
-                    else
-                    {
-                        // Otherwise, if this Transition WAS active but now no longer meets the trigger conditions,
-                        if (isTransitionActive && currentTransition == transitionSpecs)
+                        boolList[index] = b;
+
+                        // If all of the predicates for this Transition returned true...
+                        if (!boolList.Contains(false))
                         {
-                            // If the Transition specification includes which direction (start or end) to reset the Vis to, we use it
-                            bool goToEnd = false;
-
-                            if (transitionSpecs["interrupt"]["control"] == "reset")
-                            {
-                                goToEnd = transitionSpecs["interrupt"]["value"] == "end";
-                            }
-
-                            DeactivateTransition(transitionSpecs, goToEnd);
+                            // AND there is not an already active transition, we can then formally activate the Transition
+                            if (!isTransitionActive)
+                                ActivateTransition(transitionSpecs, isReversed);
                         }
-                    }
-                }).AddTo(disposables);
+                        else
+                        {
+                            // Otherwise, if this Transition WAS active but now no longer meets the trigger conditions,
+                            if (isTransitionActive && currentTransition == transitionSpecs)
+                            {
+                                // If the Transition specification includes which direction (start or end) to reset the Vis to, we use it
+                                bool goToEnd = false;
+
+                                if (transitionSpecs["interrupt"]["control"] == "reset")
+                                {
+                                    goToEnd = transitionSpecs["interrupt"]["value"] == "end";
+                                }
+
+                                DeactivateTransition(transitionSpecs, goToEnd);
+                            }
+                        }
+                    }).AddTo(disposables);
+                }
             }
 
             candidateTransitions.Add(new Tuple<JSONNode, CompositeDisposable, bool>(transitionSpecs, disposables, isReversed));
@@ -303,13 +305,16 @@ namespace DxR.VisMorphs
             {
                 finalState = GenerateNewVisSpecFromState(candidateVis.GetVisSpecs(), currentState, true);
                 initialState = GenerateNewVisSpecFromState(finalState, GetStateFromName(currentTransition["states"][0]), true);
+            }
 
-                var test = JSONNode.Parse(initialState.ToString());
-                test.Remove("data");
-                Debug.Log("initial " + test.ToString());
-                var test2 = JSONNode.Parse(finalState.ToString());
-                test2.Remove("data");
-                Debug.Log("final " + test2.ToString());
+            if (DebugStates)
+            {
+                var initial = JSONNode.Parse(initialState.ToString());
+                initial.Remove("data");
+                Debug.Log("DEBUG INITIAL STATE: " + initial.ToString());
+                var final = JSONNode.Parse(finalState.ToString());
+                final.Remove("data");
+                Debug.Log("DEBUG FINAL STATE " + final.ToString());
             }
 
             // Change to initial state instantly
@@ -353,13 +358,12 @@ namespace DxR.VisMorphs
                 JSONNode transformBase = stateSpecs["base"];
                 JSONNode transformExcludes = stateSpecs["excludes"];
 
-                if (transformBase != null)
-                {
-                    matching = CompareBase(visSpecs, transformBase);
-                    Debug.Log("MORPHS BASE FOR " + stateSpecs["name"] + ": " + matching);
-                }
+                // Check base conditions
+                matching = CompareBase(visSpecs, transformBase);
+                Debug.Log("MORPHS BASE FOR " + stateSpecs["name"] + ": " + matching);
 
-                if (transformExcludes != null && matching)
+                // Check excludes conditions only if the base conditions were successful
+                if (matching)
                 {
                     matching = CompareExcludes(visSpecs, transformExcludes);
                     Debug.Log("MORPHS EXCLUDES FOR " + stateSpecs["name"] + ": " + matching);
@@ -422,6 +426,10 @@ namespace DxR.VisMorphs
 
         private bool CompareBase(JSONNode visSpecs, JSONNode transformBase)
         {
+            // If no base has been defined, we just return true
+            if (transformBase == null)
+                return true;
+
             var visSpecsChildren = GetDeepChildrenWithPaths(visSpecs);
             var transformBaseChildren = GetDeepChildrenWithPaths(transformBase);
 
@@ -440,6 +448,10 @@ namespace DxR.VisMorphs
 
         private bool CompareExcludes(JSONNode visSpecs, JSONNode transformExcludes)
         {
+            // If no excludes has been defined, we just return true
+            if (transformExcludes == null)
+                return true;
+
             var visSpecsChildren = GetDeepChildrenWithPaths(visSpecs);
             var transformExcludesChildren = GetDeepChildrenWithPaths(transformExcludes);
 
@@ -500,7 +512,7 @@ namespace DxR.VisMorphs
             }
 
             // Remove properties from the visSpecs that are defined in the excludes part of the stateSpecs
-            if (_stateSpecs["excludes"] != null)
+            if (_stateSpecs["excludes"] != null && _stateSpecs["excludes"]["encoding"] != null)
             {
                 foreach (var i in ((JObject)_stateSpecs["excludes"]["encoding"]).Properties())
                 {
@@ -508,7 +520,64 @@ namespace DxR.VisMorphs
                 }
             }
 
+            CleanVisSpec(ref _visSpecs, _stateSpecs);
+
             return JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_visSpecs));
+        }
+
+        /// <summary>
+        /// Clean up a vis spec such that it may render properly during a morph
+        /// </summary>
+        public void CleanVisSpec(ref JObject specs, JObject stateSpecs)
+        {
+            foreach (string dim in new string[] { "x", "y", "z" })
+            {
+                string offset = dim + "offset";
+                string offsetpct = dim + "offsetpct";
+
+                // If there is no base spatial encoding given, remove its associated offset encodings (if any)
+                if (specs["encoding"][dim] == null)
+                {
+                    specs["encoding"][offset]?.Parent.Remove();
+                    specs["encoding"][offsetpct]?.Parent.Remove();
+                }
+            }
+
+            // Check to see if any defined encoding now has BOTH a field and value defined within in
+            foreach (var kvp in ((JObject)specs["encoding"]).Properties())
+            {
+                var encoding = specs["encoding"][kvp.Name];
+
+                if (encoding["field"] != null && encoding["value"] != null)
+                {
+                    // If it does, then we keep the one which is defined in the state specs
+                    if (stateSpecs["base"]["encoding"][kvp.Name] != null)
+                    {
+                        if (stateSpecs["base"]["encoding"][kvp.Name]["field"] != null)
+                        {
+                            encoding["value"].Parent.Remove();
+                        }
+                        else if (stateSpecs["base"]["encoding"][kvp.Name]["value"] != null)
+                        {
+                            encoding["field"].Parent.Remove();
+                        }
+                    }
+                    else if (stateSpecs["override"]["encoding"][kvp.Name] != null)
+                    {
+                        if (stateSpecs["override"]["encoding"][kvp.Name]["field"] != null)
+                        {
+                            encoding["value"].Parent.Remove();
+                        }
+                        else if (stateSpecs["override"]["encoding"][kvp.Name]["value"] != null)
+                        {
+                            encoding["field"].Parent.Remove();
+                        }
+                    }
+                }
+            }
+
+            // Make sure that all of the offset encodings are at the end
+            ((JObject)specs.GetValue("encoding")).Properties().OrderBy(p => p.Name.Contains("offset"));
         }
 
         private IObservable<float> CreateMorphTweenObservable(JSONNode transitionSpecs)
@@ -518,7 +587,7 @@ namespace DxR.VisMorphs
             // If no timing specs are given, we just use a generic timer
             if (timingSpecs == null)
             {
-                return CreateTimerObservable(1);
+                return CreateTimerObservable(transitionSpecs, 1);
             }
             else
             {
@@ -531,12 +600,12 @@ namespace DxR.VisMorphs
                 // Otherwise, use the time provided in the specification
                 else
                 {
-                    return CreateTimerObservable(timingSpecs["control"]);
+                    return CreateTimerObservable(transitionSpecs, timingSpecs["control"]);
                 }
             }
         }
 
-        private IObservable<float> CreateTimerObservable(float duration)
+        private IObservable<float> CreateTimerObservable(JSONNode transitionSpecs, float duration)
         {
             float startTime = Time.time;
 
@@ -547,6 +616,8 @@ namespace DxR.VisMorphs
                 return Mathf.Clamp(timer / duration, 0, 1);
             })
                 .TakeUntil(cancellationObservable);
+
+            cancellationObservable.Subscribe(_ => DeactivateTransition(transitionSpecs, true));
 
             return timerObservable;
         }

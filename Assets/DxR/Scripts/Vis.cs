@@ -334,7 +334,7 @@ namespace DxR
             {
                 // Before any channel encodings are applied, we make a call to the mark to store its starting geometric values
                 mark.StoreInitialMarkValues();
-                // We then reset its geometric values to default in order to handle cases where channel encodings are removed
+                // // We then reset its geometric values to default in order to handle cases where channel encodings are removed
                 mark.ResetToDefault();
             }
 
@@ -342,6 +342,7 @@ namespace DxR
             bool isDirectionChanged = false;
             foreach (ChannelEncoding ch in channelEncodings)
             {
+                Debug.Log(ch.channel);
                 ApplyChannelEncoding(ch, ref markInstances);
 
                 if(ch.channel == "xdirection" || ch.channel == "ydirection" || ch.channel == "zdirection")
@@ -645,9 +646,6 @@ namespace DxR
 
                 channelEncodings.Add(channelEncoding);
             }
-
-            // Make sure that the offsetpct channelEncodings are always applied last
-            channelEncodings = channelEncodings.OrderBy(ch => ch.channel.Contains("offsetpct")).ToList();
         }
 
         private void CreateScaleObject(JSONNode scaleSpecs, ref Scale scale)
@@ -706,12 +704,9 @@ namespace DxR
 #if UNITY_EDITOR
             System.IO.File.WriteAllText(Parser.GetFullSpecsPath(visSpecsURL), visSpecsToWrite.ToString(2));
 #else
-
                     UnityEngine.Windows.File.WriteAllBytes(Parser.GetFullSpecsPath(visSpecsURL),
                         System.Text.Encoding.UTF8.GetBytes(visSpecsToWrite.ToString(2)));
 #endif
-
-
                 }
             }
             else

@@ -178,38 +178,47 @@ namespace DxR
             {
                 case "x":
                     if (value == "longitude" || value == "latitude")
-                        SetGeoPositions(value, 0);
+                        SetGeoPosition(value, 0);
                     else
                         base.SetChannelValue(channel, value);
                     break;
                 case "y":
                     if (value == "longitude" || value == "latitude")
-                        SetGeoPositions(value, 1);
+                        SetGeoPosition(value, 1);
                     else
                         base.SetChannelValue(channel, value);
                     break;
                 case "z":
                     if (value == "longitude" || value == "latitude")
-                        SetGeoPositions(value, 2);
+                        SetGeoPosition(value, 2);
                     else
                         base.SetChannelValue(channel, value);
                     break;
                 case "length":
+                    throw new Exception("Length for GeoShapes is not yet implemented.");
                 case "width":
-                    SetSize(value, 0);
+                    if (value == "longitude" || value == "latitude")
+                        SetGeoSize(value, 0);
+                    else
+                        SetSize(value, 0);
                     break;
                 case "height":
-                    SetSize(value, 1);
+                    if (value == "longitude" || value == "latitude")
+                        SetGeoSize(value, 1);
+                    else
+                        SetSize(value, 1);
                     break;
                 case "depth":
-                    SetSize(value, 2);
+                    if (value == "longitude" || value == "latitude")
+                        SetGeoSize(value, 2);
+                    else
+                        SetSize(value, 2);
                     break;
                 default:
                     base.SetChannelValue(channel, value);
                     break;
             }
         }
-
 
         public void SetChannelEncoding(ChannelEncoding channelEncoding)
         {
@@ -303,9 +312,33 @@ namespace DxR
         }
 
         /// <summary>
-        /// Sets the position of the vertices x, y, or z values
+        /// Sets the position of this mark using the centrepoint of the polygon
         /// </summary>
-        private void SetGeoPositions(string value, int dim)
+        private void SetGeoPosition(string value, int dim)
+        {
+            if (geoPositions == null)
+                InitialiseGeoshapeMesh();
+
+            float position = 0;
+
+            if (value == "longitude")
+            {
+                position = float.Parse(longitudeChannelEncoding.scale.ApplyScale(centre.Longitude.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+            }
+            else if (value == "latitude")
+            {
+                position = float.Parse(latitudeChannelEncoding.scale.ApplyScale(centre.Latitude.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+            }
+
+            Vector3 localPos = gameObject.transform.localPosition;
+            localPos[dim] = position;
+            gameObject.transform.localPosition = localPos;
+        }
+
+        /// <summary>
+        /// Sets the size of this mark using the geometric values provided as part of the polygon
+        /// </summary>
+        private void SetGeoSize(string value, int dim)
         {
             if (geoPositions == null)
                 InitialiseGeoshapeMesh();
@@ -391,10 +424,6 @@ namespace DxR
 
                     vertexIdx += (polygonPositionCount * 4);
                 }
-
-                Vector3 localPos = gameObject.transform.localPosition;
-                localPos[dim] = latitudeOffset;
-                gameObject.transform.localPosition = localPos;
             }
 
             geoshapeMesh.SetVertices(vertices);
@@ -402,6 +431,9 @@ namespace DxR
             geoshapeMesh.RecalculateBounds();
         }
 
+        /// <summary>
+        /// Sets the size of this mark using a specified value in a rectangular fashion.
+        /// </summary>
         private void SetSize(string value, int dim)
         {
             if (geoPositions == null)

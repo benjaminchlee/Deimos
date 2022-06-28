@@ -26,14 +26,28 @@ namespace DxR
         Vector3 curDirection;
 
         private IObservable<float> tweeningObservable;
-        private MarkGeometricValues initialGeoshapeValues;
-        private MarkGeometricValues finalGeoshapeValues;
+        private MarkGeometricValues initialGeometricValues;
+        private MarkGeometricValues finalGeometricValues;
         private CompositeDisposable morphingSubscriptions;
-
+        private static MarkGeometricValues defaultGeometricValues;
 
         public Mark()
         {
 
+        }
+
+        public void Awake()
+        {
+            if (defaultGeometricValues == null)
+            {
+                defaultGeometricValues = new MarkGeometricValues
+                {
+                    localPosition = transform.localPosition,
+                    localEulerAngles = transform.localEulerAngles,
+                    localScale = transform.localScale,
+                    colour = GetComponent<Renderer>().material.color
+                };
+            }
         }
 
         public void Start()
@@ -58,7 +72,7 @@ namespace DxR
 
         public virtual void StoreInitialMarkValues()
         {
-            initialGeoshapeValues = new MarkGeometricValues
+            initialGeometricValues = new MarkGeometricValues
             {
                 localPosition = transform.localPosition,
                 localEulerAngles = transform.localEulerAngles,
@@ -69,7 +83,7 @@ namespace DxR
 
         public virtual void StoreFinalMarkValues()
         {
-            finalGeoshapeValues = new MarkGeometricValues
+            finalGeometricValues = new MarkGeometricValues
             {
                 localPosition = transform.localPosition,
                 localEulerAngles = transform.localEulerAngles,
@@ -80,12 +94,12 @@ namespace DxR
 
         public virtual void LoadInitialMarkValues()
         {
-            LoadMarkValues(initialGeoshapeValues);
+            LoadMarkValues(initialGeometricValues);
         }
 
         public virtual void LoadFinalMarkValues()
         {
-            LoadMarkValues(finalGeoshapeValues);
+            LoadMarkValues(finalGeometricValues);
         }
 
         protected virtual void LoadMarkValues(MarkGeometricValues markValues)
@@ -102,33 +116,33 @@ namespace DxR
 
             // TODO: For now, we make a subscription for each geometric value that has actually changed
             // There probably is a more elegant way of doing this though
-            if (initialGeoshapeValues.localPosition != finalGeoshapeValues.localPosition)
+            if (initialGeometricValues.localPosition != finalGeometricValues.localPosition)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localPosition = Vector3.Lerp(initialGeoshapeValues.localPosition, finalGeoshapeValues.localPosition, t);
+                    transform.localPosition = Vector3.Lerp(initialGeometricValues.localPosition, finalGeometricValues.localPosition, t);
                 }).AddTo(morphingSubscriptions);
             }
-            if (initialGeoshapeValues.localEulerAngles != finalGeoshapeValues.localEulerAngles)
+            if (initialGeometricValues.localEulerAngles != finalGeometricValues.localEulerAngles)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localEulerAngles = Vector3.Lerp(initialGeoshapeValues.localEulerAngles, finalGeoshapeValues.localEulerAngles, t);
+                    transform.localEulerAngles = Vector3.Lerp(initialGeometricValues.localEulerAngles, finalGeometricValues.localEulerAngles, t);
                 }).AddTo(morphingSubscriptions);
             }
-            if (initialGeoshapeValues.localScale != finalGeoshapeValues.localScale)
+            if (initialGeometricValues.localScale != finalGeometricValues.localScale)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localScale = Vector3.Lerp(initialGeoshapeValues.localScale, finalGeoshapeValues.localScale, t);
+                    transform.localScale = Vector3.Lerp(initialGeometricValues.localScale, finalGeometricValues.localScale, t);
                 }).AddTo(morphingSubscriptions);
             }
-            if (initialGeoshapeValues.colour != finalGeoshapeValues.colour)
+            if (initialGeometricValues.colour != finalGeometricValues.colour)
             {
                 Renderer renderer = GetComponent<Renderer>();
                 tweeningObservable.Subscribe(t =>
                 {
-                    renderer.material.color = Color.Lerp(initialGeoshapeValues.colour, finalGeoshapeValues.colour, t);
+                    renderer.material.color = Color.Lerp(initialGeometricValues.colour, finalGeometricValues.colour, t);
                 }).AddTo(morphingSubscriptions);
             }
         }
@@ -136,9 +150,10 @@ namespace DxR
         public virtual void DisableMorphing()
         {
             // Cleanup subscriptions
-            morphingSubscriptions.Dispose();
-            initialGeoshapeValues = null;
-            finalGeoshapeValues = null;
+            if (morphingSubscriptions != null)
+                morphingSubscriptions.Dispose();
+            initialGeometricValues = null;
+            finalGeometricValues = null;
 
             // The data values on this mark will also need to be reset. We will just have this be set externally
         }
@@ -147,10 +162,7 @@ namespace DxR
 
         public virtual void ResetToDefault()
         {
-            gameObject.transform.localPosition = Vector3.zero;
-            gameObject.transform.localRotation = Quaternion.identity;
-            gameObject.transform.localScale = Vector3.one;
-            gameObject.GetComponent<Renderer>().material.color = Color.white;
+            LoadMarkValues(defaultGeometricValues);
         }
 
         public virtual void SetChannelValue(string channel, string value)
@@ -244,10 +256,8 @@ namespace DxR
             return 2;
         }
 
-        public void Infer(Data data, JSONNode specsOrig, out JSONNode specs,
-            string specsFilename)
+        public void Infer(Data data, JSONNode specsOrig, out JSONNode specs, string specsFilename)
         {
-            specs = null;
             string origSpecsString = specsOrig.ToString();
             specs = JSON.Parse(origSpecsString);
 
@@ -260,43 +270,48 @@ namespace DxR
                 channelEncoding.channel = kvp.Key;
 
                 // Check validity of channel
-                // TODO:
-
                 JSONNode channelSpecs = kvp.Value;
-                if (channelSpecs["value"] == null)
+
+                // 1. The channel needs either a value or field specified
+                if (channelSpecs["value"] == null && channelSpecs["field"] == null)
                 {
-                    if (channelSpecs["field"] == null)
-                    {
-                        throw new Exception("Missing field in channel " + channelEncoding.channel);
-                    }
-                    else
-                    {
-                        channelEncoding.field = channelSpecs["field"];
+                    throw new Exception("Missing field in channel " + channelEncoding.channel);
+                }
+                // 2. The channel shouldn't specify both a value and field. If so, the field takes precedent and we remove the value
+                else if (channelSpecs["value"] != null && channelSpecs["field"] != null)
+                {
+                    channelSpecs.Remove("value");
+                }
 
-                        // Check validity of data field
-                        if (!data.fieldNames.Contains(channelEncoding.field))
-                        {
-                            throw new Exception("Cannot find data field " + channelEncoding.field + " in data. Please check your spelling (case sensitive).");
-                        }
+                // Additional validity checking and inferencing that is necessary only for fields
+                if (channelSpecs["field"] != null)
+                {
+                    channelEncoding.field = channelSpecs["field"];
 
-                        if (channelSpecs["type"] != null)
-                        {
-                            channelEncoding.fieldDataType = channelSpecs["type"];
-                        }
-                        else
-                        {
-                            throw new Exception("Missing field data type in channel " + channelEncoding.channel);
-                        }
+                    // 3. The specified field needs to actually be in the data
+                    if (!data.fieldNames.Contains(channelEncoding.field))
+                    {
+                        throw new Exception("Cannot find data field " + channelEncoding.field + " in data. Please check your spelling (case sensitive).");
                     }
 
+                    // 4. There needs to be a type specified for this field
+                    if (channelSpecs["type"] == null)
+                    {
+                        throw new Exception("Missing field data type in channel " + channelEncoding.channel);
+                    }
+
+                    channelEncoding.fieldDataType = channelSpecs["type"];
+
+                    // Infer scale specification for this channel where necessary
                     InferScaleSpecsForChannel(ref channelEncoding, ref specs, data);
 
-                    if (channelEncoding.channel == "x" || channelEncoding.channel == "y" ||
-                        channelEncoding.channel == "z")
+                    // For spatial channels, infer the specs required for the axes
+                    if (channelEncoding.channel == "x" || channelEncoding.channel == "y" || channelEncoding.channel == "z")
                     {
                         InferAxisSpecsForChannel(ref channelEncoding, ref specs, data);
                     }
 
+                    // For these other channels, infer the specs required for the legends
                     if (channelEncoding.channel == "color" || channelEncoding.channel == "size")
                     {
                         InferLegendSpecsForChannel(ref channelEncoding, ref specs);
@@ -344,77 +359,7 @@ namespace DxR
                     }
                 }
             }
-
-                /*
-                string inferResults = specs.ToString(2);
-                string filename = "Assets/StreamingAssets/" + specsFilename.TrimEnd(".json".ToCharArray()) + "_inferred.json";
-                WriteStringToFile(inferResults, filename);
-
-                Debug.Log("inferred mark:" + specs["mark"].Value);
-
-                string origSpecsStringPrint = specsOrig.ToString(2);
-                string filenameOrig = "Assets/StreamingAssets/" + specsFilename.TrimEnd(".json".ToCharArray()) + "_orig.json";
-                WriteStringToFile(origSpecsStringPrint, filenameOrig);
-                Debug.Log("orig mark:" + specsOrig["mark"].Value);
-                */
         }
-
-        //public void Infer(Data data, ref JSONNode specs, string specsFilename) { }
-        /*
-        public void Infer(Data data, ref JSONNode specs, string specsFilename)
-        {
-            // Go through each channel and infer the missing specs.
-            foreach (KeyValuePair<string, JSONNode> kvp in specs["encoding"].AsObject)
-            {
-                ChannelEncoding channelEncoding = new ChannelEncoding();
-
-                // Get minimum required values:
-                channelEncoding.channel = kvp.Key;
-                JSONNode channelSpecs = kvp.Value;
-                if (channelSpecs["value"] == null)
-                {
-                    if (channelSpecs["field"] == null)
-                    {
-                        throw new Exception("Missing field in channel " + channelEncoding.channel);
-                    }
-                    else
-                    {
-                        channelEncoding.field = channelSpecs["field"];
-
-                        if (channelSpecs["type"] != null)
-                        {
-                            channelEncoding.fieldDataType = channelSpecs["type"];
-                        }
-                        else
-                        {
-                            throw new Exception("Missing field data type in channel " + channelEncoding.channel);
-                        }
-                    }
-
-                    InferScaleSpecsForChannel(ref channelEncoding, ref specs, data);
-
-                    if (channelEncoding.channel == "x" || channelEncoding.channel == "y" ||
-                        channelEncoding.channel == "z" || channelEncoding.channel == "width" ||
-                        channelEncoding.channel == "height" || channelEncoding.channel == "depth")
-                    {
-                        InferAxisSpecsForChannel(ref channelEncoding, ref specs, data);
-                    }
-
-                    if(channelEncoding.channel == "color" || channelEncoding.channel == "size" ||
-                        channelEncoding.channel == "shape" || channelEncoding.channel == "opacity")
-                    {
-                        InferLegendSpecsForChannel(ref channelEncoding, ref specs);
-                    }
-                }
-            }
-
-            InferMarkSpecificSpecs(ref specs);
-
-            string inferResults = specs.ToString();
-            string filename = "Assets/StreamingAssets/" + specsFilename.TrimEnd(".json".ToCharArray()) + "_inferred.json";
-            WriteStringToFile(inferResults, filename);
-        }
-        */
 
         private void InferLegendSpecsForChannel(ref ChannelEncoding channelEncoding, ref JSONNode specs)
         {
@@ -734,12 +679,12 @@ namespace DxR
             JSONNode scaleSpecs = channelSpecs["scale"];
             JSONObject scaleSpecsObj = (scaleSpecs == null) ? new JSONObject() : scaleSpecs.AsObject;
 
-            if(scaleSpecs["type"] == null)
+            if (scaleSpecs["type"] == null)
             {
                 InferScaleType(channelEncoding.channel, channelEncoding.fieldDataType, ref scaleSpecsObj);
             }
 
-            if(!(scaleSpecsObj["type"].Value.ToString() == "none"))
+            if (!(scaleSpecsObj["type"].Value.ToString() == "none"))
             {
                 if (scaleSpecs["domain"] == null)
                 {
@@ -753,16 +698,6 @@ namespace DxR
                 }
                 else
                 {
-                    /*
-                    if (scaleSpecs["paddingInner"] == null)
-                    {
-                        scaleSpecsObj.Add("paddingInner", new JSONString(ScaleBand.PADDING_INNER_DEFAULT.ToString()));
-                    }
-
-                    if (scaleSpecs["paddingOuter"] == null)
-                    {
-                        scaleSpecsObj.Add("paddingOuter", new JSONString(ScaleBand.PADDING_OUTER_DEFAULT.ToString()));
-                    }*/
                     scaleSpecsObj.Add("padding", new JSONString(ScalePoint.PADDING_DEFAULT.ToString()));
                 }
 
@@ -1031,21 +966,47 @@ namespace DxR
                 if (fieldDataType == "nominal" || fieldDataType == "ordinal")
                 {
                     type = "point";
-                } else if (fieldDataType == "quantitative")
+                }
+                else if (fieldDataType == "quantitative")
                 {
                     type = "linear";
-                } else if (fieldDataType == "temporal")
+                }
+                else if (fieldDataType == "temporal")
                 {
                     type = "time";
-                } else if (fieldDataType == "spatial")
+                }
+                else if (fieldDataType == "spatial")
                 {
                     type = "spatial";
-                } else {
+                }
+                else
+                {
                     throw new Exception("Invalid field data type: " + fieldDataType);
                 }
-            } else if (channel == "width" || channel == "height" || channel == "depth" || channel == "length"
-                || channel == "xrotation" || channel == "yrotation" || channel == "zrotation"
-                || channel == "xdirection" || channel == "ydirection" || channel == "zdirection")
+            } else if (channel == "width" || channel == "height" || channel == "depth" || channel == "length")
+            {
+                if (fieldDataType == "nominal" || fieldDataType == "ordinal")
+                {
+                    type = "point";
+                }
+                else if (fieldDataType == "quantitative")
+                {
+                    type = "linear";
+                }
+                else if (fieldDataType == "temporal")
+                {
+                    type = "time";
+                }
+                else if (fieldDataType == "spatial")
+                {
+                    type = "spatial";
+                }
+                else
+                {
+                    throw new Exception("Invalid field data type: " + fieldDataType);
+                }
+            } else if (channel == "xrotation" || channel == "yrotation" || channel == "zrotation"
+                    || channel == "xdirection" || channel == "ydirection" || channel == "zdirection")
             {
                 if (fieldDataType == "nominal" || fieldDataType == "ordinal")
                 {

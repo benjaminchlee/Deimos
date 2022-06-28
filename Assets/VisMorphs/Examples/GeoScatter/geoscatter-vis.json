@@ -1,5 +1,40 @@
 [
 
+{
+    "width": 800,
+    "height": 500,
+    "mark": "geoshape",
+    "encoding": {
+        "x": {
+            "field": "Population",
+            "type": "quantitative"
+        },
+        "y": {
+            "field": "LifeExpectancy",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [ 70, 85 ]
+            }
+        },
+        "width": {
+            "value": 10
+        },
+        "height": {
+            "value": 10
+        },
+        "color": {
+            "field": "Population",
+            "type": "quantitative"
+        }
+    },
+    "data": {
+        "url": "us-states.json"
+    }
+}
+
+    ,
+
 
 {
     "width": 800,
@@ -7,12 +42,12 @@
     "mark": "geoshape",
     "encoding": {
         "x": {
-            "field": "Longitude",
-            "type": "spatial"
+            "field": "Population",
+            "type": "quantitative"
         },
         "y": {
-            "field": "Latitude",
-            "type": "spatial"
+            "field": "LifeExpectancy",
+            "type": "quantitative"
         },
         "width": {
             "field": "Longitude",
@@ -34,13 +69,9 @@
 
 ,
 
-
 {
     "width": 800,
     "height": 500,
-    "data": {
-        "url": "us-states.json"
-    },
     "mark": "geoshape",
     "encoding": {
         "x": {
@@ -49,14 +80,11 @@
         },
         "y": {
             "field": "Latitude",
-            "type": "spatial"
-        },
-        "zoffsetpct": {
-            "value": -0.5
-        },
-        "z": {
-            "field": "Population",
-            "type": "quantitative"
+            "type": "spatial",
+            "scale": {
+                "type": "linear",
+                "domain": [ 15, 75 ]
+            }
         },
         "width": {
             "field": "Longitude",
@@ -66,53 +94,15 @@
             "field": "Latitude",
             "type": "spatial"
         },
-        "depth": {
-            "field": "Population",
-            "type": "quantitative"
-        },
         "color": {
             "field": "Population",
             "type": "quantitative"
-        }
-    }
-}
-
-,
-
-{
-    "width": 800,
-    "height": 500,
-    "mark": "geoshape",
-    "encoding": {
-        "x": {
-            "field": "Name",
-            "type": "nominal"
-        },
-        "z": {
-            "field": "Population",
-            "type": "quantitative"
-        },
-        "depth": {
-            "field": "Population",
-            "type": "quantitative"
-        },
-        "height": {
-            "value": 0.01
-        },
-        "color": {
-            "field": "Population",
-            "type": "quantitative"
-        },
-        "zoffsetpct": {
-            "value": -0.5
-        },
-        "width": {
-            "value": 5
         }
     },
     "data": {
         "url": "us-states.json"
     }
 }
+
 
 ]

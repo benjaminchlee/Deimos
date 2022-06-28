@@ -1,0 +1,143 @@
+{
+    "signals": [{
+            "name": "sliderX",
+            "source": {
+                "type": "gameobject",
+                "ref": "GeoScatterSlider",
+                "select": "transform.position.x"
+            }
+        }, {
+            "name": "sliderStage1",
+            "expression": "normalise(sliderX, 0, 0.5)"
+        }, {
+            "name": "sliderStage2",
+            "expression":"normalise(sliderX, 0.5, 1)"
+        }
+    ],
+
+    "states": [
+        {
+            "name": "scatterplot",
+            "base": {
+                "mark": "geoshape",
+                "encoding": {
+                    "x": {
+                        "field": "Population",
+                        "type": "quantitative"
+                    },
+                    "y": {
+                        "field": "LifeExpectancy",
+                        "type": "quantitative",
+                        "scale": {
+                            "type": "linear",
+                            "domain": [ 70, 85 ]
+                        }
+                    }
+                }
+            },
+            "excludes": {
+                "encoding": {
+                }
+            }
+        },
+        {
+            "name": "scatterplot-choro",
+            "base": {
+                "mark": "geoshape",
+                "encoding": {
+                    "x": {
+                        "field": "Longitude",
+                        "type": "spatial"
+                    },
+                    "y": {
+                        "field": "Latitude",
+                        "type": "spatial",
+                        "scale": {
+                            "type": "linear",
+                            "domain": [ 15, 75 ]
+                        }
+                    },
+                    "width": {
+                        "value": 10
+                    },
+                    "height": {
+                        "value": 10
+                    }
+                }
+            },
+            "excludes": {
+                "encoding": {
+                }
+            }
+        },
+        {
+            "name": "choropleth",
+            "base": {
+                "mark": "geoshape",
+                "encoding": {
+                    "x": {
+                        "field": "Longitude",
+                        "type": "spatial"
+                    },
+                    "y": {
+                        "field": "Latitude",
+                        "type": "spatial",
+                        "scale": {
+                            "type": "linear",
+                            "domain": [ 15, 75 ]
+                        }
+                    },
+                    "width": {
+                        "field": "Longitude",
+                        "type": "spatial"
+                    },
+                    "height": {
+                        "field": "Latitude",
+                        "type": "spatial"
+                    }
+                }
+            },
+            "excludes": {
+                "encoding": {
+                    "y": {
+                        "scale": {
+                            "type": "*",
+                            "domain": "*"
+                        }
+                    }
+                }
+            }
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "stage1",
+            "states": ["scatterplot", "scatterplot-choro"],
+            "triggers": [],
+            "timing": {
+                "control": "sliderStage1",
+                "easing": "inoutcubic"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        },
+        {
+            "name": "stage2",
+            "states": ["scatterplot-choro", "choropleth"],
+            "triggers": [],
+            "timing": {
+                "control": "sliderStage2",
+                "easing": "inoutcubic"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        }
+    ]
+}

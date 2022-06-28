@@ -50,7 +50,6 @@ namespace DxR
                 jsonWriter.WriteToken(jsonReader);
                 JsonSpecification = stringWriter.ToString();
             }
-
         }
     }
 }

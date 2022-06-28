@@ -32,9 +32,13 @@
                         "field": "Latitude",
                         "type": "spatial"
                     },
-                    "color": {
-                        "field": "Population",
-                        "type": "quantitative"
+                    "width": {
+                        "field": "Longitude",
+                        "type": "spatial"
+                    },
+                    "height": {
+                        "field": "Latitude",
+                        "type": "spatial"
                     }
                 }
             },
@@ -43,9 +47,6 @@
                     "z": {
                         "field": "*",
                         "type": "*"
-                    },
-                    "zoffsetpct": {
-                        "value": 0
                     },
                     "depth" : {
                         "value": "*"
@@ -70,29 +71,20 @@
                         "field": "Population",
                         "type": "quantitative"
                     },
+                    "width": {
+                        "field": "Longitude",
+                        "type": "spatial"
+                    },
+                    "height": {
+                        "field": "Latitude",
+                        "type": "spatial"
+                    },
                     "depth": {
                         "field": "Population",
                         "type": "quantitative"
                     },
                     "zoffsetpct": {
                         "value": -0.5
-                    },
-                    "color": {
-                        "field": "Population",
-                        "type": "quantitative"
-                    }
-                }
-            },
-            "excludes": {
-                "encoding": {
-                    "width": {
-                        "value": 0
-                    },
-                    "height": {
-                        "field": "*"
-                    },
-                    "yoffsetpct": {
-                        "value": 0
                     }
                 }
             }
@@ -106,32 +98,29 @@
                         "field": "Name",
                         "type": "nominal"
                     },
+                    "width": {
+                        "value": 5
+                    },
                     "z": {
                         "field": "Population",
                         "type": "quantitative"
                     },
-                    "height": {
+                    "depth": {
                         "field": "Population",
                         "type": "quantitative"
                     },
                     "zoffsetpct": {
                         "value": -0.5
                     },
-                    "width": {
-                        "value": 10
+                    "height": {
+                        "value": 0.01
                     }
                 }
             },
             "excludes": {
                 "encoding": {
                     "y": {
-                        "value": 0
-                    },
-                    "yoffsetpct": {
-                        "value": 0
-                    },
-                    "height": {
-                        "value": 0
+                        "field": "*"
                     }
                 }
             }

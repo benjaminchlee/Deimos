@@ -17,6 +17,7 @@ namespace DxR.VisMorphs
         public static SignalManager Instance { get; private set; }
 
         public Dictionary<string, IObservable<dynamic>> Signals = new Dictionary<string, IObservable<dynamic>>();
+        public bool DebugSignals = false;
 
         private Interpreter interpreter;
 
@@ -106,8 +107,7 @@ namespace DxR.VisMorphs
             {
                 case "event":
                     {
-                        // TODO: Hook into common events such as hand pinches and mouse clicks
-                        observable = null;
+                        observable = GenerateObservableFromEvent(reference);
 
                         if (select != "")
                             observable.Select(x => x.GetPropValue(select));
@@ -117,7 +117,7 @@ namespace DxR.VisMorphs
                 case "gameobject":
                     {
                         if (select == "")
-                            throw new Exception("Signal of type gameobject needs a select expression");
+                            throw new Exception("Signal of type gameobject needs a select expression.");
 
                         // Find the referenced gameobject and emit values whenever the selected property has changed
                         observable = GameObject.Find(reference).ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(select));
@@ -126,6 +126,20 @@ namespace DxR.VisMorphs
             }
 
             return observable;
+        }
+
+        private IObservable<dynamic> GenerateObservableFromEvent(string eventName)
+        {
+            switch (eventName.ToString())
+            {
+                case "mousedown":
+                    return Observable.EveryUpdate()
+                        .Select(_ => Input.GetMouseButton(0))
+                        .DistinctUntilChanged()
+                        .Select(_ => (dynamic)_);
+                default:
+                    throw new Exception("Event of ref \"" + eventName + "\" does not exist.");
+            }
         }
 
         private IObservable<dynamic> GenerateObservableFromExpression(string expression)
@@ -254,7 +268,10 @@ namespace DxR.VisMorphs
             // Make the observable a ReplaySubject which returns the most recently emitted item as soon as it is subscribed to
             observable = observable.Replay(1).RefCount();
             // WORKAROUND: To force the observable to behave like a hot observable, we would typically use a dummy subscription here
-            observable.Subscribe();
+            if (!DebugSignals)
+                observable.Subscribe();
+            else
+                observable.Subscribe(_ => Debug.Log(_));
 
             if (!Signals.ContainsKey(name))
             {

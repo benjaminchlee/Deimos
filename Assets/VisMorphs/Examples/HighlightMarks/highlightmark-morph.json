@@ -1,0 +1,65 @@
+{
+    "signals": [{
+            "name": "mousedown",
+            "source": {
+                "type": "event",
+                "ref": "mousedown"
+            }
+        }, {
+            "name": "mouseup",
+            "expression": "!mousedown"
+        }
+    ],
+
+    "states": [
+        {
+            "name": "base",
+            "excludes": {
+                "encoding": {
+                    "color": {
+                        "value": "*"
+                    }
+                }
+            }
+        },
+        {
+            "name": "coloured",
+            "base": {
+                "encoding": {
+                    "color": {
+                        "value": "red"
+                    }
+                }
+            }
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "base2coloured",
+            "states": ["base", "coloured"],
+            "triggers": ["mousedown"],
+            "timing": {
+                "control": 1
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "end"
+            },
+            "bidirectional": false
+        },
+        {
+            "name": "coloured2base",
+            "states": ["coloured", "base"],
+            "triggers": ["mouseup"],
+            "timing": {
+                "control": 1
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "end"
+            },
+            "bidirectional": false
+        }
+    ]
+}
