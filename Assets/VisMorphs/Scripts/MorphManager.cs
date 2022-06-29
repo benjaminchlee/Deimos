@@ -298,13 +298,22 @@ namespace DxR.VisMorphs
             JSONNode initialState, finalState;
             if (!isTransitionReversed)
             {
-                initialState = GenerateNewVisSpecFromState(candidateVis.GetVisSpecs(), currentState);
-                finalState = GenerateNewVisSpecFromState(initialState, GetStateFromName(currentTransition["states"][1]), true);
+                initialState = candidateVis.GetVisSpecs();
+                finalState = GenerateVisSpecKeyframeFromState(initialState, GetStateFromName(currentTransition["states"][0]), GetStateFromName(currentTransition["states"][1]));
+
+                // initialState = GenerateNewVisSpecFromState(candidateVis.GetVisSpecs(), currentState);
+                // finalState = GenerateNewVisSpecFromState(initialState, GetStateFromName(currentTransition["states"][1]), true);
             }
             else
             {
-                finalState = GenerateNewVisSpecFromState(candidateVis.GetVisSpecs(), currentState, true);
-                initialState = GenerateNewVisSpecFromState(finalState, GetStateFromName(currentTransition["states"][0]), true);
+                // If the transition is being called in the reversed direction, the candidate vis actually starts from the *final* state,
+                // in order to not mess with the tweening value. Note this does mean that it doesn't really work with time-based tweens
+
+                finalState = candidateVis.GetVisSpecs();
+                initialState = GenerateVisSpecKeyframeFromState(finalState, GetStateFromName(currentTransition["states"][1]), GetStateFromName(currentTransition["states"][0]));
+
+                // finalState = GenerateNewVisSpecFromState(candidateVis.GetVisSpecs(), currentState, true);
+                // initialState = GenerateNewVisSpecFromState(finalState, GetStateFromName(currentTransition["states"][0]), true);
             }
 
             if (DebugStates)
@@ -353,24 +362,9 @@ namespace DxR.VisMorphs
         {
             foreach (JSONNode stateSpecs in statesSpecification.Children)
             {
-                bool matching = false;
-
-                JSONNode transformBase = stateSpecs["base"];
-                JSONNode transformExcludes = stateSpecs["excludes"];
-
-                // Check base conditions
-                matching = CompareBase(visSpecs, transformBase);
-                Debug.Log("MORPHS BASE FOR " + stateSpecs["name"] + ": " + matching);
-
-                // Check excludes conditions only if the base conditions were successful
-                if (matching)
+                if (CheckSpecsMatching(visSpecs, stateSpecs))
                 {
-                    matching = CompareExcludes(visSpecs, transformExcludes);
-                    Debug.Log("MORPHS EXCLUDES FOR " + stateSpecs["name"] + ": " + matching);
-                }
-
-                if (matching)
-                {
+                    Debug.Log("Visualisation matching state\"" + stateSpecs["name"] + "\" found.");
                     return stateSpecs;
                 }
             }
@@ -424,46 +418,119 @@ namespace DxR.VisMorphs
             return count;
         }
 
-        private bool CompareBase(JSONNode visSpecs, JSONNode transformBase)
+        private bool CheckSpecsMatching(JSONNode visSpecs, JSONNode stateSpecs)
         {
-            // If no base has been defined, we just return true
-            if (transformBase == null)
-                return true;
+            return CheckViewSpecsMatching(visSpecs, stateSpecs) &&
+                   CheckEncodingSpecsMatching(visSpecs["encoding"], stateSpecs["encoding"]);
+        }
 
-            var visSpecsChildren = GetDeepChildrenWithPaths(visSpecs);
-            var transformBaseChildren = GetDeepChildrenWithPaths(transformBase);
-
-            foreach (var kvp in transformBaseChildren)
+        private bool CheckViewSpecsMatching(JSONNode visSpecs, JSONNode stateSpecs)
+        {
+            foreach (var property in stateSpecs)
             {
-                if (visSpecsChildren.ContainsKey(kvp.Key) && visSpecsChildren[kvp.Key].ToString() == kvp.Value.ToString())
-                {
+                // Ignore the name and encoding properties
+                if (property.Key == "name" || property.Key == "encoding")
                     continue;
-                }
 
-                return false;
+                // We also ignore the data property for now
+                // TODO: Check the data as well
+                if (property.Key == "data")
+                    continue;
+
+                JSONNode statePropertyValue = property.Value;
+                JSONNode visPropertyValue = visSpecs[property.Key];
+
+                // Condition 1: the value of this property is defined, but as null
+                if (statePropertyValue.IsNull)
+                {
+                    if (visPropertyValue != null && !visPropertyValue.IsNull)
+                    {
+                        return false;
+                    }
+                }
+                // Condition 2: the value of this property is defined as a wildcard ("*")
+                else if (statePropertyValue.ToString() == "\"*\"")
+                {
+                    if (visPropertyValue == null ||
+                        (visPropertyValue != null && visPropertyValue.IsNull))
+                        return false;
+                }
+                // Condition 3: the value of this property is defined as a specific value
+                else
+                {
+                    if (visPropertyValue == null ||
+                        (visPropertyValue != null && visPropertyValue.ToString() != statePropertyValue.ToString()))
+                        return false;
+                }
             }
 
             return true;
         }
 
-        private bool CompareExcludes(JSONNode visSpecs, JSONNode transformExcludes)
+        private bool CheckEncodingSpecsMatching(JSONNode visEncodingSpecs, JSONNode stateEncodingSpecs)
         {
-            // If no excludes has been defined, we just return true
-            if (transformExcludes == null)
+            if (stateEncodingSpecs == null)
                 return true;
 
-            var visSpecsChildren = GetDeepChildrenWithPaths(visSpecs);
-            var transformExcludesChildren = GetDeepChildrenWithPaths(transformExcludes);
+            if (stateEncodingSpecs.IsNull)
+                return true;
 
-            foreach (var kvp in transformExcludesChildren)
+
+            foreach (var encoding in stateEncodingSpecs)
             {
-                // If the two Specs have the same key, and if either their values are the same or the value in
-                // the Excludes specs is a wildcard (*), then it fails the Excludes check
-                if (visSpecsChildren.ContainsKey(kvp.Key)
-                    && (visSpecsChildren[kvp.Key] == kvp.Value
-                        || kvp.Value == "*"))
+                string stateEncodingKey = encoding.Key.ToLower();
+                JSONNode stateEncodingValue = encoding.Value;
+
+                JSONNode visEncodingValue = stateEncodingSpecs[stateEncodingKey];
+
+                // If the value of this encoding is null, it means that our vis specs should NOT have it
+                // e.g., "x": null
+                if (stateEncodingValue.IsNull)
                 {
-                    return false;
+                    // If the vis specs does actually have this encoding with a properly defined value, then it fails the check
+                    if (visEncodingValue != null && !visEncodingValue.IsNull)
+                    {
+                        return false;
+                    }
+                }
+                // Otherwise, we check all of the properties within this property (i.e., field, value, type) to ensure they match
+                else
+                {
+                    foreach (var stateEncodingProperty in stateEncodingValue)
+                    {
+                        JSONNode stateEncodingPropertyValue = stateEncodingProperty.Value;
+                        JSONNode visEncodingPropertyValue = visEncodingValue[stateEncodingProperty.Key];
+
+                        // Condition 1: the value of this state property is defined, but as null
+                        // e.g.,: "x": {
+                        //          "field": null
+                        //         }
+                        if (stateEncodingProperty.Value.IsNull)
+                        {
+                            if (visEncodingPropertyValue != null && !visEncodingPropertyValue.IsNull)
+                                return false;
+                        }
+                        // Condition 2: the value of this property is defined as a wildcard ("*")
+                        // e.g.,: "x": {
+                        //          "field": "*"
+                        //         }
+                        else if (stateEncodingProperty.Value.ToString() == "\"*\"")
+                        {
+                            if (visEncodingPropertyValue == null ||
+                                (visEncodingPropertyValue != null && visEncodingPropertyValue.IsNull))
+                                return false;
+                        }
+                        // Condition 3: the value of this property is some specific value
+                        // e.g.,: "x": {
+                        //          "field": "Miles_Per_Gallon"
+                        //         }
+                        else
+                        {
+                            if (visEncodingPropertyValue == null ||
+                                (visEncodingPropertyValue != null && visEncodingPropertyValue.ToString() != stateEncodingPropertyValue.ToString()))
+                                return false;
+                        }
+                    }
                 }
             }
 
@@ -498,32 +565,166 @@ namespace DxR.VisMorphs
             return candidateTransitions;
         }
 
-        private JSONNode GenerateNewVisSpecFromState(JSONNode visSpecs, JSONNode stateSpecs, bool includeBase = false)
+        private JSONNode GenerateVisSpecKeyframeFromState(JSONNode visSpecs, JSONNode initialStateSpecs, JSONNode finalStateSpecs)
         {
-            // SimpleJSON doesn't really work well with merging JSON objects together
-            // So we just use JSON.NET instead
-            var _visSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
-            var _stateSpecs = Newtonsoft.Json.Linq.JObject.Parse(stateSpecs.ToString());
+            // SimpleJSON doesn't really work well with editing JSON objects, so we just use JSON.NET instead
+            var _initialStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(initialStateSpecs.ToString());
+            var _finalStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(finalStateSpecs.ToString());
 
-            _visSpecs.Merge(_stateSpecs["override"]);
-            if (includeBase)
-            {
-                _visSpecs.Merge(_stateSpecs["base"], new JsonMergeSettings { MergeArrayHandling  = MergeArrayHandling.Replace });
-            }
+            // Create another vis specs object which will be the one which we are actually modifying
+            var _newVisSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
 
-            // Remove properties from the visSpecs that are defined in the excludes part of the stateSpecs
-            if (_stateSpecs["excludes"] != null && _stateSpecs["excludes"]["encoding"] != null)
+            // First, we need to find the set of changes between the initial and final states
+            // This includes going from:
+            // A) defined to null
+            // B) null to defined
+            // C) defined to defined
+            // Any JProperty in here with a null value is considered to be removed
+            JObject changes = new JObject(new JProperty("encoding", new JObject()));
+
+            // To make our lives easier, we remove all properties that have a null value. We will treat the absence of
+            // the property as null, rather than the explicit null itself
+            RemoveNullProperties(ref _initialStateSpecs);
+            RemoveNullProperties(ref _finalStateSpecs);
+
+            foreach (var encoding in ((JObject)_initialStateSpecs["encoding"]).Properties())
             {
-                foreach (var i in ((JObject)_stateSpecs["excludes"]["encoding"]).Properties())
+                // Check option A: the encoding is defined in the initial state, but not in the final state
+                if (_finalStateSpecs["encoding"][encoding.Name] == null)
                 {
-                    _visSpecs["encoding"][i.Name]?.Parent.Remove();
+                    changes["encoding"].Append(new JProperty(encoding.Name, null));
+                }
+                // Check option C: the encoding is defined in both states
+            }
+            return visSpecs;
+        }
+
+        /// <summary>
+        /// Removes all properties with a value of null in a JSON.NET object
+        /// </summary>
+        private void RemoveNullProperties(ref JObject specs)
+        {
+            var descendants = specs.Descendants()
+                .Where(x => !x.HasValues);
+
+            List<string> pathsToRemove = new List<string>();
+
+            foreach (var descendant in descendants)
+            {
+                if (descendant.Type == JTokenType.Null)
+                {
+                    pathsToRemove.Add(descendant.Parent.Path);
                 }
             }
 
-            CleanVisSpec(ref _visSpecs, _stateSpecs);
-
-            return JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_visSpecs));
+            foreach (string path in pathsToRemove)
+            {
+                specs.SelectToken(path).Parent.Remove();
+            }
         }
+
+        // /// <summary>
+        // /// Generates a new vis spec (i.e., keyframe) based off a give state specs
+        // /// </summary>
+        // private JSONNode GenerateVisSpecKeyframeFromState(JSONNode visSpecs, JSONNode initialStateSpecs, JSONNode finalStateSpecs)
+        // {
+        //     // SimpleJSON doesn't really work well with editing JSON objects, so we just use JSON.NET instead
+        //     var _initialStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(initialStateSpecs.ToString());
+        //     var _finalStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(finalStateSpecs.ToString());
+
+        //     // Create another vis specs object which will be the one which we are actually modifying
+        //     var _newVisSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
+
+        //     // There are three things we need to check for here:
+        //     //  Step A: Remove any encodings that are defined in INITIAL but not in FINAL
+        //     //  Step B: Add any encodings that are defined in FINAL but not in INITIAL
+        //     //  Step C: Change any encodings that are defined in both
+
+        //     foreach (var encoding in ((JObject)_initialStateSpecs["encoding"]).Properties())
+        //     {
+        //         // If the encoding is defined as null in this spec, ignore it
+        //         if (!IsJTokenDefined(encoding.Value))
+        //             continue;
+
+        //         // Step A: If the FINAL state doesn't have this encoding, remove it from the vis specs
+        //         // if (_finalStateSpecs["encoding"][encoding.Name] == null ||
+        //         //     (_finalStateSpecs["encoding"][encoding.Name] != null && _finalStateSpecs["encoding"][encoding.Name].Type == JTokenType.Null))
+        //         // {
+        //         if (!IsJTokenDefined(_finalStateSpecs["encoding"][encoding.Name]))
+        //         {
+        //             _newVisSpecs["encoding"][encoding.Name].Parent.Remove();
+        //         }
+
+        //         // Step C: If BOTH specs have this encoding, then apply any changes accordingly, taking priority of the FINAL state's values
+        //         else if (IsJTokenDefined(_finalStateSpecs["encoding"][encoding.Name]))
+        //         {
+        //             // If the FINAL state defines a field instead of value (or vice versa), prioritise it over whatever the vis currently has
+        //             if (IsJTokenDefined(_finalStateSpecs["encoding"][encoding.Name]["field"]))
+        //             {
+        //                 if (IsJTokenDefined(_newVisSpecs["encoding"][encoding.Name]["value"]))
+        //                     _newVisSpecs["encoding"][encoding.Name]["value"].Parent.Remove();
+        //             }
+        //             else if (IsJTokenDefined(_finalStateSpecs["encoding"][encoding.Name]["value"]))
+        //             {
+        //                 if (IsJTokenDefined(_newVisSpecs["encoding"][encoding.Name]["field"]))
+        //                     _newVisSpecs["encoding"][encoding.Name]["field"].Parent.Remove();
+        //             }
+
+        //             // Merge the FINAL state with the vis specs
+        //             _newVisSpecs["encoding"][encoding.Name].Parent.Merge(_finalStateSpecs["encoding"][encoding.Name].Parent);
+        //         }
+        //     }
+
+
+        //     foreach (var encoding in ((JObject)_finalStateSpecs["encoding"]).Properties())
+        //     {
+        //         // If the encoding is defined as null in this spec, ignore it
+        //         if (!IsJTokenDefined(encoding.Value))
+        //             continue;
+
+        //         // Step B: If the INITIAL state doesn't have this encoding, add it to the vis specs
+        //         if (!IsJTokenDefined(_initialStateSpecs["encoding"][encoding.Name]))
+        //         {
+        //             _newVisSpecs["encoding"].Parent.Merge(encoding);
+        //         }
+        //     }
+        //     //CleanVisSpec(ref _newVisSpecs, _stateSpecs);
+
+        //     return JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_newVisSpecs));
+        // }
+
+        // private bool IsJTokenDefined(JToken token)
+        // {
+        //     return (token != null && token.Type != JTokenType.Null);
+        // }
+
+
+        // private JSONNode GenerateNewVisSpecFromState(JSONNode visSpecs, JSONNode stateSpecs, bool includeBase = false)
+        // {
+        //     // SimpleJSON doesn't really work well with merging JSON objects together
+        //     // So we just use JSON.NET instead
+        //     var _visSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
+        //     var _stateSpecs = Newtonsoft.Json.Linq.JObject.Parse(stateSpecs.ToString());
+
+        //     _visSpecs.Merge(_stateSpecs["override"]);
+        //     if (includeBase)
+        //     {
+        //         _visSpecs.Merge(_stateSpecs["base"], new JsonMergeSettings { MergeArrayHandling  = MergeArrayHandling.Replace });
+        //     }
+
+        //     // Remove properties from the visSpecs that are defined in the excludes part of the stateSpecs
+        //     if (_stateSpecs["excludes"] != null && _stateSpecs["excludes"]["encoding"] != null)
+        //     {
+        //         foreach (var i in ((JObject)_stateSpecs["excludes"]["encoding"]).Properties())
+        //         {
+        //             _visSpecs["encoding"][i.Name]?.Parent.Remove();
+        //         }
+        //     }
+
+        //     CleanVisSpec(ref _visSpecs, _stateSpecs);
+
+        //     return JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_visSpecs));
+        // }
 
         /// <summary>
         /// Clean up a vis spec such that it may render properly during a morph

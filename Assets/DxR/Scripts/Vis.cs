@@ -342,7 +342,6 @@ namespace DxR
             bool isDirectionChanged = false;
             foreach (ChannelEncoding ch in channelEncodings)
             {
-                Debug.Log(ch.channel);
                 ApplyChannelEncoding(ch, ref markInstances);
 
                 if(ch.channel == "xdirection" || ch.channel == "ydirection" || ch.channel == "zdirection")

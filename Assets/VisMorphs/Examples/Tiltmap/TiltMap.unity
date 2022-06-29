@@ -2954,51 +2954,42 @@ MonoBehaviour:
     \"name\": \"c2pTween\",\r\n            \"expression\": \"normalise(rotationX,
     18, 36)\"\r\n        }, {\r\n            \"name\": \"p2bTween\",\r\n           
     \"expression\":\"normalise(rotationX, 54, 72)\"\r\n        }\r\n    ],\r\n\r\n   
-    \"states\": [\r\n        {\r\n            \"name\": \"choropleth\",\r\n           
-    \"base\": {\r\n                \"mark\": \"geoshape\",\r\n                \"encoding\":
-    {\r\n                    \"x\": {\r\n                        \"field\": \"Longitude\",\r\n                       
-    \"type\": \"spatial\"\r\n                    },\r\n                    \"y\":
-    {\r\n                        \"field\": \"Latitude\",\r\n                       
-    \"type\": \"spatial\"\r\n                    },\r\n                    \"width\":
-    {\r\n                        \"field\": \"Longitude\",\r\n                       
-    \"type\": \"spatial\"\r\n                    },\r\n                    \"height\":
-    {\r\n                        \"field\": \"Latitude\",\r\n                       
-    \"type\": \"spatial\"\r\n                    }\r\n                }\r\n           
-    },\r\n            \"excludes\": {\r\n                \"encoding\": {\r\n                   
-    \"z\": {\r\n                        \"field\": \"*\",\r\n                       
-    \"type\": \"*\"\r\n                    },\r\n                    \"depth\" :
-    {\r\n                        \"value\": \"*\"\r\n                    }\r\n               
-    }\r\n            }\r\n        },\r\n        {\r\n            \"name\": \"prism\",\r\n           
-    \"base\": {\r\n                \"mark\": \"geoshape\",\r\n                \"encoding\":
-    {\r\n                    \"x\": {\r\n                        \"field\": \"Longitude\",\r\n                       
+    \"states\": [\r\n        {\r\n            \"name\": \"choropleth\",\r\n               
+    \"mark\": \"geoshape\",\r\n                \"encoding\": {\r\n                   
+    \"x\": {\r\n                        \"field\": \"Longitude\",\r\n                       
     \"type\": \"spatial\"\r\n                    },\r\n                    \"y\":
     {\r\n                        \"field\": \"Latitude\",\r\n                       
     \"type\": \"spatial\"\r\n                    },\r\n                    \"z\":
-    {\r\n                        \"field\": \"Population\",\r\n                       
-    \"type\": \"quantitative\"\r\n                    },\r\n                    \"width\":
-    {\r\n                        \"field\": \"Longitude\",\r\n                       
-    \"type\": \"spatial\"\r\n                    },\r\n                    \"height\":
-    {\r\n                        \"field\": \"Latitude\",\r\n                       
-    \"type\": \"spatial\"\r\n                    },\r\n                    \"depth\":
-    {\r\n                        \"field\": \"Population\",\r\n                       
-    \"type\": \"quantitative\"\r\n                    },\r\n                    \"zoffsetpct\":
-    {\r\n                        \"value\": -0.5\r\n                    }\r\n               
-    }\r\n            }\r\n        },\r\n        {\r\n            \"name\": \"bar\",\r\n           
-    \"base\": {\r\n                \"mark\": \"geoshape\",\r\n                \"encoding\":
-    {\r\n                    \"x\": {\r\n                        \"field\": \"Name\",\r\n                       
-    \"type\": \"nominal\"\r\n                    },\r\n                    \"width\":
-    {\r\n                        \"value\": 5\r\n                    },\r\n                   
-    \"z\": {\r\n                        \"field\": \"Population\",\r\n                       
-    \"type\": \"quantitative\"\r\n                    },\r\n                    \"depth\":
-    {\r\n                        \"field\": \"Population\",\r\n                       
-    \"type\": \"quantitative\"\r\n                    },\r\n                    \"zoffsetpct\":
-    {\r\n                        \"value\": -0.5\r\n                    },\r\n                   
-    \"height\": {\r\n                        \"value\": 0.01\r\n                   
-    }\r\n                }\r\n            },\r\n            \"excludes\": {\r\n               
-    \"encoding\": {\r\n                    \"y\": {\r\n                        \"field\":
-    \"*\"\r\n                    }\r\n                }\r\n            }\r\n       
-    }\r\n    ],\r\n\r\n    \"transitions\": [\r\n        {\r\n            \"name\":
-    \"c2p\",\r\n            \"states\": [\"choropleth\", \"prism\"],\r\n           
+    null,\r\n                    \"width\": {\r\n                        \"field\":
+    \"Longitude\",\r\n                        \"type\": \"spatial\"\r\n                   
+    },\r\n                    \"height\": {\r\n                        \"field\":
+    \"Latitude\",\r\n                        \"type\": \"spatial\"\r\n                   
+    }\r\n                }\r\n        },\r\n        {\r\n            \"name\": \"prism\",\r\n           
+    \"mark\": \"geoshape\",\r\n            \"encoding\": {\r\n                \"x\":
+    {\r\n                    \"field\": \"Longitude\",\r\n                    \"type\":
+    \"spatial\"\r\n                },\r\n                \"y\": {\r\n                   
+    \"field\": \"Latitude\",\r\n                    \"type\": \"spatial\"\r\n               
+    },\r\n                \"z\": {\r\n                    \"field\": \"Population\",\r\n                   
+    \"type\": \"quantitative\"\r\n                },\r\n                \"width\":
+    {\r\n                    \"field\": \"Longitude\",\r\n                    \"type\":
+    \"spatial\"\r\n                },\r\n                \"height\": {\r\n                   
+    \"field\": \"Latitude\",\r\n                    \"type\": \"spatial\"\r\n               
+    },\r\n                \"depth\": {\r\n                    \"field\": \"Population\",\r\n                   
+    \"type\": \"quantitative\"\r\n                },\r\n                \"zoffsetpct\":
+    {\r\n                    \"value\": -0.5\r\n                }\r\n           
+    }\r\n        },\r\n        {\r\n            \"name\": \"bar\",\r\n           
+    \"mark\": \"geoshape\",\r\n            \"encoding\": {\r\n                \"x\":
+    {\r\n                    \"field\": \"Name\",\r\n                    \"type\":
+    \"nominal\"\r\n                },\r\n                \"y\": null,\r\n               
+    \"z\": {\r\n                    \"field\": \"Population\",\r\n                   
+    \"type\": \"quantitative\"\r\n                },\r\n                \"width\":
+    {\r\n                    \"value\": 5\r\n                },\r\n               
+    \"depth\": {\r\n                    \"field\": \"Population\",\r\n                   
+    \"type\": \"quantitative\"\r\n                },\r\n                \"zoffsetpct\":
+    {\r\n                    \"value\": -0.5\r\n                },\r\n               
+    \"height\": {\r\n                    \"value\": 0.01\r\n                }\r\n           
+    }\r\n        }\r\n    ],\r\n\r\n    \"transitions\": [\r\n        {\r\n           
+    \"name\": \"c2p\",\r\n            \"states\": [\"choropleth\", \"prism\"],\r\n           
     \"triggers\": [\"tiltMapTrigger\"],\r\n            \"timing\": {\r\n               
     \"control\": \"c2pTween\",\r\n                \"easing\": \"inoutcubic\"\r\n           
     },\r\n            \"interrupt\": {\r\n                \"control\": \"reset\",\r\n               
