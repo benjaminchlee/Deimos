@@ -2950,22 +2950,20 @@ MonoBehaviour:
     \"source\": {\r\n                \"type\": \"event\",\r\n                \"ref\":
     \"mousedown\"\r\n            }\r\n        }, {\r\n            \"name\": \"mouseup\",\r\n           
     \"expression\": \"!mousedown\"\r\n        }\r\n    ],\r\n\r\n    \"states\":
-    [\r\n        {\r\n            \"name\": \"base\",\r\n            \"exclude\":
-    {\r\n                \"encoding\": {\r\n                    \"color\": {\r\n                       
-    \"value\": \"*\"\r\n                    }\r\n                }\r\n           
-    }\r\n        },\r\n        {\r\n            \"name\": \"coloured\",\r\n           
-    \"base\": {\r\n                \"encoding\": {\r\n                    \"color\":
-    {\r\n                        \"value\": \"red\"\r\n                    }\r\n               
-    }\r\n            }\r\n        }\r\n    ],\r\n\r\n    \"transitions\": [\r\n       
-    {\r\n            \"name\": \"base2coloured\",\r\n            \"states\": [\"base\",
-    \"coloured\"],\r\n            \"triggers\": [\"mousedown\"],\r\n            \"timing\":
-    {\r\n                \"control\": 1\r\n            },\r\n            \"interrupt\":
-    {\r\n                \"control\": \"reset\",\r\n                \"value\": \"start\"\r\n           
+    [\r\n        {\r\n            \"name\": \"base\",\r\n            \"encoding\":
+    {\r\n                \"color\": null\r\n            }\r\n        },\r\n       
+    {\r\n            \"name\": \"coloured\",\r\n            \"encoding\": {\r\n               
+    \"color\": {\r\n                    \"value\": \"red\"\r\n                }\r\n           
+    }\r\n        }\r\n    ],\r\n\r\n    \"transitions\": [\r\n        {\r\n           
+    \"name\": \"base2coloured\",\r\n            \"states\": [\"base\", \"coloured\"],\r\n           
+    \"triggers\": [\"mousedown\"],\r\n            \"timing\": {\r\n               
+    \"control\": 1\r\n            },\r\n            \"interrupt\": {\r\n               
+    \"control\": \"reset\",\r\n                \"value\": \"end\"\r\n           
     },\r\n            \"bidirectional\": false\r\n        },\r\n        {\r\n           
     \"name\": \"coloured2base\",\r\n            \"states\": [\"coloured\", \"base\"],\r\n           
     \"triggers\": [\"mouseup\"],\r\n            \"timing\": {\r\n               
     \"control\": 1\r\n            },\r\n            \"interrupt\": {\r\n               
-    \"control\": \"reset\",\r\n                \"value\": \"start\"\r\n           
+    \"control\": \"reset\",\r\n                \"value\": \"end\"\r\n           
     },\r\n            \"bidirectional\": false\r\n        }\r\n    ]\r\n}"
 --- !u!4 &1053859190
 Transform:

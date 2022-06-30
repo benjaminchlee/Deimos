@@ -2945,6 +2945,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2dd72b9d3ba807b4aaef095aa0aa1b22, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  DebugStates: 0
   Json: "{\r\n    \"signals\": [{\r\n            \"name\": \"sliderX\",\r\n           
     \"source\": {\r\n                \"type\": \"gameobject\",\r\n               
     \"ref\": \"GeoScatterSlider\",\r\n                \"select\": \"transform.position.x\"\r\n           
@@ -2952,42 +2953,36 @@ MonoBehaviour:
     \"normalise(sliderX, 0, 0.5)\"\r\n        }, {\r\n            \"name\": \"sliderStage2\",\r\n           
     \"expression\":\"normalise(sliderX, 0.5, 1)\"\r\n        }\r\n    ],\r\n\r\n   
     \"states\": [\r\n        {\r\n            \"name\": \"scatterplot\",\r\n           
-    \"base\": {\r\n                \"mark\": \"geoshape\",\r\n                \"encoding\":
-    {\r\n                    \"x\": {\r\n                        \"field\": \"Population\",\r\n                       
-    \"type\": \"quantitative\"\r\n                    },\r\n                    \"y\":
-    {\r\n                        \"field\": \"LifeExpectancy\",\r\n                       
-    \"type\": \"quantitative\",\r\n                        \"scale\": {\r\n                           
-    \"type\": \"linear\",\r\n                            \"domain\": [ 70, 85 ]\r\n                       
-    }\r\n                    }\r\n                }\r\n            },\r\n           
-    \"excludes\": {\r\n                \"encoding\": {\r\n                }\r\n           
+    \"mark\": \"geoshape\",\r\n            \"encoding\": {\r\n                \"x\":
+    {\r\n                    \"field\": \"Population\",\r\n                    \"type\":
+    \"quantitative\"\r\n                },\r\n                \"y\": {\r\n                   
+    \"field\": \"LifeExpectancy\",\r\n                    \"type\": \"quantitative\",\r\n                   
+    \"scale\": {\r\n                        \"type\": \"linear\",\r\n                       
+    \"domain\": [ 70, 85 ]\r\n                    }\r\n                }\r\n           
     }\r\n        },\r\n        {\r\n            \"name\": \"scatterplot-choro\",\r\n           
-    \"base\": {\r\n                \"mark\": \"geoshape\",\r\n                \"encoding\":
-    {\r\n                    \"x\": {\r\n                        \"field\": \"Longitude\",\r\n                       
-    \"type\": \"spatial\"\r\n                    },\r\n                    \"y\":
-    {\r\n                        \"field\": \"Latitude\",\r\n                       
-    \"type\": \"spatial\",\r\n                        \"scale\": {\r\n                           
-    \"type\": \"linear\",\r\n                            \"domain\": [ 15, 75 ]\r\n                       
-    }\r\n                    },\r\n                    \"width\": {\r\n                       
-    \"value\": 10\r\n                    },\r\n                    \"height\": {\r\n                       
-    \"value\": 10\r\n                    }\r\n                }\r\n            },\r\n           
-    \"excludes\": {\r\n                \"encoding\": {\r\n                }\r\n           
+    \"mark\": \"geoshape\",\r\n            \"encoding\": {\r\n                \"x\":
+    {\r\n                    \"field\": \"Longitude\",\r\n                    \"type\":
+    \"spatial\"\r\n                },\r\n                \"y\": {\r\n                   
+    \"field\": \"Latitude\",\r\n                    \"type\": \"spatial\",\r\n                   
+    \"scale\": {\r\n                        \"type\": \"linear\",\r\n                       
+    \"domain\": [ 15, 75 ]\r\n                    }\r\n                },\r\n               
+    \"width\": {\r\n                    \"value\": 10\r\n                },\r\n               
+    \"height\": {\r\n                    \"value\": 10\r\n                }\r\n           
     }\r\n        },\r\n        {\r\n            \"name\": \"choropleth\",\r\n           
-    \"base\": {\r\n                \"mark\": \"geoshape\",\r\n                \"encoding\":
-    {\r\n                    \"x\": {\r\n                        \"field\": \"Longitude\",\r\n                       
-    \"type\": \"spatial\"\r\n                    },\r\n                    \"y\":
-    {\r\n                        \"field\": \"Latitude\",\r\n                       
-    \"type\": \"spatial\",\r\n                        \"scale\": {\r\n                           
-    \"type\": \"linear\",\r\n                            \"domain\": [ 15, 75 ]\r\n                       
-    }\r\n                    },\r\n                    \"width\": {\r\n                       
-    \"field\": \"Longitude\",\r\n                        \"type\": \"spatial\"\r\n                   
-    },\r\n                    \"height\": {\r\n                        \"field\":
-    \"Latitude\",\r\n                        \"type\": \"spatial\"\r\n                   
-    }\r\n                }\r\n            },\r\n            \"excludes\": {\r\n               
-    \"encoding\": {\r\n                }\r\n            }\r\n        }\r\n    ],\r\n\r\n   
-    \"transitions\": [\r\n        {\r\n            \"name\": \"stage1\",\r\n           
-    \"states\": [\"scatterplot\", \"scatterplot-choro\"],\r\n            \"triggers\":
-    [],\r\n            \"timing\": {\r\n                \"control\": \"sliderStage1\",\r\n               
-    \"easing\": \"inoutcubic\"\r\n            },\r\n            \"interrupt\": {\r\n               
+    \"mark\": \"geoshape\",\r\n            \"encoding\": {\r\n                \"x\":
+    {\r\n                    \"field\": \"Longitude\",\r\n                    \"type\":
+    \"spatial\"\r\n                },\r\n                \"y\": {\r\n                   
+    \"field\": \"Latitude\",\r\n                    \"type\": \"spatial\",\r\n                   
+    \"scale\": {\r\n                        \"type\": \"linear\",\r\n                       
+    \"domain\": [ 15, 75 ]\r\n                    }\r\n                },\r\n               
+    \"width\": {\r\n                    \"field\": \"Longitude\",\r\n                   
+    \"type\": \"spatial\"\r\n                },\r\n                \"height\": {\r\n                   
+    \"field\": \"Latitude\",\r\n                    \"type\": \"spatial\"\r\n               
+    }\r\n            }\r\n        }\r\n    ],\r\n\r\n    \"transitions\": [\r\n       
+    {\r\n            \"name\": \"stage1\",\r\n            \"states\": [\"scatterplot\",
+    \"scatterplot-choro\"],\r\n            \"triggers\": [],\r\n            \"timing\":
+    {\r\n                \"control\": \"sliderStage1\",\r\n                \"easing\":
+    \"inoutcubic\"\r\n            },\r\n            \"interrupt\": {\r\n               
     \"control\": \"reset\",\r\n                \"value\": \"start\"\r\n           
     },\r\n            \"bidirectional\": true\r\n        },\r\n        {\r\n           
     \"name\": \"stage2\",\r\n            \"states\": [\"scatterplot-choro\", \"choropleth\"],\r\n           
@@ -3023,6 +3018,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 48361b2823bdc894cb2b02f06ae0bbbe, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  DebugSignals: 0
 --- !u!1 &1119035470
 GameObject:
   m_ObjectHideFlags: 0

@@ -18,93 +18,69 @@
     "states": [
         {
             "name": "scatterplot",
-            "base": {
-                "mark": "geoshape",
-                "encoding": {
-                    "x": {
-                        "field": "Population",
-                        "type": "quantitative"
-                    },
-                    "y": {
-                        "field": "LifeExpectancy",
-                        "type": "quantitative",
-                        "scale": {
-                            "type": "linear",
-                            "domain": [ 70, 85 ]
-                        }
+            "mark": "geoshape",
+            "encoding": {
+                "x": {
+                    "field": "Population",
+                    "type": "quantitative"
+                },
+                "y": {
+                    "field": "LifeExpectancy",
+                    "type": "quantitative",
+                    "scale": {
+                        "type": "linear",
+                        "domain": [ 70, 85 ]
                     }
-                }
-            },
-            "excludes": {
-                "encoding": {
                 }
             }
         },
         {
             "name": "scatterplot-choro",
-            "base": {
-                "mark": "geoshape",
-                "encoding": {
-                    "x": {
-                        "field": "Longitude",
-                        "type": "spatial"
-                    },
-                    "y": {
-                        "field": "Latitude",
-                        "type": "spatial",
-                        "scale": {
-                            "type": "linear",
-                            "domain": [ 15, 75 ]
-                        }
-                    },
-                    "width": {
-                        "value": 10
-                    },
-                    "height": {
-                        "value": 10
+            "mark": "geoshape",
+            "encoding": {
+                "x": {
+                    "field": "Longitude",
+                    "type": "spatial"
+                },
+                "y": {
+                    "field": "Latitude",
+                    "type": "spatial",
+                    "scale": {
+                        "type": "linear",
+                        "domain": [ 15, 75 ]
                     }
-                }
-            },
-            "excludes": {
-                "encoding": {
+                },
+                "width": {
+                    "value": 10
+                },
+                "height": {
+                    "value": 10
                 }
             }
         },
         {
             "name": "choropleth",
-            "base": {
-                "mark": "geoshape",
-                "encoding": {
-                    "x": {
-                        "field": "Longitude",
-                        "type": "spatial"
-                    },
-                    "y": {
-                        "field": "Latitude",
-                        "type": "spatial",
-                        "scale": {
-                            "type": "linear",
-                            "domain": [ 15, 75 ]
-                        }
-                    },
-                    "width": {
-                        "field": "Longitude",
-                        "type": "spatial"
-                    },
-                    "height": {
-                        "field": "Latitude",
-                        "type": "spatial"
+            "mark": "geoshape",
+            "encoding": {
+                "x": {
+                    "field": "Longitude",
+                    "type": "spatial"
+                },
+                "y": {
+                    "field": "Latitude",
+                    "type": "spatial",
+                    "scale": {
+                        "type": "linear",
+                        "domain": [ 15, 75 ]
                     }
-                }
-            },
-            "excludes": {
-                "encoding": {
-                    "y": {
-                        "scale": {
-                            "type": "*",
-                            "domain": "*"
-                        }
-                    }
+                },
+                "width": {
+                    "field": "Longitude",
+                    "type": "spatial"
+                },
+                "height": {
+                    "field": "Latitude",
+                    "type": "spatial"
                 }
             }
         }

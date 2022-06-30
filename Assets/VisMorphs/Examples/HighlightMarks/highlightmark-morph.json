@@ -14,21 +14,15 @@
     "states": [
         {
             "name": "base",
-            "excludes": {
-                "encoding": {
-                    "color": {
-                        "value": "*"
-                    }
-                }
+            "encoding": {
+                "color": null
             }
         },
         {
             "name": "coloured",
-            "base": {
-                "encoding": {
-                    "color": {
-                        "value": "red"
-                    }
+            "encoding": {
+                "color": {
+                    "value": "red"
                 }
             }
         }

@@ -481,7 +481,7 @@ namespace DxR.VisMorphs
                 string stateEncodingKey = encoding.Key.ToLower();
                 JSONNode stateEncodingValue = encoding.Value;
 
-                JSONNode visEncodingValue = stateEncodingSpecs[stateEncodingKey];
+                JSONNode visEncodingValue = visEncodingSpecs[stateEncodingKey];
 
                 // If the value of this encoding is null, it means that our vis specs should NOT have it
                 // e.g., "x": null
@@ -574,29 +574,75 @@ namespace DxR.VisMorphs
             // Create another vis specs object which will be the one which we are actually modifying
             var _newVisSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
 
-            // First, we need to find the set of changes between the initial and final states
-            // This includes going from:
-            // A) defined to null
-            // B) null to defined
-            // C) defined to defined
-            // Any JProperty in here with a null value is considered to be removed
-            JObject changes = new JObject(new JProperty("encoding", new JObject()));
+            /// There are three different types of encoding changes that are possible here, one of which has two sub-conditions:
+            /// A) undefined -> defined (i.e., encoding is added)
+            /// B) defined -> undefined (i.e., encoding is removed)
+            /// C) defined -> defined (i.e., encoding is changed)
+            ///
+            /// We simplify this down to the following psudocode:
+            /// 1. For each encoding defined in the initial state, if it is not defined in the final state, it will be removed from the vis state (REMOVED)
+            /// 2. For each encoding defined in the final state:
+            ///     a. If it was not defined in the initial state, we add it to the vis state (ADDED)
+            ///     b. If it was defined in the initial state, we modify the vis state depending on the following rules: (CHANGED)
+            ///         i. If the final state defines a field or value, remove any pre-exisiting field or value in the vis state before adding the one from the final state
+            ///         ii. If the final state specifies NULLs anywhere, these are removed from the vis state. Everything else is left unchanged (for now)
 
             // To make our lives easier, we remove all properties that have a null value. We will treat the absence of
             // the property as null, rather than the explicit null itself
-            RemoveNullProperties(ref _initialStateSpecs);
-            RemoveNullProperties(ref _finalStateSpecs);
+            //RemoveNullProperties(ref _initialStateSpecs);
 
             foreach (var encoding in ((JObject)_initialStateSpecs["encoding"]).Properties())
             {
-                // Check option A: the encoding is defined in the initial state, but not in the final state
-                if (_finalStateSpecs["encoding"][encoding.Name] == null)
+                // Step 1: Check which encodings to remove
+                if (IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]))
                 {
-                    changes["encoding"].Append(new JProperty(encoding.Name, null));
+                    _newVisSpecs["encoding"][encoding.Name]?.Parent.Remove();
                 }
-                // Check option C: the encoding is defined in both states
             }
-            return visSpecs;
+
+            foreach (var encoding in ((JObject)_finalStateSpecs["encoding"]).Properties())
+            {
+                // Ignore any encodings that are defined as null, as these were already handled in Step 1
+                if (IsJTokenNullOrUndefined(encoding.Value))
+                    continue;
+
+                // Step 2a: Add any encodings to the vis state
+                if (IsJTokenNullOrUndefined(_initialStateSpecs["encoding"][encoding.Name]))
+                {
+                    // TODO: We might have to resolve any instances of fields being declared by reference
+                    // We use first Remove then Add here to forcefully replace any encodings already in the vis spec
+                    _newVisSpecs["encoding"][encoding.Name]?.Parent.Remove();
+                    ((JObject)_newVisSpecs["encoding"]).Add(encoding);
+                }
+                // Step 2b: Modify any encodings that are defined in both
+                else
+                {
+                    // Step 2bi: Make sure that the vis state doesn't have both a field and value (the final state takes priority)
+                    if (!IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]["field"]) || !IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]["value"]))
+                    {
+                        // If the final state has either a field or value, we remove fields and values from the vis state to simplify the merging later
+                        _newVisSpecs["encoding"][encoding.Name]["field"]?.Parent.Remove();
+                        _newVisSpecs["encoding"][encoding.Name]["value"]?.Parent.Remove();
+                    }
+
+                    _newVisSpecs["encoding"][encoding.Name].Parent.Merge(
+                        _finalStateSpecs["encoding"][encoding.Name].Parent, new JsonMergeSettings
+                        {
+                            MergeArrayHandling = MergeArrayHandling.Replace,
+                            MergeNullValueHandling = MergeNullValueHandling.Merge
+                        });
+                }
+            }
+
+            // Clean up any nulls in the vis specs
+            RemoveNullProperties(ref _newVisSpecs);
+
+            return JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_newVisSpecs));
+        }
+
+        private bool IsJTokenNullOrUndefined(JToken? jObject)
+        {
+            return jObject == null || (jObject != null && jObject.Type == JTokenType.Null);
         }
 
         /// <summary>
@@ -622,109 +668,6 @@ namespace DxR.VisMorphs
                 specs.SelectToken(path).Parent.Remove();
             }
         }
-
-        // /// <summary>
-        // /// Generates a new vis spec (i.e., keyframe) based off a give state specs
-        // /// </summary>
-        // private JSONNode GenerateVisSpecKeyframeFromState(JSONNode visSpecs, JSONNode initialStateSpecs, JSONNode finalStateSpecs)
-        // {
-        //     // SimpleJSON doesn't really work well with editing JSON objects, so we just use JSON.NET instead
-        //     var _initialStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(initialStateSpecs.ToString());
-        //     var _finalStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(finalStateSpecs.ToString());
-
-        //     // Create another vis specs object which will be the one which we are actually modifying
-        //     var _newVisSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
-
-        //     // There are three things we need to check for here:
-        //     //  Step A: Remove any encodings that are defined in INITIAL but not in FINAL
-        //     //  Step B: Add any encodings that are defined in FINAL but not in INITIAL
-        //     //  Step C: Change any encodings that are defined in both
-
-        //     foreach (var encoding in ((JObject)_initialStateSpecs["encoding"]).Properties())
-        //     {
-        //         // If the encoding is defined as null in this spec, ignore it
-        //         if (!IsJTokenDefined(encoding.Value))
-        //             continue;
-
-        //         // Step A: If the FINAL state doesn't have this encoding, remove it from the vis specs
-        //         // if (_finalStateSpecs["encoding"][encoding.Name] == null ||
-        //         //     (_finalStateSpecs["encoding"][encoding.Name] != null && _finalStateSpecs["encoding"][encoding.Name].Type == JTokenType.Null))
-        //         // {
-        //         if (!IsJTokenDefined(_finalStateSpecs["encoding"][encoding.Name]))
-        //         {
-        //             _newVisSpecs["encoding"][encoding.Name].Parent.Remove();
-        //         }
-
-        //         // Step C: If BOTH specs have this encoding, then apply any changes accordingly, taking priority of the FINAL state's values
-        //         else if (IsJTokenDefined(_finalStateSpecs["encoding"][encoding.Name]))
-        //         {
-        //             // If the FINAL state defines a field instead of value (or vice versa), prioritise it over whatever the vis currently has
-        //             if (IsJTokenDefined(_finalStateSpecs["encoding"][encoding.Name]["field"]))
-        //             {
-        //                 if (IsJTokenDefined(_newVisSpecs["encoding"][encoding.Name]["value"]))
-        //                     _newVisSpecs["encoding"][encoding.Name]["value"].Parent.Remove();
-        //             }
-        //             else if (IsJTokenDefined(_finalStateSpecs["encoding"][encoding.Name]["value"]))
-        //             {
-        //                 if (IsJTokenDefined(_newVisSpecs["encoding"][encoding.Name]["field"]))
-        //                     _newVisSpecs["encoding"][encoding.Name]["field"].Parent.Remove();
-        //             }
-
-        //             // Merge the FINAL state with the vis specs
-        //             _newVisSpecs["encoding"][encoding.Name].Parent.Merge(_finalStateSpecs["encoding"][encoding.Name].Parent);
-        //         }
-        //     }
-
-
-        //     foreach (var encoding in ((JObject)_finalStateSpecs["encoding"]).Properties())
-        //     {
-        //         // If the encoding is defined as null in this spec, ignore it
-        //         if (!IsJTokenDefined(encoding.Value))
-        //             continue;
-
-        //         // Step B: If the INITIAL state doesn't have this encoding, add it to the vis specs
-        //         if (!IsJTokenDefined(_initialStateSpecs["encoding"][encoding.Name]))
-        //         {
-        //             _newVisSpecs["encoding"].Parent.Merge(encoding);
-        //         }
-        //     }
-        //     //CleanVisSpec(ref _newVisSpecs, _stateSpecs);
-
-        //     return JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_newVisSpecs));
-        // }
-
-        // private bool IsJTokenDefined(JToken token)
-        // {
-        //     return (token != null && token.Type != JTokenType.Null);
-        // }
-
-
-        // private JSONNode GenerateNewVisSpecFromState(JSONNode visSpecs, JSONNode stateSpecs, bool includeBase = false)
-        // {
-        //     // SimpleJSON doesn't really work well with merging JSON objects together
-        //     // So we just use JSON.NET instead
-        //     var _visSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
-        //     var _stateSpecs = Newtonsoft.Json.Linq.JObject.Parse(stateSpecs.ToString());
-
-        //     _visSpecs.Merge(_stateSpecs["override"]);
-        //     if (includeBase)
-        //     {
-        //         _visSpecs.Merge(_stateSpecs["base"], new JsonMergeSettings { MergeArrayHandling  = MergeArrayHandling.Replace });
-        //     }
-
-        //     // Remove properties from the visSpecs that are defined in the excludes part of the stateSpecs
-        //     if (_stateSpecs["excludes"] != null && _stateSpecs["excludes"]["encoding"] != null)
-        //     {
-        //         foreach (var i in ((JObject)_stateSpecs["excludes"]["encoding"]).Properties())
-        //         {
-        //             _visSpecs["encoding"][i.Name]?.Parent.Remove();
-        //         }
-        //     }
-
-        //     CleanVisSpec(ref _visSpecs, _stateSpecs);
-
-        //     return JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_visSpecs));
-        // }
 
         /// <summary>
         /// Clean up a vis spec such that it may render properly during a morph
