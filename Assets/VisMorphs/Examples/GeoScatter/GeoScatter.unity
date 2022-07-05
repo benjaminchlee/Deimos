@@ -3049,7 +3049,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  JsonSpecification: "{\r\n    \"width\": 800,\r\n    \"height\": 500,\r\n    \"mark\":
+  ShowInternalSpecification: 0
+  InputSpecification: "{\r\n    \"width\": 800,\r\n    \"height\": 500,\r\n    \"mark\":
     \"geoshape\",\r\n    \"encoding\": {\r\n        \"x\": {\r\n            \"field\":
     \"Population\",\r\n            \"type\": \"quantitative\"\r\n        },\r\n       
     \"y\": {\r\n            \"field\": \"LifeExpectancy\",\r\n            \"type\":
@@ -3059,6 +3060,7 @@ MonoBehaviour:
     10\r\n        },\r\n        \"color\": {\r\n            \"field\": \"Population\",\r\n           
     \"type\": \"quantitative\"\r\n        }\r\n    },\r\n    \"data\": {\r\n       
     \"url\": \"us-states.json\"\r\n    }\r\n}"
+  InternalSpecification: 
 --- !u!114 &1119035472
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3074,7 +3076,7 @@ MonoBehaviour:
   visSpecsURL: 
   enableGUI: 0
   enableSpecsExpansion: 0
-  enableTooltip: 1
+  enableTooltip: 0
   verbose: 0
   markInstances: []
   VisUpdated:

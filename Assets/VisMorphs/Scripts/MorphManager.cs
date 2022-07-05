@@ -161,8 +161,8 @@ namespace DxR.VisMorphs
                     SubscribeToTransitionTriggers(transitionInfo.Item1, transitionInfo.Item2, ref candidateTransitions);
                 }
             }
-            // Otherwise, if this Vis now no longer meets any state as it was morphing (i.e., Vis specification changed during Morph), we disable the Morph applied to it
-            else if (isTransitionActive && vis == candidateVis)
+            // Otherwise, reset the morph. Even if no morph is currently in progress, we do this anyway just to be extra safe
+            else
             {
                 ResetMorph();
             }
@@ -300,20 +300,14 @@ namespace DxR.VisMorphs
             {
                 initialState = candidateVis.GetVisSpecs();
                 finalState = GenerateVisSpecKeyframeFromState(initialState, GetStateFromName(currentTransition["states"][0]), GetStateFromName(currentTransition["states"][1]));
-
-                // initialState = GenerateNewVisSpecFromState(candidateVis.GetVisSpecs(), currentState);
-                // finalState = GenerateNewVisSpecFromState(initialState, GetStateFromName(currentTransition["states"][1]), true);
             }
             else
             {
                 // If the transition is being called in the reversed direction, the candidate vis actually starts from the *final* state,
                 // in order to not mess with the tweening value. Note this does mean that it doesn't really work with time-based tweens
-
                 finalState = candidateVis.GetVisSpecs();
                 initialState = GenerateVisSpecKeyframeFromState(finalState, GetStateFromName(currentTransition["states"][1]), GetStateFromName(currentTransition["states"][0]));
-
-                // finalState = GenerateNewVisSpecFromState(candidateVis.GetVisSpecs(), currentState, true);
-                // initialState = GenerateNewVisSpecFromState(finalState, GetStateFromName(currentTransition["states"][0]), true);
+                //candidateVis.UpdateVisSpecsFromJSONNode(initialState, false, false);
             }
 
             if (DebugStates)
@@ -327,7 +321,7 @@ namespace DxR.VisMorphs
             }
 
             // Change to initial state instantly
-            candidateVis.UpdateVisSpecsFromJSONNode(initialState, false);
+            candidateVis.UpdateVisSpecsFromJSONNode(initialState, false, false);
 
             // Call update to final state using a tweening observable
             var tweeningObservable = CreateMorphTweenObservable(currentTransition);
@@ -568,11 +562,14 @@ namespace DxR.VisMorphs
         private JSONNode GenerateVisSpecKeyframeFromState(JSONNode visSpecs, JSONNode initialStateSpecs, JSONNode finalStateSpecs)
         {
             // SimpleJSON doesn't really work well with editing JSON objects, so we just use JSON.NET instead
-            var _initialStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(initialStateSpecs.ToString());
-            var _finalStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(finalStateSpecs.ToString());
+            JObject _initialStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(initialStateSpecs.ToString());
+            JObject _finalStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(finalStateSpecs.ToString());
 
             // Create another vis specs object which will be the one which we are actually modifying
-            var _newVisSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
+            // But first, we should remove the data property from the vis spec in order to not have to serialise and parse it twice
+            JSONNode dataSpecs = visSpecs["data"];
+            visSpecs.Remove("data");
+            JObject _newVisSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
 
             /// There are three different types of encoding changes that are possible here, one of which has two sub-conditions:
             /// A) undefined -> defined (i.e., encoding is added)
@@ -586,10 +583,6 @@ namespace DxR.VisMorphs
             ///     b. If it was defined in the initial state, we modify the vis state depending on the following rules: (CHANGED)
             ///         i. If the final state defines a field or value, remove any pre-exisiting field or value in the vis state before adding the one from the final state
             ///         ii. If the final state specifies NULLs anywhere, these are removed from the vis state. Everything else is left unchanged (for now)
-
-            // To make our lives easier, we remove all properties that have a null value. We will treat the absence of
-            // the property as null, rather than the explicit null itself
-            //RemoveNullProperties(ref _initialStateSpecs);
 
             foreach (var encoding in ((JObject)_initialStateSpecs["encoding"]).Properties())
             {
@@ -637,7 +630,12 @@ namespace DxR.VisMorphs
             // Clean up any nulls in the vis specs
             RemoveNullProperties(ref _newVisSpecs);
 
-            return JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_newVisSpecs));
+            // Add the data specs back in
+            JSONNode __newVisSpecs = JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_newVisSpecs));
+            visSpecs.Add("data", dataSpecs);
+            __newVisSpecs.Add("data", dataSpecs);
+
+            return __newVisSpecs;
         }
 
         private bool IsJTokenNullOrUndefined(JToken? jObject)

@@ -107,7 +107,7 @@ namespace DxR
             // to this GameObject, then we parse the JSON string specification contained in it instead
             if (visSpecsURL == "" && GetComponent<RuntimeInspectorVisSpecs>() != null)
             {
-                string visSpecsString = GetComponent<RuntimeInspectorVisSpecs>().JsonSpecification;
+                string visSpecsString = GetComponent<RuntimeInspectorVisSpecs>().InputSpecification;
                 parser.ParseString(visSpecsString, out visSpecs);
             }
             else
@@ -170,7 +170,7 @@ namespace DxR
         /// </summary>
         private void UpdateVis(bool callUpdateEvent = true)
         {
-            DeleteAll();
+            DeleteAllButMarks();
 
             UpdateVisConfig();
 
@@ -190,7 +190,8 @@ namespace DxR
         {
             CreateChannelEncodingObjects(specs);
 
-            ConstructMarkInstances();
+            // New: Updates existing mark instances, or creates new ones if they do not yet exist
+            UpdateMarkInstances();
 
             ApplyChannelEncodings();
 
@@ -228,30 +229,11 @@ namespace DxR
 
             // Required parts of DxR (part of ConstructVis)
             CreateChannelEncodingObjects(visSpecsInferred);
-            UpdateMarkInstances();  // NEW: Reuses existing mark instances rather than creating new ones from scratch each time
+            UpdateMarkInstances(false);  // NEW: Reuses existing mark instances rather than creating new ones from scratch each time
             ApplyMorphingChannelEncodings(tweeningObservable);
             ConstructInteractions(visSpecsInferred);
             ConstructAxes(visSpecsInferred);
             ConstructLegends(visSpecsInferred);
-
-            // // Subscribe to the tweeningObservable now to check for when the tweening ends
-            // // TODO: This doesn't work for certain easing types which go past 0 and 1
-            // // When the tweeningObservable returns 0 (i.e., goes back to the initial state)
-            // morphSubscriptions = new CompositeDisposable();
-            // tweeningObservable.Where(t => t == 0)
-            //     .Take(1)
-            //     .Subscribe(_ =>
-            //     {
-            //         StopVisMorph(false);
-            //     }).AddTo(morphSubscriptions);
-            // // When the tweeningObservable returns 0 (i.e., goes back to the initial state)
-            // tweeningObservable.Where(t => t == 1)
-            //     .Take(1)
-            //     .Subscribe(_ =>
-            //     {
-            //         StopVisMorph(true);
-            //     }).AddTo(morphSubscriptions);
-            // // TODO: When the tweeningObservable ends prematurely
         }
 
         public void StopVisMorph(bool goToEnd)
@@ -279,7 +261,11 @@ namespace DxR
             // morphSubscriptions.Dispose();
         }
 
-        private void UpdateMarkInstances()
+        /// <summary>
+        /// Updates mark instances with new values if they already exist, or creates new ones if they
+        /// either don't exist or do not match mark names
+        /// </summary>
+        private void UpdateMarkInstances(bool resetMarkValues = true)
         {
             if (markInstances == null) markInstances = new List<GameObject>();
 
@@ -289,20 +275,40 @@ namespace DxR
                 Dictionary<string, string> dataValue = data.values[i];
 
                 GameObject markInstance;
+
+                // If there is a mark instance for this dataValue, use it
+                if (i < markInstances.Count)
+                {
+                    // But, only use it if its mark name is correct
+                    // TODO: This is a hacky way of checking mark name, so it might break something later on
+                    if (markInstances[i].name.Contains(markPrefab.name))
+                    {
+                        markInstance = markInstances[i];
+                    }
+                    else
+                    {
+                        // Otherwise, destroy the old mark and replace it with a new one
+                        GameObject oldMarkInstance = markInstances[i];
+                        markInstance = InstantiateMark(markPrefab, marksParentObject.transform);
+                        markInstances[i] = markInstance;
+                        Destroy(oldMarkInstance);
+                    }
+                }
                 // If there isn't a mark instance for this dataValue, create one
-                if (markInstances.Count < i)
+                else
                 {
                     markInstance = InstantiateMark(markPrefab, marksParentObject.transform);
                     markInstances.Add(markInstance);
                 }
-                else
-                {
-                    markInstance = markInstances[i];
-                }
+
 
                 // Copy datum in mark
                 Mark mark = markInstance.GetComponent<Mark>();
                 mark.datum = dataValue;
+
+                // Rest mark values to default
+                if (resetMarkValues)
+                    mark.ResetToDefault();
 
                 // Copy over polygons and centres for spatial data if applicable
                 if (data.polygons != null)
@@ -751,17 +757,59 @@ namespace DxR
 
         private void UpdateVisData()
         {
+            bool dataChanged = true;
+            string dataString = "";
+            JSONNode valuesSpecs = null;
+
             if(visSpecs["data"]["url"] != "inline")
             {
-                visSpecs["data"].Add("values", parser.CreateValuesSpecs(visSpecs["data"]["url"]));
-                data_name = visSpecs["data"]["url"];
+                string dataFilename = Parser.GetFullDataPath(visSpecs["data"]["url"].Value);
+                dataString = Parser.GetStringFromFile(dataFilename);
+
+                // Don't parse this data string if it is the same as the one that is currently used for the existing data
+                // This is basically the same code from Parser.CreateValuesSpecs
+                if (data != null && data.src == dataString)
+                {
+                    dataChanged = false;
+                }
+                else
+                {
+                    string ext = Path.GetExtension(dataFilename);
+                    if (ext == ".json")
+                    {
+                        valuesSpecs = JSON.Parse(dataString);
+                    }
+                    else if (ext == ".csv")
+                    {
+                        valuesSpecs = JSON.ParseCSV(dataString);
+                    }
+                    else
+                    {
+                        throw new Exception("Cannot load file type" + ext);
+                    }
+
+                    visSpecs["data"].Add("values", valuesSpecs);
+                    data_name = visSpecs["data"]["url"];
+                }
+            }
+            else
+            {
+                valuesSpecs = visSpecs["data"]["values"];
+                dataString = valuesSpecs.ToString();
+
+                if (data != null && data.src == dataString)
+                    dataChanged = false;
             }
 
-            JSONNode valuesSpecs = visSpecs["data"]["values"];
+            if (verbose)
+                Debug.Log("Data update " + dataString);
 
-            Debug.Log("Data update " + visSpecs["data"]["values"].ToString());
+            // Only update the vis data when it is either not yet defined, or if it has changed
+            if (!dataChanged)
+                return;
 
             data = new Data();
+            data.src = dataString;
 
             // Data gets parsed differently depending if its in a standard or geoJSON format
             if (!IsDataGeoJSON(valuesSpecs))
@@ -1141,6 +1189,28 @@ namespace DxR
             }
         }
 
+        private void DeleteAllButMarks()
+        {
+            foreach (Transform child in guidesParentObject.transform)
+            {
+                GameObject.Destroy(child.gameObject);
+            }
+
+            // TODO: Do not delete, but only update:
+            foreach (Transform child in interactionsParentObject.transform)
+            {
+                GameObject.Destroy(child.gameObject);
+            }
+        }
+
+        private void DeleteMarks()
+        {
+            foreach (Transform child in marksParentObject.transform)
+            {
+                GameObject.Destroy(child.gameObject);
+            }
+        }
+
         private void InitGUI()
         {
             Transform guiTransform = parentObject.transform.Find("DxRGUI");
@@ -1395,15 +1465,19 @@ namespace DxR
 
             visSpecs = textSpecs;
 
-            gui.UpdateGUISpecsFromVisSpecs();
+            if (enableGUI)
+                gui.UpdateGUISpecsFromVisSpecs();
+
             UpdateVis();
         }
 
-        public void UpdateVisSpecsFromJSONNode(JSONNode specs, bool callUpdateEvent = true)
+        public void UpdateVisSpecsFromJSONNode(JSONNode specs, bool callUpdateEvent = true, bool updateGuiSpecs = true)
         {
             visSpecs = specs;
 
-            gui.UpdateGUISpecsFromVisSpecs();
+            if (enableGUI && updateGuiSpecs)
+                gui.UpdateGUISpecsFromVisSpecs();
+
             UpdateVis(callUpdateEvent);
         }
 
@@ -1420,7 +1494,9 @@ namespace DxR
 
             visSpecs = textSpecs;
 
-            gui.UpdateGUISpecsFromVisSpecs();
+            if (enableGUI)
+                gui.UpdateGUISpecsFromVisSpecs();
+
             UpdateVis();
         }
 

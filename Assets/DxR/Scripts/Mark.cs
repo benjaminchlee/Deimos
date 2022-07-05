@@ -25,11 +25,13 @@ namespace DxR
         public Vector3 forwardDirection = Vector3.up;
         Vector3 curDirection;
 
+        protected Renderer myRenderer;
+
         private IObservable<float> tweeningObservable;
         private MarkGeometricValues initialGeometricValues;
         private MarkGeometricValues finalGeometricValues;
         private CompositeDisposable morphingSubscriptions;
-        private static MarkGeometricValues defaultGeometricValues;
+        private MarkGeometricValues defaultGeometricValues;
 
         public Mark()
         {
@@ -38,6 +40,8 @@ namespace DxR
 
         public void Awake()
         {
+            myRenderer = GetComponent<Renderer>();
+
             if (defaultGeometricValues == null)
             {
                 defaultGeometricValues = new MarkGeometricValues
@@ -45,7 +49,7 @@ namespace DxR
                     localPosition = transform.localPosition,
                     localEulerAngles = transform.localEulerAngles,
                     localScale = transform.localScale,
-                    colour = GetComponent<Renderer>().material.color
+                    colour = myRenderer.material.color
                 };
             }
         }
@@ -77,7 +81,7 @@ namespace DxR
                 localPosition = transform.localPosition,
                 localEulerAngles = transform.localEulerAngles,
                 localScale = transform.localScale,
-                colour = GetComponent<Renderer>().material.color
+                colour = myRenderer.material.color
             };
         }
 
@@ -88,7 +92,7 @@ namespace DxR
                 localPosition = transform.localPosition,
                 localEulerAngles = transform.localEulerAngles,
                 localScale = transform.localScale,
-                colour = GetComponent<Renderer>().material.color
+                colour = myRenderer.material.color
             };
         }
 
@@ -107,7 +111,7 @@ namespace DxR
             transform.localPosition = markValues.localPosition;
             transform.localEulerAngles = markValues.localEulerAngles;
             transform.localScale = markValues.localScale;
-            GetComponent<Renderer>().material.color = markValues.colour;
+            myRenderer.material.color = markValues.colour;
         }
 
         public virtual void InitialiseMorphing(IObservable<float> tweeningObservable)
@@ -139,10 +143,9 @@ namespace DxR
             }
             if (initialGeometricValues.colour != finalGeometricValues.colour)
             {
-                Renderer renderer = GetComponent<Renderer>();
                 tweeningObservable.Subscribe(t =>
                 {
-                    renderer.material.color = Color.Lerp(initialGeometricValues.colour, finalGeometricValues.colour, t);
+                    myRenderer.material.color = Color.Lerp(initialGeometricValues.colour, finalGeometricValues.colour, t);
                 }).AddTo(morphingSubscriptions);
             }
         }
@@ -258,8 +261,7 @@ namespace DxR
 
         public void Infer(Data data, JSONNode specsOrig, out JSONNode specs, string specsFilename)
         {
-            string origSpecsString = specsOrig.ToString();
-            specs = JSON.Parse(origSpecsString);
+            specs = specsOrig.Clone();
 
             // Go through each channel and infer the missing specs.
             foreach (KeyValuePair<string, JSONNode> kvp in specs["encoding"].AsObject)
@@ -1063,8 +1065,7 @@ namespace DxR
 
         public void InitTooltip(ref GameObject tooltipObject)
         {
-            Renderer renderer = transform.GetComponent<Renderer>();
-            if (renderer != null)
+            if (myRenderer != null)
             {
                 DxR.GazeResponder sc = gameObject.AddComponent(typeof(DxR.GazeResponder)) as DxR.GazeResponder;
                 tooltip = tooltipObject;
@@ -1131,7 +1132,7 @@ namespace DxR
         {
             float size = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
 
-            Vector3 renderSize = gameObject.transform.GetComponent<Renderer>().bounds.size;
+            Vector3 renderSize = myRenderer.bounds.size;
             Vector3 localScale = gameObject.transform.localScale;
 
             int maxIndex = 0;
@@ -1172,10 +1173,9 @@ namespace DxR
             bool colorParsed = ColorUtility.TryParseHtmlString(value, out color);
             if (!colorParsed) return;
 
-            Renderer renderer = transform.GetComponent<Renderer>();
-            if(renderer != null)
+            if(myRenderer != null)
             {
-                renderer.material.color = color;
+                myRenderer.material.color = color;
             } else
             {
                 Debug.Log("Cannot set color of mark without renderer object.");
@@ -1184,13 +1184,12 @@ namespace DxR
 
         private void SetOpacity(string value)
         {
-            Renderer renderer = transform.GetComponent<Renderer>();
-            if (renderer != null)
+            if (myRenderer != null)
             {
-                SetRenderModeToTransparent(renderer.material);
-                Color color = renderer.material.color;
+                SetRenderModeToTransparent(myRenderer.material);
+                Color color = myRenderer.material.color;
                 color.a = float.Parse(value);
-                renderer.material.color = color;
+                myRenderer.material.color = color;
             }
             else
             {

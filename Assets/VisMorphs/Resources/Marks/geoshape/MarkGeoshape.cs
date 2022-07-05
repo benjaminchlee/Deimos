@@ -58,7 +58,7 @@ namespace DxR
                 localPosition = transform.localPosition,
                 localEulerAngles = transform.localEulerAngles,
                 localScale = transform.localScale,
-                colour = GetComponent<Renderer>().material.color
+                colour = myRenderer.material.color
             };
         }
 
@@ -70,7 +70,7 @@ namespace DxR
                 localPosition = transform.localPosition,
                 localEulerAngles = transform.localEulerAngles,
                 localScale = transform.localScale,
-                colour = GetComponent<Renderer>().material.color
+                colour = myRenderer.material.color
             };
         }
 
@@ -94,7 +94,7 @@ namespace DxR
             transform.localPosition = geoshapeValues.localPosition;
             transform.localEulerAngles = geoshapeValues.localEulerAngles;
             transform.localScale = geoshapeValues.localScale;
-            GetComponent<Renderer>().material.color = geoshapeValues.colour;
+            myRenderer.material.color = geoshapeValues.colour;
         }
 
         public override void InitialiseMorphing(IObservable<float> tweeningObservable)
@@ -143,10 +143,9 @@ namespace DxR
             }
             if (initialGeoshapeValues.colour != finalGeoshapeValues.colour)
             {
-                Renderer renderer = GetComponent<Renderer>();
                 tweeningObservable.Subscribe(t =>
                 {
-                    renderer.material.color = Color.Lerp(initialGeoshapeValues.colour, finalGeoshapeValues.colour, t);
+                    myRenderer.material.color = Color.Lerp(initialGeoshapeValues.colour, finalGeoshapeValues.colour, t);
                 }).AddTo(morphingSubscriptions);
             }
         }

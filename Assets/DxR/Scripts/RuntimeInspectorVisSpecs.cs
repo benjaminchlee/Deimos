@@ -18,8 +18,12 @@ namespace DxR
     [RequireComponent(typeof(Vis))]
     public class RuntimeInspectorVisSpecs : MonoBehaviour
     {
+        public bool ShowInternalSpecification = false;
+
         [TextArea(4, 20)]
-        public string JsonSpecification;
+        public string InputSpecification;
+        [TextArea(4, 20)]
+        public string InternalSpecification;
 
         private Vis vis;
 
@@ -29,26 +33,29 @@ namespace DxR
             vis.VisUpdated.AddListener(UpdateRuntimeSpecs);
         }
 
-        private void OnValidate()
+        public void UpdateVis()
         {
             if (EditorApplication.isPlaying && vis != null)
             {
                 if (vis.IsReady)
                 {
-                    vis.UpdateVisSpecsFromStringSpecs(JsonSpecification);
+                    vis.UpdateVisSpecsFromStringSpecs(InputSpecification);
                 }
             }
         }
 
         private void UpdateRuntimeSpecs(Vis vis, JSONNode visSpecs)
         {
-            using (var stringReader = new StringReader(visSpecs.ToString()))
-            using (var stringWriter = new StringWriter())
+            if (ShowInternalSpecification)
             {
-                var jsonReader = new JsonTextReader(stringReader);
-                var jsonWriter = new JsonTextWriter(stringWriter) { Formatting = Formatting.Indented };
-                jsonWriter.WriteToken(jsonReader);
-                JsonSpecification = stringWriter.ToString();
+                using (var stringReader = new StringReader(visSpecs.ToString()))
+                using (var stringWriter = new StringWriter())
+                {
+                    var jsonReader = new JsonTextReader(stringReader);
+                    var jsonWriter = new JsonTextWriter(stringWriter) { Formatting = Formatting.Indented };
+                    jsonWriter.WriteToken(jsonReader);
+                    InternalSpecification = stringWriter.ToString();
+                }
             }
         }
     }

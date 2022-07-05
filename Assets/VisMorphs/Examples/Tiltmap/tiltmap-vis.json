@@ -51,12 +51,12 @@
             "field": "Latitude",
             "type": "spatial"
         },
-        "zoffsetpct": {
-            "value": -0.5
-        },
         "z": {
             "field": "Population",
             "type": "quantitative"
+        },
+        "zoffsetpct": {
+            "value": -0.5
         },
         "width": {
             "field": "Longitude",
