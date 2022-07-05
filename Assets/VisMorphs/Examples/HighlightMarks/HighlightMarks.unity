@@ -3023,12 +3023,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  JsonSpecification: "{\r\n    \"mark\": \"sphere\",\r\n    \"encoding\": {\r\n     
+  ShowInternalSpecification: 0
+  InputSpecification: "{\r\n    \"mark\": \"sphere\",\r\n    \"encoding\": {\r\n     
     \"x\": {\r\n        \"field\": \"Horsepower\",\r\n        \"type\": \"quantitative\"\r\n     
     },\r\n      \"y\": {\r\n        \"field\": \"Miles_per_Gallon\",\r\n        \"type\":
     \"quantitative\"\r\n      },\r\n      \"z\": {\r\n        \"field\": \"Acceleration\",\r\n       
     \"type\": \"quantitative\"\r\n      }\r\n    },\r\n    \"data\": {\r\n      \"url\":
     \"cars.json\"\r\n    }\r\n  }"
+  InternalSpecification: 
 --- !u!114 &1119035472
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3044,7 +3046,7 @@ MonoBehaviour:
   visSpecsURL: 
   enableGUI: 0
   enableSpecsExpansion: 0
-  enableTooltip: 1
+  enableTooltip: 0
   verbose: 0
   markInstances: []
   VisUpdated:

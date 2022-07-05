@@ -402,11 +402,11 @@ namespace DxR
                             return;
                     }
 
-                    Debug.Log("Constructed interaction: " + interactionSpecs["type"].Value +
+                    if (verbose) Debug.Log("Constructed interaction: " + interactionSpecs["type"].Value +
                         " for data field " + interactionSpecs["field"].Value);
                 } else
                 {
-                    Debug.Log("Make sure interaction object has type, field, and domain specs.");
+                    if (verbose) Debug.Log("Make sure interaction object has type, field, and domain specs.");
 //                    throw new System.Exception("Make sure interaction object has type, field, and domain specs.");
                 }
 
@@ -438,10 +438,7 @@ namespace DxR
                 JSONNode legendSpecs = specs["encoding"][channelEncoding.channel]["legend"];
                 if (legendSpecs != null && legendSpecs.Value.ToString() != "none" && channelEncoding.channel == "color")
                 {
-                    if (verbose)
-                    {
-                        Debug.Log("Constructing legend for channel " + channelEncoding.channel);
-                    }
+                    if (verbose) Debug.Log("Constructing legend for channel " + channelEncoding.channel);
 
                     ConstructLegendObject(legendSpecs, ref channelEncoding);
                 }
@@ -474,10 +471,7 @@ namespace DxR
                     (channelEncoding.channel == "x" || channelEncoding.channel == "y" ||
                     channelEncoding.channel == "z"))
                 {
-                    if (verbose)
-                    {
-                        Debug.Log("Constructing axis for channel " + channelEncoding.channel);
-                    }
+                    if (verbose) Debug.Log("Constructing axis for channel " + channelEncoding.channel);
 
                     ConstructAxisObject(axisSpecs, ref channelEncoding);
                 }
@@ -663,23 +657,23 @@ namespace DxR
 
                 case "linear":
                 case "spatial":
-                    scale = new ScaleLinear(scaleSpecs);
+                    scale = new ScaleLinear(scaleSpecs, verbose);
                     break;
 
                 case "band":
-                    scale = new ScaleBand(scaleSpecs);
+                    scale = new ScaleBand(scaleSpecs, verbose);
                     break;
 
                 case "point":
-                    scale = new ScalePoint(scaleSpecs);
+                    scale = new ScalePoint(scaleSpecs, verbose);
                     break;
 
                 case "ordinal":
-                    scale = new ScaleOrdinal(scaleSpecs);
+                    scale = new ScaleOrdinal(scaleSpecs, verbose);
                     break;
 
                 case "sequential":
-                    scale = new ScaleSequential(scaleSpecs);
+                    scale = new ScaleSequential(scaleSpecs, verbose);
                     break;
 
                 default:
@@ -801,8 +795,7 @@ namespace DxR
                     dataChanged = false;
             }
 
-            if (verbose)
-                Debug.Log("Data update " + dataString);
+            if (verbose) Debug.Log("Data update " + dataString);
 
             // Only update the vis data when it is either not yet defined, or if it has changed
             if (!dataChanged)
@@ -837,10 +830,7 @@ namespace DxR
             data.values = new List<Dictionary<string, string>>();
 
             int numDataFields = data.fieldNames.Count;
-            if (verbose)
-            {
-                Debug.Log("Counted " + numDataFields.ToString() + " fields in data.");
-            }
+            if (verbose) Debug.Log("Counted " + numDataFields.ToString() + " fields in data.");
 
             // Loop through the values in the specification
             // and insert one Dictionary entry in the values list for each.
@@ -857,7 +847,7 @@ namespace DxR
                     if (value[curFieldName].IsNull)
                     {
                         valueHasNullField = true;
-                        Debug.Log("value null found: ");
+                        if (verbose) Debug.Log("value null found: ");
                         break;
                     }
 
@@ -1126,10 +1116,7 @@ namespace DxR
             {
                 data.fieldNames.Add(kvp.Key);
 
-                if (verbose)
-                {
-                    Debug.Log("Reading data field: " + kvp.Key);
-                }
+                if (verbose) Debug.Log("Reading data field: " + kvp.Key);
             }
         }
 
@@ -1216,7 +1203,7 @@ namespace DxR
             Transform guiTransform = parentObject.transform.Find("DxRGUI");
             GameObject guiObject = guiTransform.gameObject;
             gui = guiObject.GetComponent<GUI>();
-            gui.Init(this);
+            gui.Init(this, verbose);
 
             if (!enableGUI && guiObject != null)
             {
@@ -1255,7 +1242,7 @@ namespace DxR
 
             visSpecs["mark"] = guiSpecs["mark"];
 
-            Debug.Log("GUI SPECS: " + guiSpecs.ToString());
+            if (verbose) Debug.Log("GUI SPECS: " + guiSpecs.ToString());
 
             // UPDATE CHANNELS:
 
@@ -1297,11 +1284,11 @@ namespace DxR
             foreach (KeyValuePair<string, JSONNode> kvp in guiSpecs["encoding"].AsObject)
             {
                 string channelName = kvp.Key;
-                Debug.Log("Testing channel " + channelName);
+                if (verbose) Debug.Log("Testing channel " + channelName);
 
                 if (guiSpecs["encoding"][channelName]["value"] == null && visSpecs["encoding"][channelName] == null)
                 {
-                    Debug.Log("Adding channel " + channelName);
+                    if (verbose) Debug.Log("Adding channel " + channelName);
                     visSpecs["encoding"].Add(channelName, guiSpecs["encoding"][channelName]);
                 }
             }
@@ -1350,7 +1337,7 @@ namespace DxR
 
                 if (!FieldIsInInteractionSpecs(visSpecs["interaction"], fieldName))
                 {
-                    Debug.Log("Adding interaction for field " + fieldName);
+                    if (verbose) Debug.Log("Adding interaction for field " + fieldName);
                     visSpecs["interaction"].Add(guiSpecs["interaction"][GetFieldIndexInInteractionSpecs(guiSpecs["interaction"], fieldName)]);
                 }
             }

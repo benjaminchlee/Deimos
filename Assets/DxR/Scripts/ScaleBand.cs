@@ -8,7 +8,7 @@ namespace DxR
 {
     public class ScaleBand : Scale
     {
-        private bool verbose = true;
+        private bool verbose = false;
 
         public static float PADDING_OUTER_DEFAULT = 0.05f;
         public static float PADDING_INNER_DEFAULT = 0.05f;
@@ -24,9 +24,11 @@ namespace DxR
 
         private float paddingOuterSize = 0.05f;
         private float paddingInnerSize = 0.05f;
-        
 
-        public ScaleBand(JSONNode scaleSpecs) : base(scaleSpecs) {
+
+        public ScaleBand(JSONNode scaleSpecs, bool verbose = false) : base(scaleSpecs) {
+
+            this.verbose = verbose;
 
             // TODO: Check validity of parameters.
 
@@ -45,7 +47,7 @@ namespace DxR
             {
                 paddingOuter = PADDING_OUTER_DEFAULT;
             }
-            
+
             rangeMin = float.Parse(base.range[0]);
             rangeMax = float.Parse(base.range[1]);
 
@@ -61,12 +63,12 @@ namespace DxR
 
             if(verbose)
             {
-                Debug.Log("ScaleBand created with " + numSteps.ToString() + " steps. " + 
+                Debug.Log("ScaleBand created with " + numSteps.ToString() + " steps. " +
                     rangeStep.ToString() + " rangeStep, and " + bandwidth.ToString() +
                     " bandwidth.");
             }
         }
-        
+
         public static float ComputeBandSize(JSONNode scaleSpecs)
         {
             float rangeMin = float.Parse(scaleSpecs["range"][0]);

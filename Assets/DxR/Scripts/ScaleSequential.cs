@@ -7,10 +7,14 @@ namespace DxR
 {
     class ScaleSequential : Scale
     {
+        bool verbose = false;
+
         string rangeType = DxR.Vis.UNDEFINED;
 
-        public ScaleSequential(JSONNode scaleSpecs) : base(scaleSpecs)
+        public ScaleSequential(JSONNode scaleSpecs, bool verbose = false) : base(scaleSpecs)
         {
+            this.verbose = verbose;
+
             // Load color scheme if specified
             if (scaleSpecs["scheme"] != null)
             {
@@ -22,17 +26,17 @@ namespace DxR
                 throw new Exception("Cannot have sequential scale with more domain entries than range entries.");
             }
         }
-        
+
         private void LoadColorScheme(string schemeName, ref List<string> range)
         {
             string schemeFilename = "ColorSchemes/" + schemeName;
-            
+
             TextAsset targetFile = Resources.Load<TextAsset>(schemeFilename);
             if(targetFile == null)
             {
                 throw new Exception("Cannot load color scheme " + schemeFilename);
             }
-            
+
             JSONNode colorSchemeSpec = JSON.Parse(targetFile.text);
 
             CopyNodeToList(colorSchemeSpec["colors"], ref range);
@@ -41,7 +45,7 @@ namespace DxR
         public override float GetDomainPct(string domainValue)
         {
             float value = float.Parse(domainValue);
-            
+
             float startValue = float.Parse(base.domain[0]);
             float endValue = float.Parse(base.domain[base.domain.Count - 1]);
 
@@ -95,7 +99,7 @@ namespace DxR
 
             string col = "#" + ColorUtility.ToHtmlStringRGB(lerpedColor);
 
-            return col;       
+            return col;
         }
     }
 }

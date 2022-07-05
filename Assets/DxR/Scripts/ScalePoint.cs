@@ -8,7 +8,7 @@ namespace DxR
 {
     public class ScalePoint : Scale
     {
-        private bool verbose = true;
+        private bool verbose = false;
 
         public static float PADDING_DEFAULT = 0.05f;
 
@@ -17,10 +17,12 @@ namespace DxR
         public float rangeStep = 100.0f;
         public float rangeMin = 0.0f;
         public float rangeMax = 100.0f;
-        
+
         private float paddingOuterSize = 0.05f;
 
-        public ScalePoint(JSONNode scaleSpecs) : base(scaleSpecs) {
+        public ScalePoint(JSONNode scaleSpecs, bool verbose = false) : base(scaleSpecs) {
+
+            this.verbose = verbose;
 
             // TODO: Check validity of parameters.
 
@@ -35,7 +37,7 @@ namespace DxR
             {
                 paddingOuter = PADDING_DEFAULT;
             }
-            
+
             rangeMin = float.Parse(base.range[0]);
             rangeMax = float.Parse(base.range[1]);
 
@@ -45,14 +47,14 @@ namespace DxR
             paddingOuterSize = tempStepSize * paddingOuter;
 
             rangeStep = ((rangeMax - rangeMin) - (paddingOuterSize * 2.0f)) / (float)(numSteps);
-            
+
             if (verbose)
             {
-                Debug.Log("ScalPoint created with " + numSteps.ToString() + " steps. " + 
+                Debug.Log("ScalPoint created with " + numSteps.ToString() + " steps. " +
                     rangeStep.ToString() + " rangeStep");
             }
         }
-        
+
         public override string ApplyScale(string domainValue)
         {
             float rangeValue = paddingOuterSize;

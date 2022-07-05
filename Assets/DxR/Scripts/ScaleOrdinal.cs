@@ -7,10 +7,14 @@ namespace DxR
 {
     class ScaleOrdinal : Scale
     {
+        bool verbose = false;
+
         string rangeType = DxR.Vis.UNDEFINED;
 
-        public ScaleOrdinal(JSONNode scaleSpecs) : base(scaleSpecs)
+        public ScaleOrdinal(JSONNode scaleSpecs, bool verbose = false) : base(scaleSpecs)
         {
+            this.verbose = verbose;
+
             if(scaleSpecs["range"] != null)
             {
                 rangeType = scaleSpecs["range"];
@@ -76,13 +80,13 @@ namespace DxR
         private void LoadColorScheme(string schemeName, ref List<string> range)
         {
             string schemeFilename = "ColorSchemes/" + schemeName;
-            
+
             TextAsset targetFile = Resources.Load<TextAsset>(schemeFilename);
             if(targetFile == null)
             {
                 throw new Exception("Cannot load color scheme " + schemeFilename);
             }
-            
+
             JSONNode colorSchemeSpec = JSON.Parse(targetFile.text);
 
             CopyNodeToList(colorSchemeSpec["colors"], ref range);
@@ -100,7 +104,7 @@ namespace DxR
 
                 default:
                     throw new Exception("Invalid range type for ordinal scale.");
-            }           
+            }
         }
 
         private string ApplyScaleCategory(string domainValue)
@@ -125,7 +129,7 @@ namespace DxR
 
         // This currently only interpolates the output color using the first two
         // colors in the range.
-        // TODO: Handle more complex schemes, e.g., blues-3, blues-4, ... 
+        // TODO: Handle more complex schemes, e.g., blues-3, blues-4, ...
         // see: https://vega.github.io/vega-lite/docs/scale.html#scheme
         private string ApplyScaleOrdinal(string domainValue)
         {

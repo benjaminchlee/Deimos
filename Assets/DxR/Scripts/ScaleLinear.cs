@@ -7,7 +7,7 @@ namespace DxR
 {
     public class ScaleLinear : Scale
     {
-        private bool verbose = true;
+        private bool verbose = false;
 
         public float rangeMin = 0.0f;
         public float rangeMax = 100.0f;
@@ -15,9 +15,11 @@ namespace DxR
         public float domainMin = 0.0f;
         public float domainMax = 100.0f;
 
-        public ScaleLinear(JSONNode scaleSpecs) : base(scaleSpecs) {
+        public ScaleLinear(JSONNode scaleSpecs, bool verbose = false) : base(scaleSpecs) {
 
-            domainMin = float.Parse(base.domain[0]); 
+            this.verbose = verbose;
+
+            domainMin = float.Parse(base.domain[0]);
             domainMax = float.Parse(base.domain[1]);
 
             rangeMin = float.Parse(base.range[0]);
@@ -30,7 +32,7 @@ namespace DxR
                     "], range [" + rangeMin.ToString() + ", " + rangeMax.ToString() + "]");
             }
         }
-        
+
         public override string ApplyScale(string domainValue)
         {
             float rangeValue = rangeMin;
