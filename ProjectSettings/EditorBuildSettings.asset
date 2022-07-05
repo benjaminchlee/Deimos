@@ -8,4 +8,10 @@ EditorBuildSettings:
   - enabled: 1
     path: Assets/DxRExamples/test.unity
     guid: b1117bd1262fdf545b8567579375f63a
-  m_configObjects: {}
+  m_configObjects:
+    Unity.XR.Oculus.Settings: {fileID: 11400000, guid: 828f03d7bffc70f4babbb620a5d0c385,
+      type: 2}
+    com.unity.xr.management.loader_settings: {fileID: 11400000, guid: a65677e189e34c540892312a86a49879,
+      type: 2}
+    com.unity.xr.openxr.settings4: {fileID: 11400000, guid: 9c21706d16182564c84f7c10779ffc6b,
+      type: 2}
