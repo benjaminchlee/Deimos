@@ -4,6 +4,7 @@
 {
     "width": 800,
     "height": 500,
+    "depth": -500,
     "mark": "geoshape",
     "encoding": {
         "x": {
@@ -38,6 +39,7 @@
 {
     "width": 800,
     "height": 500,
+    "depth": -500,
     "data": {
         "url": "us-states.json"
     },
@@ -55,9 +57,6 @@
             "field": "Population",
             "type": "quantitative"
         },
-        "zoffsetpct": {
-            "value": -0.5
-        },
         "width": {
             "field": "Longitude",
             "type": "spatial"
@@ -73,6 +72,9 @@
         "color": {
             "field": "Population",
             "type": "quantitative"
+        },
+        "zoffsetpct": {
+            "value": 0.5
         }
     }
 }
@@ -85,7 +87,7 @@
     "mark": "geoshape",
     "encoding": {
         "x": {
-            "field": "Name",
+            "field": "Longitude",
             "type": "nominal"
         },
         "z": {

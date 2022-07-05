@@ -118,7 +118,7 @@ namespace DxR
             titleOffset = titleOffset + (float.Parse(titlePadding) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR);
         }
 
-        // TODO: Create ticks marks and tick labels using mark and channel metaphor, 
+        // TODO: Create ticks marks and tick labels using mark and channel metaphor,
         // i.e., create them using the tick values as data and set orientation channels
         // according to orient and face params.
         internal void SetOrientation(string orient, string face)
@@ -210,7 +210,17 @@ namespace DxR
         {
             Transform lineTransform = gameObject.transform.Find("AxisLine");
             Vector3 scale = lineTransform.localScale;
-            return GetMeshLength() * Math.Max(scale.x, Math.Max(scale.y, scale.z));
+
+            // If any of the dimensions in the scale Vector3 are negative, we assume that the size of the View is negative as well,
+            // meaning this axis should also move towards the negative direction
+            if (scale.x < 0 || scale.y < 0 || scale.z < 0)
+            {
+                return GetMeshLength() * Math.Min(scale.x, Math.Min(scale.y, scale.z));
+            }
+            else
+            {
+                return GetMeshLength() * Math.Max(scale.x, Math.Max(scale.y, scale.z));
+            }
         }
 
         internal void SetColor(string colorString)

@@ -25,7 +25,7 @@ namespace DxR.VisMorphs
 
         public bool DebugStates = false;
 
-        [TextArea(5, 100)]
+        [TextArea(5, 60)]
         public string Json;
 
         /// <summary>

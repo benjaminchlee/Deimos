@@ -62,6 +62,7 @@ namespace DxR.VisMorphs
             foreach (var signalJToken in signalsJToken)
             {
                 if (signalJToken.SelectToken("source") != null) continue;
+                if (signalJToken.SelectToken("expression") == null) continue;
 
                 string observableName = signalJToken.SelectToken("name").ToString();
                 string expression = signalJToken.SelectToken("expression").ToString();
@@ -79,6 +80,9 @@ namespace DxR.VisMorphs
         {
             interpreter = new Interpreter();
 
+            // Set types
+            interpreter = interpreter.Reference(typeof(Vector3));
+
             // Set functions
 
             // Clamp
@@ -90,6 +94,17 @@ namespace DxR.VisMorphs
             Func<double, double, double, double> normalise2 = (input, i0, i1) => Utils.NormaliseValue(input, i0, i1);
             interpreter.SetFunction("normalise", normalise1);
             interpreter.SetFunction("normalise", normalise2);
+
+            // Vector
+            Func<double, double, double, Vector3> vector3 = (x, y, z) => new Vector3((float)x, (float)y, (float)z);
+            interpreter.SetFunction("vector3", vector3);
+
+            // Angle
+            Func<Vector3, Vector3, Vector3, float> signedAngle = (from, to, axis) => Vector3.SignedAngle(from, to, axis);
+            interpreter.SetFunction("signedangle", signedAngle);
+
+            Func<Vector3, Vector3, float> angle = (from, to) => Vector3.Angle(from, to);
+            interpreter.SetFunction("angle", angle);
         }
 
         /// <summary>
@@ -151,12 +166,11 @@ namespace DxR.VisMorphs
             //      c. Emit a new value
 
             // Iterate through all Signals that this expression references
-            IObservable<dynamic> mergedObservable = null;
+            List<IObservable<dynamic>> signalObservables = new List<IObservable<dynamic>>();
             foreach (KeyValuePair<string, IObservable<dynamic>> kvp in Signals)
             {
                 string signalName = kvp.Key;
                 IObservable<dynamic> observable = kvp.Value;
-
                 if (expression.Contains(signalName))
                 {
                     // When this Signal emits, we want to first ensure its variable is updated in the interpreter
@@ -167,32 +181,43 @@ namespace DxR.VisMorphs
                         interpreter.SetVariable(signalName, x);
                         return x;
                     });
+                    newObservable.Subscribe();  // We need to have this subscribe here otherwise later selects don't work, for some reason
 
-                    if (mergedObservable == null)
-                    {
-                        mergedObservable = newObservable;
-                    }
-                    else
-                    {
-                        mergedObservable = mergedObservable.Merge(newObservable);
-                    }
+                    signalObservables.Add(newObservable);
                 }
             }
 
-            // If there was no merged observable created (i.e., no Signals were used)
-            if (mergedObservable != null)
+            if (signalObservables.Count > 0)
             {
-                var expressionObservable = mergedObservable.Select(_ =>
+                var expressionObservable = signalObservables[0];
+
+                for (int i = 1; i < signalObservables.Count; i++)
                 {
+                    expressionObservable = expressionObservable.Merge(signalObservables[i]);
+                }
+
+                return expressionObservable.Select(_ => {
                     return interpreter.Eval(expression);
                 });
-
-                return expressionObservable;
             }
             else
             {
                 return Utils.CreateAnonymousObservable(interpreter.Eval(expression));
             }
+            // // If there was no merged observable created (i.e., no Signals were used)
+            // if (mergedObservable != null)
+            // {
+            //     var expressionObservable = mergedObservable.Select(_ =>
+            //     {
+            //         return interpreter.Eval(expression);
+            //     });
+
+            //     return expressionObservable;
+            // }
+            // else
+            // {
+            //     return Utils.CreateAnonymousObservable(interpreter.Eval(expression));
+            // }
         }
 
         private void ReevaluateExpressionObservables()
@@ -271,7 +296,7 @@ namespace DxR.VisMorphs
             if (!DebugSignals)
                 observable.Subscribe();
             else
-                observable.Subscribe(_ => Debug.Log(_));
+                observable.Subscribe(_ => Debug.Log("Signal " + name + ": " + _));
 
             if (!Signals.ContainsKey(name))
             {

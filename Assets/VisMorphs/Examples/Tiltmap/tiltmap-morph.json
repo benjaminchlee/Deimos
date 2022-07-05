@@ -1,20 +1,38 @@
 {
-    "signals": [{
+    "signals": [
+        {
             "name": "rotationX",
             "source": {
                 "type": "gameobject",
-                "ref": "TiltMapHandle",
-                "select": "transform.eulerAngles.x"
+                "ref": "TiltMap",
+                "select": "transform.localRotation.eulerAngles.x"
             }
         }, {
+            "name": "upVector",
+            "source": {
+                "type": "gameobject",
+                "ref": "TiltMap",
+                "select": "transform.up"
+            }
+        }, {
+            "name": "forwardVector",
+            "source": {
+                "type": "gameobject",
+                "ref": "TiltMap",
+                "select": "transform.forward"
+            }
+        }, {
+            "name": "tilt",
+            "expression": "angle(vector3(0, 1, 0), upVector)"
+        }, {
             "name": "tiltMapTrigger",
-            "expression": "0 <= rotationX && rotationX <= 90"
+            "expression": "true"
         }, {
             "name": "c2pTween",
-            "expression": "normalise(rotationX, 18, 36)"
+            "expression": "normalise(tilt, 20, 45)"
         }, {
             "name": "p2bTween",
-            "expression":"normalise(rotationX, 54, 72)"
+            "expression":"normalise(tilt, 75, 90)"
         }
     ],
 
@@ -45,6 +63,7 @@
         {
             "name": "prism",
             "mark": "geoshape",
+            "depth": -500,
             "encoding": {
                 "x": {
                     "field": "Longitude",
@@ -71,7 +90,7 @@
                     "type": "quantitative"
                 },
                 "zoffsetpct": {
-                    "value": -0.5
+                    "value": 0.5
                 }
             }
         },
@@ -96,7 +115,7 @@
                     "type": "quantitative"
                 },
                 "zoffsetpct": {
-                    "value": -0.5
+                    "value": 0.5
                 },
                 "height": {
                     "value": 0.01

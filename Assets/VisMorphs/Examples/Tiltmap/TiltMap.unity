@@ -1244,6 +1244,51 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 343268466}
   m_CullTransparentMesh: 0
+--- !u!1 &376470257
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 376470259}
+  - component: {fileID: 376470258}
+  m_Layer: 0
+  m_Name: MixedRealityToolkit
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &376470258
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 376470257}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 83d9acc7968244a8886f3af591305bcb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  activeProfile: {fileID: 11400000, guid: 4b90845ecb8d5cb4c8c0f2b097bcc9bb, type: 2}
+--- !u!4 &376470259
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 376470257}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.000000059604645, y: -0.00000023841858, z: 0}
+  m_LocalScale: {x: 1, y: 1.0000001, z: 0.99999994}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &398830421
 GameObject:
   m_ObjectHideFlags: 0
@@ -1313,9 +1358,9 @@ RectTransform:
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMax: {x: 1, y: 1}
   m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 0, y: 0}
+  m_SizeDelta: {x: -17, y: 0}
   m_Pivot: {x: 0, y: 1}
 --- !u!114 &450680955
 MonoBehaviour:
@@ -2425,7 +2470,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!224 &908480074
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2915,6 +2960,38 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 977363785}
   m_CullTransparentMesh: 0
+--- !u!1 &1031209404
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1031209405}
+  m_Layer: 0
+  m_Name: MixedRealityPlayspace
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1031209405
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1031209404}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.000000059604645, y: -0.00000023841858, z: 0}
+  m_LocalScale: {x: 1, y: 1.0000001, z: 0.99999994}
+  m_ConstrainProportionsScale: 0
+  m_Children:
+  - {fileID: 1357669334}
+  m_Father: {fileID: 0}
+  m_RootOrder: 1
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1053859188
 GameObject:
   m_ObjectHideFlags: 0
@@ -2946,47 +3023,50 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   DebugStates: 0
-  Json: "{\r\n    \"signals\": [{\r\n            \"name\": \"rotationX\",\r\n           
+  Json: "{\r\n    \"signals\": [\r\n        {\r\n            \"name\": \"rotationX\",\r\n           
     \"source\": {\r\n                \"type\": \"gameobject\",\r\n               
-    \"ref\": \"TiltMapHandle\",\r\n                \"select\": \"transform.eulerAngles.x\"\r\n           
-    }\r\n        }, {\r\n            \"name\": \"tiltMapTrigger\",\r\n           
-    \"expression\": \"0 <= rotationX && rotationX <= 90\"\r\n        }, {\r\n           
-    \"name\": \"c2pTween\",\r\n            \"expression\": \"normalise(rotationX,
-    18, 36)\"\r\n        }, {\r\n            \"name\": \"p2bTween\",\r\n           
-    \"expression\":\"normalise(rotationX, 54, 72)\"\r\n        }\r\n    ],\r\n\r\n   
-    \"states\": [\r\n        {\r\n            \"name\": \"choropleth\",\r\n               
-    \"mark\": \"geoshape\",\r\n                \"encoding\": {\r\n                   
-    \"x\": {\r\n                        \"field\": \"Longitude\",\r\n                       
-    \"type\": \"spatial\"\r\n                    },\r\n                    \"y\":
-    {\r\n                        \"field\": \"Latitude\",\r\n                       
-    \"type\": \"spatial\"\r\n                    },\r\n                    \"z\":
-    null,\r\n                    \"width\": {\r\n                        \"field\":
-    \"Longitude\",\r\n                        \"type\": \"spatial\"\r\n                   
-    },\r\n                    \"height\": {\r\n                        \"field\":
-    \"Latitude\",\r\n                        \"type\": \"spatial\"\r\n                   
-    }\r\n                }\r\n        },\r\n        {\r\n            \"name\": \"prism\",\r\n           
+    \"ref\": \"TiltMap\",\r\n                \"select\": \"transform.localRotation.eulerAngles.x\"\r\n           
+    }\r\n        }, {\r\n            \"name\": \"upVector\",\r\n            \"source\":
+    {\r\n                \"type\": \"gameobject\",\r\n                \"ref\": \"TiltMap\",\r\n               
+    \"select\": \"transform.up\"\r\n            }\r\n        }, {\r\n           
+    \"name\": \"forwardVector\",\r\n            \"source\": {\r\n               
+    \"type\": \"gameobject\",\r\n                \"ref\": \"TiltMap\",\r\n               
+    \"select\": \"transform.forward\"\r\n            }\r\n        }, {\r\n           
+    \"name\": \"tilt\",\r\n            \"expression\": \"angle(vector3(0, 1, 0),
+    upVector)\"\r\n        }, {\r\n            \"name\": \"tiltMapTrigger\",\r\n           
+    \"expression\": \"true\"\r\n        }, {\r\n            \"name\": \"c2pTween\",\r\n           
+    \"expression\": \"normalise(tilt, 20, 45)\"\r\n        }, {\r\n            \"name\":
+    \"p2bTween\",\r\n            \"expression\":\"normalise(tilt, 75, 90)\"\r\n       
+    }\r\n    ],\r\n\r\n    \"states\": [\r\n        {\r\n            \"name\": \"choropleth\",\r\n           
     \"mark\": \"geoshape\",\r\n            \"encoding\": {\r\n                \"x\":
     {\r\n                    \"field\": \"Longitude\",\r\n                    \"type\":
     \"spatial\"\r\n                },\r\n                \"y\": {\r\n                   
     \"field\": \"Latitude\",\r\n                    \"type\": \"spatial\"\r\n               
-    },\r\n                \"z\": {\r\n                    \"field\": \"Population\",\r\n                   
-    \"type\": \"quantitative\"\r\n                },\r\n                \"width\":
-    {\r\n                    \"field\": \"Longitude\",\r\n                    \"type\":
-    \"spatial\"\r\n                },\r\n                \"height\": {\r\n                   
+    },\r\n                \"z\": null,\r\n                \"width\": {\r\n                   
+    \"field\": \"Longitude\",\r\n                    \"type\": \"spatial\"\r\n               
+    },\r\n                \"height\": {\r\n                    \"field\": \"Latitude\",\r\n                   
+    \"type\": \"spatial\"\r\n                }\r\n            }\r\n        },\r\n       
+    {\r\n            \"name\": \"prism\",\r\n            \"mark\": \"geoshape\",\r\n           
+    \"depth\": -500,\r\n            \"encoding\": {\r\n                \"x\": {\r\n                   
+    \"field\": \"Longitude\",\r\n                    \"type\": \"spatial\"\r\n               
+    },\r\n                \"y\": {\r\n                    \"field\": \"Latitude\",\r\n                   
+    \"type\": \"spatial\"\r\n                },\r\n                \"z\": {\r\n                   
+    \"field\": \"Population\",\r\n                    \"type\": \"quantitative\"\r\n               
+    },\r\n                \"width\": {\r\n                    \"field\": \"Longitude\",\r\n                   
+    \"type\": \"spatial\"\r\n                },\r\n                \"height\": {\r\n                   
     \"field\": \"Latitude\",\r\n                    \"type\": \"spatial\"\r\n               
     },\r\n                \"depth\": {\r\n                    \"field\": \"Population\",\r\n                   
     \"type\": \"quantitative\"\r\n                },\r\n                \"zoffsetpct\":
-    {\r\n                    \"value\": -0.5\r\n                }\r\n           
-    }\r\n        },\r\n        {\r\n            \"name\": \"bar\",\r\n           
-    \"mark\": \"geoshape\",\r\n            \"encoding\": {\r\n                \"x\":
-    {\r\n                    \"field\": \"Name\",\r\n                    \"type\":
-    \"nominal\"\r\n                },\r\n                \"y\": null,\r\n               
-    \"z\": {\r\n                    \"field\": \"Population\",\r\n                   
+    {\r\n                    \"value\": 0.5\r\n                }\r\n            }\r\n       
+    },\r\n        {\r\n            \"name\": \"bar\",\r\n            \"mark\": \"geoshape\",\r\n           
+    \"encoding\": {\r\n                \"x\": {\r\n                    \"field\":
+    \"Name\",\r\n                    \"type\": \"nominal\"\r\n                },\r\n               
+    \"y\": null,\r\n                \"z\": {\r\n                    \"field\": \"Population\",\r\n                   
     \"type\": \"quantitative\"\r\n                },\r\n                \"width\":
     {\r\n                    \"value\": 5\r\n                },\r\n               
     \"depth\": {\r\n                    \"field\": \"Population\",\r\n                   
     \"type\": \"quantitative\"\r\n                },\r\n                \"zoffsetpct\":
-    {\r\n                    \"value\": -0.5\r\n                },\r\n               
+    {\r\n                    \"value\": 0.5\r\n                },\r\n               
     \"height\": {\r\n                    \"value\": 0.01\r\n                }\r\n           
     }\r\n        }\r\n    ],\r\n\r\n    \"transitions\": [\r\n        {\r\n           
     \"name\": \"c2p\",\r\n            \"states\": [\"choropleth\", \"prism\"],\r\n           
@@ -3013,7 +3093,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 2
+  m_RootOrder: 4
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1053859192
 MonoBehaviour:
@@ -3039,6 +3119,9 @@ GameObject:
   - component: {fileID: 1119035473}
   - component: {fileID: 1119035472}
   - component: {fileID: 1119035471}
+  - component: {fileID: 1119035476}
+  - component: {fileID: 1119035475}
+  - component: {fileID: 1119035474}
   m_Layer: 0
   m_Name: TiltMap
   m_TagString: DxRVis
@@ -3059,16 +3142,16 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowInternalSpecification: 0
-  InputSpecification: "{\r\n    \"width\": 800,\r\n    \"height\": 500,\r\n    \"mark\":
-    \"geoshape\",\r\n    \"encoding\": {\r\n        \"x\": {\r\n            \"field\":
+  InputSpecification: "{\r\n    \"width\": 800,\r\n    \"height\": 500,\r\n    \"depth\":
+    -500,\r\n    \"mark\": \"geoshape\",\r\n    \"encoding\": {\r\n        \"x\":
+    {\r\n            \"field\": \"Longitude\",\r\n            \"type\": \"spatial\"\r\n       
+    },\r\n        \"y\": {\r\n            \"field\": \"Latitude\",\r\n           
+    \"type\": \"spatial\"\r\n        },\r\n        \"width\": {\r\n            \"field\":
     \"Longitude\",\r\n            \"type\": \"spatial\"\r\n        },\r\n       
-    \"y\": {\r\n            \"field\": \"Latitude\",\r\n            \"type\": \"spatial\"\r\n       
-    },\r\n        \"width\": {\r\n            \"field\": \"Longitude\",\r\n           
-    \"type\": \"spatial\"\r\n        },\r\n        \"height\": {\r\n            \"field\":
-    \"Latitude\",\r\n            \"type\": \"spatial\"\r\n        },\r\n        \"color\":
-    {\r\n            \"field\": \"Population\",\r\n            \"type\": \"quantitative\"\r\n       
-    }\r\n    },\r\n    \"data\": {\r\n        \"url\": \"us-states.json\"\r\n   
-    }\r\n}"
+    \"height\": {\r\n            \"field\": \"Latitude\",\r\n            \"type\":
+    \"spatial\"\r\n        },\r\n        \"color\": {\r\n            \"field\": \"Population\",\r\n           
+    \"type\": \"quantitative\"\r\n        }\r\n    },\r\n    \"data\": {\r\n       
+    \"url\": \"us-states.json\"\r\n    }\r\n}"
   InternalSpecification: 
 --- !u!114 &1119035472
 MonoBehaviour:
@@ -3098,8 +3181,8 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1119035470}
-  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0.302}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 1, z: 0.302}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -3108,8 +3191,79 @@ Transform:
   - {fileID: 398830422}
   - {fileID: 1458040724}
   m_Father: {fileID: 0}
-  m_RootOrder: 3
+  m_RootOrder: 5
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1119035474
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1119035470}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5afd5316c63705643b3daba5a6e923bd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTetherWhenManipulating: 0
+  IsBoundsHandles: 0
+--- !u!114 &1119035475
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1119035470}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 181cd563a8349c34ea8978b0bc8d9c7e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  hostTransform: {fileID: 1119035473}
+  manipulationType: 3
+  twoHandedManipulationType: 7
+  allowFarManipulation: 1
+  useForcesForNearManipulation: 0
+  oneHandRotationModeNear: 1
+  oneHandRotationModeFar: 1
+  releaseBehavior: 3
+  transformSmoothingLogicType:
+    reference: Microsoft.MixedReality.Toolkit.Utilities.DefaultTransformSmoothingLogic,
+      Microsoft.MixedReality.Toolkit.SDK
+  smoothingFar: 1
+  smoothingNear: 1
+  moveLerpTime: 0.001
+  rotateLerpTime: 0.001
+  scaleLerpTime: 0.001
+  enableConstraints: 1
+  constraintsManager: {fileID: 1119035476}
+  elasticsManager: {fileID: 0}
+  onManipulationStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onManipulationEnded:
+    m_PersistentCalls:
+      m_Calls: []
+  onHoverEntered:
+    m_PersistentCalls:
+      m_Calls: []
+  onHoverExited:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &1119035476
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1119035470}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a98de877dee5fc341b4eb59dfdab266c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  autoConstraintSelection: 1
+  selectedConstraints: []
 --- !u!1 &1123277458
 GameObject:
   m_ObjectHideFlags: 0
@@ -3727,6 +3881,9 @@ GameObject:
   - component: {fileID: 1281481805}
   - component: {fileID: 1281481804}
   - component: {fileID: 1281481803}
+  - component: {fileID: 1281481809}
+  - component: {fileID: 1281481808}
+  - component: {fileID: 1281481807}
   m_Layer: 0
   m_Name: TiltMapHandle
   m_TagString: Untagged
@@ -3805,13 +3962,84 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1281481802}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -0.099, y: 0, z: 0}
+  m_LocalPosition: {x: -0.099, y: 1, z: 0}
   m_LocalScale: {x: 0.1, y: 0.05, z: 0.05}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 4
+  m_RootOrder: 6
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1281481807
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1281481802}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 5afd5316c63705643b3daba5a6e923bd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  ShowTetherWhenManipulating: 0
+  IsBoundsHandles: 0
+--- !u!114 &1281481808
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1281481802}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 181cd563a8349c34ea8978b0bc8d9c7e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  hostTransform: {fileID: 1281481806}
+  manipulationType: 3
+  twoHandedManipulationType: 7
+  allowFarManipulation: 1
+  useForcesForNearManipulation: 0
+  oneHandRotationModeNear: 1
+  oneHandRotationModeFar: 1
+  releaseBehavior: 3
+  transformSmoothingLogicType:
+    reference: Microsoft.MixedReality.Toolkit.Utilities.DefaultTransformSmoothingLogic,
+      Microsoft.MixedReality.Toolkit.SDK
+  smoothingFar: 1
+  smoothingNear: 1
+  moveLerpTime: 0.001
+  rotateLerpTime: 0.001
+  scaleLerpTime: 0.001
+  enableConstraints: 1
+  constraintsManager: {fileID: 1281481809}
+  elasticsManager: {fileID: 0}
+  onManipulationStarted:
+    m_PersistentCalls:
+      m_Calls: []
+  onManipulationEnded:
+    m_PersistentCalls:
+      m_Calls: []
+  onHoverEntered:
+    m_PersistentCalls:
+      m_Calls: []
+  onHoverExited:
+    m_PersistentCalls:
+      m_Calls: []
+--- !u!114 &1281481809
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1281481802}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a98de877dee5fc341b4eb59dfdab266c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  autoConstraintSelection: 1
+  selectedConstraints: []
 --- !u!1 &1286554590
 GameObject:
   m_ObjectHideFlags: 0
@@ -3842,6 +4070,52 @@ Transform:
   m_Children: []
   m_Father: {fileID: 398830422}
   m_RootOrder: 0
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!1 &1291487413
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1291487415}
+  - component: {fileID: 1291487414}
+  m_Layer: 0
+  m_Name: MixedRealitySceneContent
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1291487414
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1291487413}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: c65c9dd2f312b8d41b8849d58e1053fa, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  alignmentType: 0
+  containerObject: {fileID: 0}
+--- !u!4 &1291487415
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1291487413}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: -0.000000059604645, y: -0.00000023841858, z: 0}
+  m_LocalScale: {x: 1, y: 1.0000001, z: 0.99999994}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1307454241
 GameObject:
@@ -4180,6 +4454,9 @@ GameObject:
   - component: {fileID: 1357669334}
   - component: {fileID: 1357669333}
   - component: {fileID: 1357669332}
+  - component: {fileID: 1357669336}
+  - component: {fileID: 1357669335}
+  - component: {fileID: 1357669337}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -4205,7 +4482,7 @@ Camera:
   m_Enabled: 1
   serializedVersion: 2
   m_ClearFlags: 1
-  m_BackGroundColor: {r: 0.19215687, g: 0.3019608, b: 0.4745098, a: 0}
+  m_BackGroundColor: {r: 0, g: 0, b: 0, a: 1}
   m_projectionMatrixMode: 1
   m_GateFitMode: 2
   m_FOVAxisMode: 0
@@ -4218,7 +4495,7 @@ Camera:
     y: 0
     width: 1
     height: 1
-  near clip plane: 0.3
+  near clip plane: 0.1
   far clip plane: 1000
   field of view: 60
   orthographic: 0
@@ -4245,14 +4522,71 @@ Transform:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1357669331}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 1, z: -10}
+  m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
+  m_LocalPosition: {x: 0.000000059604645, y: 0.00000023841855, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
-  m_Father: {fileID: 0}
+  m_Father: {fileID: 1031209405}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1357669335
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357669331}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bf98dd1206224111a38765365e98e207, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  lockCursorWhenFocusLocked: 1
+  setCursorInvisibleWhenFocusLocked: 0
+  maxGazeCollisionDistance: 10
+  raycastLayerMasks:
+  - serializedVersion: 2
+    m_Bits: 4294967291
+  stabilizer:
+    storedStabilitySamples: 60
+  gazeTransform: {fileID: 0}
+  minHeadVelocityThreshold: 0.5
+  maxHeadVelocityThreshold: 2
+--- !u!114 &1357669336
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357669331}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 76c392e42b5098c458856cdf6ecaaaa1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_FirstSelected: {fileID: 0}
+  m_sendNavigationEvents: 1
+  m_DragThreshold: 10
+--- !u!114 &1357669337
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1357669331}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 7a21b486d0bb44444b1418aaa38b44de, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  m_HorizontalAxis: Horizontal
+  m_VerticalAxis: Vertical
+  m_SubmitButton: Submit
+  m_CancelButton: Cancel
+  m_InputActionsPerSecond: 10
+  m_RepeatDelay: 0.5
+  m_ForceModuleActive: 0
 --- !u!1 &1392848865
 GameObject:
   m_ObjectHideFlags: 0
@@ -4849,9 +5183,9 @@ RectTransform:
   m_Father: {fileID: 1944790006}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 151.5, y: -15}
   m_SizeDelta: {x: 160, y: 30}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1732237874
@@ -5178,8 +5512,8 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1977042443}
   m_HandleRect: {fileID: 1977042442}
   m_Direction: 2
-  m_Value: 1
-  m_Size: 0.27478334
+  m_Value: 0.9999999
+  m_Size: 0.2747833
   m_NumberOfSteps: 0
   m_OnValueChanged:
     m_PersistentCalls:
@@ -5503,7 +5837,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 1
+  m_RootOrder: 3
   m_LocalEulerAnglesHint: {x: 50, y: -30, z: 0}
 --- !u!1 &1977042441
 GameObject:
@@ -5538,8 +5872,8 @@ RectTransform:
   m_Father: {fileID: 1353223448}
   m_RootOrder: 0
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
+  m_AnchorMin: {x: 0, y: 0.7252166}
+  m_AnchorMax: {x: 1, y: 0.99999994}
   m_AnchoredPosition: {x: 11, y: 10.000023}
   m_SizeDelta: {x: 21, y: 20}
   m_Pivot: {x: 1, y: 1}
@@ -5783,3 +6117,72 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2125944137}
   m_CullTransparentMesh: 0
+--- !u!1001 &2611791710413597890
+PrefabInstance:
+  m_ObjectHideFlags: 0
+  serializedVersion: 2
+  m_Modification:
+    m_TransformParent: {fileID: 0}
+    m_Modifications:
+    - target: {fileID: 1090179349635394044, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_Name
+      value: Floor
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_RootOrder
+      value: 7
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_LocalPosition.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_LocalPosition.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_LocalPosition.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_LocalRotation.w
+      value: 1
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_LocalRotation.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_LocalRotation.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_LocalRotation.z
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.x
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.y
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7963412402909430858, guid: c5bf1e8d75154f544bcb92e52f744e43,
+        type: 3}
+      propertyPath: m_LocalEulerAnglesHint.z
+      value: 0
+      objectReference: {fileID: 0}
+    m_RemovedComponents: []
+  m_SourcePrefab: {fileID: 100100000, guid: c5bf1e8d75154f544bcb92e52f744e43, type: 3}
