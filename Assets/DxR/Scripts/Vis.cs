@@ -135,7 +135,8 @@ namespace DxR
 
         private void OnDestroy()
         {
-            DxR.VisMorphs.MorphManager.Instance.DeregisterVisualisation(this);
+            if (DxR.VisMorphs.MorphManager.Instance != null)
+                DxR.VisMorphs.MorphManager.Instance.DeregisterVisualisation(this);
         }
 
         public JSONNode GetVisSpecs()
@@ -246,7 +247,7 @@ namespace DxR
             if (goToEnd)
             {
                 isMorphing = false;
-                UpdateVisSpecsFromJSONNode(finalMorphSpecs); // This function already deletes all Marks
+                UpdateVisSpecsFromJSONNode(finalMorphSpecs);
                 initialMorphSpecs = null;
                 finalMorphSpecs = null;
             }
@@ -257,8 +258,6 @@ namespace DxR
                 initialMorphSpecs = null;
                 finalMorphSpecs = null;
             }
-
-            // morphSubscriptions.Dispose();
         }
 
         /// <summary>
@@ -462,6 +461,9 @@ namespace DxR
 
         private void ConstructAxes(JSONNode specs)
         {
+            // If there is a facet wrap channel, we will actually need to create more axes
+            FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncodings.SingleOrDefault(ce => ce.IsFacetWrap());
+
             // Go through each channel and create axis for each spatial / position channel:
             for (int channelIndex = 0; channelIndex < channelEncodings.Count; channelIndex++)
             {
@@ -474,6 +476,32 @@ namespace DxR
                     if (verbose) Debug.Log("Constructing axis for channel " + channelEncoding.channel);
 
                     ConstructAxisObject(axisSpecs, ref channelEncoding);
+
+                    // Construct even more axes if there is a facet wrap channel
+                    if (facetWrapChannelEncoding != null)
+                    {
+                        if (verbose) Debug.Log("Constructing faceted axes for channel " + channelEncoding.channel);
+
+                        int facetSize = facetWrapChannelEncoding.size;
+                        float deltaFirstDir = facetWrapChannelEncoding.spacing[0];
+                        float deltaSecondDir = facetWrapChannelEncoding.spacing[1];
+
+                        // Create numFacets - 1 new axes
+                        for (int facetIdx = 1; facetIdx < facetWrapChannelEncoding.numFacets; facetIdx++)
+                        {
+                            Axis axis = ConstructFacetedAxisObject(axisSpecs, ref channelEncoding, ref facetWrapChannelEncoding);
+
+                            // Apply translation to these axes
+                            int firstDir = facetWrapChannelEncoding.directions[0];
+                            int secondDir = facetWrapChannelEncoding.directions[1];
+
+                            int idxFirstDir = facetIdx % facetSize;
+                            int idxSecondDir = Mathf.FloorToInt(facetIdx / (float)facetSize);
+
+                            axis.SetTranslation(deltaFirstDir * idxFirstDir, firstDir);
+                            axis.SetTranslation(deltaSecondDir * idxSecondDir, secondDir);
+                        }
+                    }
                 }
             }
         }
@@ -487,6 +515,25 @@ namespace DxR
                 channelEncoding.axis.GetComponent<Axis>().Init(interactionsParentObject.GetComponent<Interactions>(),
                     channelEncoding.field);
                 channelEncoding.axis.GetComponent<Axis>().UpdateSpecs(axisSpecs, channelEncoding.scale);
+            }
+            else
+            {
+                throw new Exception("Cannot find axis prefab.");
+            }
+        }
+
+        private Axis ConstructFacetedAxisObject(JSONNode axisSpecs, ref ChannelEncoding channelEncoding, ref FacetWrapChannelEncoding facetWrapChannelEncoding)
+        {
+            GameObject axisPrefab = Resources.Load("Axis/Axis", typeof(GameObject)) as GameObject;
+            if (axisPrefab != null)
+            {
+                GameObject axisGameObject = Instantiate(axisPrefab, guidesParentObject.transform);
+                facetWrapChannelEncoding.axes.Add(axisGameObject);
+                Axis axis = axisGameObject.GetComponent<Axis>();
+                axis.Init(interactionsParentObject.GetComponent<Interactions>(),
+                    channelEncoding.field);
+                axis.UpdateSpecs(axisSpecs, channelEncoding.scale);
+                return axis;
             }
             else
             {
@@ -535,8 +582,34 @@ namespace DxR
                 }
                 else
                 {
+                    // Special condition for offset encodings with linked offsets (for stacked bar charts, etc.)
+                    if (channelEncoding.IsOffset())
+                    {
+                        OffsetChannelEncoding offsetChannelEncoding = (OffsetChannelEncoding)channelEncoding;
+                        if (offsetChannelEncoding.values.Count > 0)
+                        {
+                            string channelValue = offsetChannelEncoding.values[i];
+                            if (offsetChannelEncoding.scale != null)
+                            {
+                                channelValue = offsetChannelEncoding.scale.ApplyScale(offsetChannelEncoding.values[i]);
+                            }
+
+                            markComponent.SetChannelValue(offsetChannelEncoding.channel, channelValue);
+                        }
+                    }
+                    // Special condition for facet wrap
+                    else if (channelEncoding.IsFacetWrap())
+                    {
+                        FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncoding;
+                        if (facetWrapChannelEncoding.xTranslation.Count > 0)
+                        {
+                            markComponent.SetChannelValue("xoffset", facetWrapChannelEncoding.xTranslation[i]);
+                            markComponent.SetChannelValue("yoffset", facetWrapChannelEncoding.yTranslation[i]);
+                            markComponent.SetChannelValue("zoffset", facetWrapChannelEncoding.zTranslation[i]);
+                        }
+                    }
                     // Special condition for channel encodings with spatial data types
-                    if (channelEncoding.fieldDataType.ToLower() == "spatial" &&
+                    else if (channelEncoding.fieldDataType.ToLower() == "spatial" &&
                         (channelEncoding.field.ToLower() == "longitude" ||
                          channelEncoding.field.ToLower() == "latitude"))
                     {
@@ -601,14 +674,140 @@ namespace DxR
         {
             channelEncodings = new List<ChannelEncoding>();
 
-            // Go through each channel and create ChannelEncoding for each:
+            // Go through each channel and create ChannelEncoding for each one
             foreach (KeyValuePair<string, JSONNode> kvp in specs["encoding"].AsObject)
             {
-                ChannelEncoding channelEncoding = new ChannelEncoding();
+                // The type of ChannelEncoding object which we create depends on the channel
+                ChannelEncoding channelEncoding;
+                if (kvp.Key.EndsWith("offset"))
+                {
+                    channelEncoding = new OffsetChannelEncoding();
+                }
+                else if (kvp.Key == "facetwrap")
+                {
+                    channelEncoding = new FacetWrapChannelEncoding();
+                }
+                else
+                {
+                    channelEncoding = new ChannelEncoding();
+                }
 
                 channelEncoding.channel = kvp.Key;
                 JSONNode channelSpecs = kvp.Value;
-                if (channelSpecs["value"] != null)
+
+                // Handle special encodings first that do not conform to the standard rules
+                if (channelEncoding.IsFacetWrap())
+                {
+                    FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncoding;
+
+                    if (channelSpecs["field"] != null)
+                    {
+                        facetWrapChannelEncoding.field = channelSpecs["field"];
+                        if(!data.fieldNames.Contains(channelEncoding.field))
+                        {
+                            throw new Exception("Cannot find data field " + channelEncoding.field + " in data. Please check your spelling (case sensitive).");
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("Facet wrap channel requires a field to be defined");
+                    }
+                    if (channelSpecs["type"] != null)
+                    {
+                        if (channelSpecs["type"] == "quantitative")
+                            throw new NotImplementedException("Quantitative types for facet wrap is not yet supported.");
+                    }
+                    else
+                    {
+                        throw new Exception("Missing type for field in channel " + facetWrapChannelEncoding.channel);
+                    }
+                    if (channelSpecs["value"] != null)
+                    {
+                        throw new Exception("Facet wrap channel cannot have a value property. Use field and type instead.");
+                    }
+                    if (channelSpecs["directions"] != null)
+                    {
+                        JSONArray array = channelSpecs["directions"].AsArray;
+
+                        if (array.Count != 2)
+                        {
+                            throw new Exception("Facet wrap requires two direction values to be provided.");
+                        }
+
+                        for (int i = 0; i < array.Count; i++)
+                        {
+                            // We store these strings internally as integers
+                            if (array[i] == "x")
+                            {
+                                facetWrapChannelEncoding.directions.Add(0);
+                            }
+                            else if (array[i] == "y")
+                            {
+                                facetWrapChannelEncoding.directions.Add(1);
+                            }
+                            else if (array[i] == "z")
+                            {
+                                facetWrapChannelEncoding.directions.Add(2);
+                            }
+                            else
+                            {
+                                throw new Exception("Facet wrap directions can only be x, y, or z. Direction value " + array[i] + " found instead.");
+                            }
+                        }
+
+                        if (facetWrapChannelEncoding.directions.Distinct().Count() == 1)
+                        {
+                            throw new Exception("Facet wrap directions must all be unique.");
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("Facet wrap channel requires one or two directions to be defined. Valid directions are x, y, z, formatted as a string array.");
+                    }
+                    if (channelSpecs["size"] != null)
+                    {
+                        facetWrapChannelEncoding.size = int.Parse(channelSpecs["size"]);
+                    }
+                    if (channelSpecs["spacing"] != null)
+                    {
+                        JSONArray array = channelSpecs["spacing"].AsArray;
+
+                        if (array.Count != 2)
+                        {
+                            throw new Exception("Facet wrap requires two spacing values to be provided.");
+                        }
+
+                        for (int i = 0; i < array.Count; i++)
+                        {
+                            if (array[i].IsNumber)
+                            {
+                                facetWrapChannelEncoding.spacing.Add(float.Parse(array[i]));
+                            }
+                            else
+                            {
+                                throw new Exception("Facet wrap spacing values need to be numbers.");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("Facet wrap channel requires spacing values to be defined. This is in the form of a float array and should be the same length as the direction values.");
+                    }
+                }
+                // Certain encodings have special properties that should not exist on other channels
+                else if (channelSpecs["channel"] != null)
+                {
+                    // Only offset encodings should have a "channel" property
+                    if (channelEncoding.IsOffset())
+                    {
+                        ((OffsetChannelEncoding)channelEncoding).linkedChannel = channelSpecs["channel"];
+                    }
+                    else
+                    {
+                        throw new Exception("Channel  " + channelEncoding.channel + " has a channel property which is not allowed.");
+                    }
+                }
+                else if (channelSpecs["value"] != null)
                 {
                     channelEncoding.value = channelSpecs["value"].Value.ToString();
 
@@ -645,6 +844,193 @@ namespace DxR
 
                 channelEncodings.Add(channelEncoding);
             }
+
+            // Now that we have created all of the channel encodings, we go back and add additional information to special ones
+            // For now we check offsets
+            PopulateOffsetChannelEncodings();
+
+            // Then we check translations applied by faceting
+            PopulateFacetEncodings();
+        }
+
+        private void PopulateOffsetChannelEncodings()
+        {
+            foreach (ChannelEncoding channelEncoding in channelEncodings)
+            {
+                if (channelEncoding.IsOffset())
+                {
+                    OffsetChannelEncoding offsetCE = (OffsetChannelEncoding)channelEncoding;
+
+                    // 1. Get the ChannelEncoding of the categorical channel that this offset relates to (accessed via "channel" property)
+                    ChannelEncoding categoricalCE = channelEncodings.Single(ch => ch.channel == offsetCE.linkedChannel);
+
+                    // 1a. Check to make sure that it is actually categorical
+                    if (categoricalCE.fieldDataType != "ordinal" && categoricalCE.fieldDataType != "nominal")
+                    {
+                        throw new Exception("The channel which an offset references must be either ordinal or nominal type.");
+                    }
+
+                    // 2. Get the ChannelEncodings of the spatial dimensions. These are used to determine the groups
+                    List<ChannelEncoding> spatialCEs = new List<ChannelEncoding>();
+                    foreach (string dimension in new string[] { "x", "y,", "z" })
+                    {
+                        // // We do not use the spatial dimension of the one which we are offsetting by however
+                        // // i.e., if we are offsetting along y, then don't use y as a way to group values
+                        // if (offsetCE.channel.StartsWith(dimension))
+                        //     continue;
+
+                        ChannelEncoding ce = channelEncodings.SingleOrDefault(x => x.channel == dimension);
+                        if (ce != null)
+                        {
+                            if (ce.fieldDataType == "ordinal" || ce.fieldDataType == "nominal")
+                            {
+                                spatialCEs.Add(ce);
+                            }
+                        }
+                    }
+                    List<string> spatialGroupFieldNames = spatialCEs.Select(x => x.field).ToList();
+
+                    // 3. Get the ChannelEncoding of the size dimension associated with the offsetting CE direction
+                    string spatialChannelName = channelEncoding.channel[0].ToString();
+                    string sizeChannelName = (spatialChannelName == "x" ? "width" : (spatialChannelName == "y" ? "height" : "depth"));
+                    ChannelEncoding offsettingSizeCE = channelEncodings.Single(ch => ch.channel == sizeChannelName);
+
+                    // Get our data values
+                    List<Dictionary<string, string>> dataValues = data.values;
+
+                    // Get float values of these size values
+                    List<float> sizeValues = new List<float>();
+                    // If it is a value
+                    if (offsettingSizeCE.value != "" && float.TryParse(offsettingSizeCE.value, out float f))
+                    {
+                        sizeValues = Enumerable.Repeat(f, dataValues.Count).ToList();
+                    }
+                    else if (offsettingSizeCE.field != "")
+                    {
+                        string sizeFieldName = offsettingSizeCE.field;
+
+                        foreach (var dataValue in dataValues)
+                        {
+                            sizeValues.Add(float.Parse(dataValue[sizeFieldName]));
+                        }
+                    }
+
+                    // Get the order of the categories. This order will be used to stagger the offset amounts
+                    List<string> offsetOrder = categoricalCE.scale.domain;
+
+                    // Initialise our data structure
+                    // Dictionary key: The names of the grouping spatial CEs concatenated together
+                    // Dictionary value: A list of tuples representing datums in the group
+                    //      Tuple value: 1) The index of the datum; 2) The value of the offsetting field (i.e., category); 3) The value of the offsetting size field
+                    Dictionary<string, List<Tuple<int, string, float>>> groupedDataValues = new Dictionary<string, List<Tuple<int, string, float>>>();
+
+                    // Populate our data structure
+                    for (int index = 0; index < dataValues.Count; index++)
+                    {
+                        Dictionary<string, string> dataValue = dataValues[index];
+
+                        string key = string.Join(" ", spatialGroupFieldNames.Select(x => dataValue[x]));
+
+                        List<Tuple<int, string, float>> groupedList;
+                        if (!groupedDataValues.TryGetValue(key, out groupedList))
+                        {
+                            groupedList = new List<Tuple<int, string, float>>();
+                            groupedDataValues.Add(key, groupedList);
+                        }
+
+                        groupedList.Add(new Tuple<int, string, float>(index, dataValue[categoricalCE.field], sizeValues[index]));
+                    }
+
+                    // Sort the lists in the data structure based on the order of categories defined in the offset
+                    foreach (var groupedListKey in groupedDataValues.Keys.ToList())
+                    {
+                        groupedDataValues[groupedListKey] = groupedDataValues[groupedListKey].OrderBy(tuple => offsetOrder.IndexOf(tuple.Item2)).ToList();
+                    }
+
+                    // Create a new list which will store our offset values
+                    List<string> offsetValues = Enumerable.Repeat("", dataValues.Count).ToList();
+
+                    // For each (now sorted) grouped list, calculate the amount to offset by and store it in the offsetValues list based on the index stored in the tuple
+                    // We don't need to update the dictionary any more
+                    foreach (var groupedList in groupedDataValues.Values)
+                    {
+                        float offset = 0;
+                        foreach (var tuple in groupedList)
+                        {
+                            int index = tuple.Item1;
+                            offsetValues[index] = offset.ToString();
+                            offset += tuple.Item3;
+                        }
+                    }
+
+                    // Pass this offsetValues list off to the channel encoding
+                    offsetCE.values = offsetValues;
+
+                    // Copy over the scale from the size CE
+                    offsetCE.scale = offsettingSizeCE.scale;
+                }
+            }
+        }
+
+        private void PopulateFacetEncodings()
+        {
+            var ce = channelEncodings.SingleOrDefault(ch => ch.channel == "facetwrap");
+            if (ce == null)
+                return;
+
+            FacetWrapChannelEncoding facetWrapCE = (FacetWrapChannelEncoding)ce;
+
+            // Get the data dimension of the field to facet by
+            List<Dictionary<string, string>> dataValues = data.values;
+            List<string> facetingValues = new List<string>();
+            string facetingField = facetWrapCE.field;
+            foreach (var dataValue in dataValues)
+            {
+                facetingValues.Add(dataValue[facetingField]);
+            }
+
+            // Get the order of the categories. This order will be used to position the facets
+            List<string> facetOrder = facetWrapCE.scale.domain;
+
+            // Position the facets by calculating translation offsets per each data value (i.e., mark)
+            int facetSize = facetWrapCE.size;
+
+            // Create our data structure
+            List<string> xTranslationValues = new List<string>();
+            List<string> yTranslationValues = new List<string>();
+            List<string> zTranslationValues = new List<string>();
+            List<List<string>> translationValues = new List<List<string>>() { xTranslationValues, yTranslationValues, zTranslationValues };
+
+            // Get the spacing values between each small multiple
+            float deltaFirstDir = facetWrapCE.spacing[0];
+            float deltaSecondDir = facetWrapCE.spacing[1];
+
+            // Get the indices (0, 1, 2) of the spatial directions which are spacing towards
+            int firstDir = facetWrapCE.directions[0];
+            int secondDir = facetWrapCE.directions[1];
+            List<int> dimensions = new List<int>() { 0, 1, 2 };
+            dimensions.Remove(firstDir);
+            dimensions.Remove(secondDir);
+            int unusedDir = dimensions[0];
+
+            for (int i = 0; i < facetingValues.Count; i++)
+            {
+                // Calculate the index along the two spatial directions as though it were a 2D grid
+                int facetIdx = facetOrder.IndexOf(facetingValues[i]);
+                int idxFirstDir = facetIdx % facetSize;
+                int idxSecondDir = Mathf.FloorToInt(facetIdx / (float)facetSize);
+
+                // Calculate and store translation values based on the calculated index on the grid and the delta spacing between them
+                translationValues[firstDir].Add((deltaFirstDir * idxFirstDir).ToString());
+                translationValues[secondDir].Add((deltaSecondDir * idxSecondDir).ToString());
+                translationValues[unusedDir].Add("0");
+            }
+
+            // Store our data structure
+            facetWrapCE.xTranslation = translationValues[0];
+            facetWrapCE.yTranslation = translationValues[1];
+            facetWrapCE.zTranslation = translationValues[2];
+            facetWrapCE.numFacets = facetOrder.Count;
         }
 
         private void CreateScaleObject(JSONNode scaleSpecs, ref Scale scale)
@@ -893,12 +1279,11 @@ namespace DxR
             foreach (var feature in featureCollection.Features)
             {
                 // Add values (i.e., properties)
-                Dictionary<string, string> d = new Dictionary<string, string>();
+                Dictionary<string, string> datum = new Dictionary<string, string>();
                 foreach (var kvp in feature.Properties)
                 {
-                    d.Add(kvp.Key, kvp.Value.ToString());
+                    datum.Add(kvp.Key, kvp.Value.ToString());
                 }
-                data.values.Add(d);
 
                 // Add polygons
                 List<List<IPosition>> featurePolygons = new List<List<IPosition>>();
@@ -982,7 +1367,14 @@ namespace DxR
                 var centralSquareRoot = Math.Sqrt(x * x + y * y);
                 var centralLatitude = Math.Atan2(z, centralSquareRoot);
 
-                data.centres.Add(new Position(centralLatitude * 180 / Math.PI, centralLongitude * 180 / Math.PI));
+                var centroid = new Position(centralLatitude * 180 / Math.PI, centralLongitude * 180 / Math.PI);
+                data.centres.Add(centroid);
+
+                // Create a new data object for the centre points to act as longitude and latitude quantitative/nominal values
+                datum.Add("Latitude", centroid.Latitude.ToString());
+                datum.Add("Longitude", centroid.Longitude.ToString());
+
+                data.values.Add(datum);
             }
         }
 
@@ -1005,108 +1397,6 @@ namespace DxR
             }
 
             System.IO.File.WriteAllText(outputName, output.ToString());
-        }
-
-        private JSONNode ApplyDataTransforms(JSONNode visSpecs, JSONNode valuesSpecs)
-        {
-            // // First, we check to see whether or not there are any data transforms to begin with
-            // if (!CheckVisSpecsContainsTransforms(visSpecs))
-            //     return valuesSpecs;
-
-            // // We need to manually construct a Deedle data frame in order to perform data transformations easily
-            // // We create a list of KVPs, where each element is a row in the data frame
-            // // Each Series within it is another collection of KVPs, where each element is a named column in the data frame
-            // var rows = new List<KeyValuePair<int, Deedle.Series<string, object>>>();
-
-            // int numDataFields = valuesSpecs[0].AsObject.Count;
-
-            // // Loop through the values in the specification (i.e., rows)
-            // foreach (JSONNode value in valuesSpecs.Children)
-            // {
-            //     var sb = new Deedle.SeriesBuilder<string>();
-
-            //     bool valueHasNullField = false;
-
-            //     foreach (KeyValuePair<string, JSONNode> kvp in value.AsObject)
-            //     {
-            //         string curFieldName = kvp.Key;
-
-            //         // TODO: Handle null / missing values properly.
-            //         if (kvp.Value.IsNull)
-            //         {
-            //             valueHasNullField = true;
-            //             Debug.Log("value null found: ");
-            //             break;
-            //         }
-
-            //         sb.Add(curFieldName, kvp.Value);
-            //     }
-
-            //     if (!valueHasNullField)
-            //     {
-            //         rows.Add(Deedle.KeyValue.Create(rows.Count, sb.Series));
-            //     }
-            // }
-
-            // var df = Deedle.Frame.FromRows(rows);
-
-            // // We now apply data transforms to the data frame, starting with view-level transforms
-            // // We resolve these in the same order that they are defined in the specification
-            // foreach (JSONNode transformation in visSpecs["transform"].Children)
-            // {
-            //     ApplyViewLevelTransform(transformation, ref df);
-            // }
-
-            return null;
-
-        }
-
-        private bool CheckVisSpecsContainsTransforms(JSONNode visSpecs)
-        {
-            if (visSpecs["transform"] == null)
-            {
-                // Then we check if any of the encodings has a defined transform that is supported
-                foreach (JSONNode encoding in visSpecs["encoding"].Children)
-                {
-                    foreach (KeyValuePair<string, JSONNode> kvp in encoding.AsObject)
-                    {
-                        if (supportedFieldTransforms.Contains(kvp.Key))
-                        {
-                            return true;
-                        }
-                    }
-                }
-                return false;
-            }
-            return true;
-        }
-
-        // private void ApplyViewLevelTransform(JSONNode transformation, ref Frame<int, string> df)
-        // {
-        //     // Get the name of the transformation being used
-        //     string name = GetViewLevelTransformName(transformation);
-
-        //     switch (name)
-        //     {
-        //         case "filter":
-        //             {
-        //                 string expr = transformation.AsObject["filter"];
-        //                 break;
-        //             }
-        //     }
-        // }
-
-        /// <summary>
-        /// Gets the name of the transformation being applied. This should always be the first key in the provided JSONNode object
-        /// </summary>
-        private string GetViewLevelTransformName(JSONNode transformation)
-        {
-            foreach (KeyValuePair<string, JSONNode> kvp in transformation.AsObject)
-            {
-                return kvp.Key;
-            }
-
-            return "";
         }
 
         private void CreateDataFields(JSONNode valuesSpecs, ref Data data)

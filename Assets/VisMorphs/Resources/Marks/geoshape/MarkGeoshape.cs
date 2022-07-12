@@ -107,16 +107,19 @@ namespace DxR
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    List<Vector3> interpolatedVertices = new List<Vector3>();
-
-                    for (int i = 0; i < initialGeoshapeValues.vertices.Count; i++)
+                    if (isMorphing)
                     {
-                        interpolatedVertices.Add(Vector3.Lerp(initialGeoshapeValues.vertices[i], finalGeoshapeValues.vertices[i], t));
-                    }
+                        List<Vector3> interpolatedVertices = new List<Vector3>();
 
-                    geoshapeMesh.SetVertices(interpolatedVertices);
-                    geoshapeMesh.RecalculateNormals();
-                    geoshapeMesh.RecalculateBounds();
+                        for (int i = 0; i < initialGeoshapeValues.vertices.Count; i++)
+                        {
+                            interpolatedVertices.Add(Vector3.Lerp(initialGeoshapeValues.vertices[i], finalGeoshapeValues.vertices[i], t));
+                        }
+
+                        geoshapeMesh.SetVertices(interpolatedVertices);
+                        geoshapeMesh.RecalculateNormals();
+                        geoshapeMesh.RecalculateBounds();
+                    }
                 }).AddTo(morphingSubscriptions);
             }
 
@@ -124,30 +127,36 @@ namespace DxR
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localPosition = Vector3.Lerp(initialGeoshapeValues.localPosition, finalGeoshapeValues.localPosition, t);
+                    if (isMorphing)
+                        transform.localPosition = Vector3.Lerp(initialGeoshapeValues.localPosition, finalGeoshapeValues.localPosition, t);
                 }).AddTo(morphingSubscriptions);
             }
             if (initialGeoshapeValues.localEulerAngles != finalGeoshapeValues.localEulerAngles)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localEulerAngles = Vector3.Lerp(initialGeoshapeValues.localEulerAngles, finalGeoshapeValues.localEulerAngles, t);
+                    if (isMorphing)
+                        transform.localEulerAngles = Vector3.Lerp(initialGeoshapeValues.localEulerAngles, finalGeoshapeValues.localEulerAngles, t);
                 }).AddTo(morphingSubscriptions);
             }
             if (initialGeoshapeValues.localScale != finalGeoshapeValues.localScale)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localScale = Vector3.Lerp(initialGeoshapeValues.localScale, finalGeoshapeValues.localScale, t);
+                    if (isMorphing)
+                        transform.localScale = Vector3.Lerp(initialGeoshapeValues.localScale, finalGeoshapeValues.localScale, t);
                 }).AddTo(morphingSubscriptions);
             }
             if (initialGeoshapeValues.colour != finalGeoshapeValues.colour)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    myRenderer.material.color = Color.Lerp(initialGeoshapeValues.colour, finalGeoshapeValues.colour, t);
+                    if (isMorphing)
+                        myRenderer.material.color = Color.Lerp(initialGeoshapeValues.colour, finalGeoshapeValues.colour, t);
                 }).AddTo(morphingSubscriptions);
             }
+
+            isMorphing = true;
         }
 
         public override void DisableMorphing()
@@ -155,6 +164,7 @@ namespace DxR
             // Cleanup subscriptions
             morphingSubscriptions.Dispose();
 
+            isMorphing = false;
             // The data values on this mark will also need to be reset. We will just have this be set externally
         }
 

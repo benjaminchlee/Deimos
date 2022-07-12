@@ -3122,6 +3122,7 @@ GameObject:
   - component: {fileID: 1119035476}
   - component: {fileID: 1119035475}
   - component: {fileID: 1119035474}
+  - component: {fileID: 1119035477}
   m_Layer: 0
   m_Name: TiltMap
   m_TagString: DxRVis
@@ -3264,6 +3265,19 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   autoConstraintSelection: 1
   selectedConstraints: []
+--- !u!65 &1119035477
+BoxCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1119035470}
+  m_Material: {fileID: 0}
+  m_IsTrigger: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Size: {x: 1, y: 1, z: 1}
+  m_Center: {x: 0.25, y: 0.25, z: 0.25}
 --- !u!1 &1123277458
 GameObject:
   m_ObjectHideFlags: 0

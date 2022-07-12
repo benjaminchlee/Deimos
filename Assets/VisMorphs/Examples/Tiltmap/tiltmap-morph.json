@@ -15,13 +15,6 @@
                 "select": "transform.up"
             }
         }, {
-            "name": "forwardVector",
-            "source": {
-                "type": "gameobject",
-                "ref": "TiltMap",
-                "select": "transform.forward"
-            }
-        }, {
             "name": "tilt",
             "expression": "angle(vector3(0, 1, 0), upVector)"
         }, {

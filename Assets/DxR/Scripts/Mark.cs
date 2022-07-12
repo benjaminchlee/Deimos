@@ -32,6 +32,7 @@ namespace DxR
         private MarkGeometricValues finalGeometricValues;
         private CompositeDisposable morphingSubscriptions;
         private MarkGeometricValues defaultGeometricValues;
+        protected bool isMorphing = false;
 
         public Mark()
         {
@@ -124,30 +125,36 @@ namespace DxR
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localPosition = Vector3.Lerp(initialGeometricValues.localPosition, finalGeometricValues.localPosition, t);
+                    if (isMorphing)
+                        transform.localPosition = Vector3.Lerp(initialGeometricValues.localPosition, finalGeometricValues.localPosition, t);
                 }).AddTo(morphingSubscriptions);
             }
             if (initialGeometricValues.localEulerAngles != finalGeometricValues.localEulerAngles)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localEulerAngles = Vector3.Lerp(initialGeometricValues.localEulerAngles, finalGeometricValues.localEulerAngles, t);
+                    if (isMorphing)
+                        transform.localEulerAngles = Vector3.Lerp(initialGeometricValues.localEulerAngles, finalGeometricValues.localEulerAngles, t);
                 }).AddTo(morphingSubscriptions);
             }
             if (initialGeometricValues.localScale != finalGeometricValues.localScale)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    transform.localScale = Vector3.Lerp(initialGeometricValues.localScale, finalGeometricValues.localScale, t);
+                    if (isMorphing)
+                        transform.localScale = Vector3.Lerp(initialGeometricValues.localScale, finalGeometricValues.localScale, t);
                 }).AddTo(morphingSubscriptions);
             }
             if (initialGeometricValues.colour != finalGeometricValues.colour)
             {
                 tweeningObservable.Subscribe(t =>
                 {
-                    myRenderer.material.color = Color.Lerp(initialGeometricValues.colour, finalGeometricValues.colour, t);
+                    if (isMorphing)
+                        myRenderer.material.color = Color.Lerp(initialGeometricValues.colour, finalGeometricValues.colour, t);
                 }).AddTo(morphingSubscriptions);
             }
+
+            isMorphing = true;
         }
 
         public virtual void DisableMorphing()
@@ -155,10 +162,8 @@ namespace DxR
             // Cleanup subscriptions
             if (morphingSubscriptions != null)
                 morphingSubscriptions.Dispose();
-            initialGeometricValues = null;
-            finalGeometricValues = null;
 
-            // The data values on this mark will also need to be reset. We will just have this be set externally
+            isMorphing = false;
         }
 
         #endregion // Morphing functions
@@ -277,7 +282,16 @@ namespace DxR
                 // 1. The channel needs either a value or field specified
                 if (channelSpecs["value"] == null && channelSpecs["field"] == null)
                 {
-                    throw new Exception("Missing field in channel " + channelEncoding.channel);
+                    // Offsets don't need either of these, but they need a "channel" property
+                    if (channelEncoding.channel.EndsWith("offset"))
+                    {
+                        if (channelSpecs["channel"] == null)
+                            throw new Exception("Missing channel relation in offset " + channelEncoding.channel);
+                    }
+                    else
+                    {
+                        throw new Exception("Missing field in channel " + channelEncoding.channel);
+                    }
                 }
                 // 2. The channel shouldn't specify both a value and field. If so, the field takes precedent and we remove the value
                 else if (channelSpecs["value"] != null && channelSpecs["field"] != null)
@@ -712,6 +726,12 @@ namespace DxR
                 {
                     InferColorScheme(channelEncoding, ref scaleSpecsObj);
                 }
+
+                // HACKY WORKAROUND: Even though facetwrap doesn't actually need colour scheme, we do this anyway to prevent errors
+                if (channelEncoding.channel == "facetwrap" && !scaleSpecsObj["range"].IsArray && scaleSpecsObj["scheme"] == null)
+                {
+                    InferColorScheme(channelEncoding, ref scaleSpecsObj);
+                }
             }
 
             specs["encoding"][channelEncoding.channel].Add("scale", scaleSpecsObj);
@@ -833,6 +853,22 @@ namespace DxR
             {
                 range.Add(new JSONString("0"));
                 range.Add(new JSONString("1"));
+            }
+            else if (channel == "facetwrap")
+            {
+                if(channelEncoding.fieldDataType == "nominal")
+                {
+                    scaleSpecsObj.Add("range", new JSONString("category"));
+                }
+                else if (channelEncoding.fieldDataType == "ordinal")
+                {
+                    scaleSpecsObj.Add("range", new JSONString("ordinal"));
+                }
+                else if (channelEncoding.fieldDataType == "quantitative" ||
+                    channelEncoding.fieldDataType == "temporal")
+                {
+                    scaleSpecsObj.Add("range", new JSONString("ramp"));
+                }
             }
 
             if (range.Count > 0)
@@ -1045,6 +1081,20 @@ namespace DxR
                 if (fieldDataType == "nominal" || fieldDataType == "ordinal")
                 {
                     type = "ordinal";
+                }
+                else
+                {
+                    throw new Exception("Invalid field data type: " + fieldDataType + " for shape channel.");
+                }
+            } else if (channel == "facetwrap")
+            {
+                if (fieldDataType == "nominal" || fieldDataType == "ordinal")
+                {
+                    type = "ordinal";
+                }
+                else if (fieldDataType == "quantitative" || fieldDataType == "temporal")
+                {
+                    type = "sequential";
                 }
                 else
                 {

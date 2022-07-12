@@ -6,6 +6,9 @@ using System;
 using System.Linq;
 using UniRx;
 using DynamicExpresso;
+using Microsoft.MixedReality.Toolkit.Input;
+using Microsoft.MixedReality.Toolkit.Utilities;
+using Microsoft.MixedReality.Toolkit;
 
 namespace DxR.VisMorphs
 {
@@ -105,6 +108,10 @@ namespace DxR.VisMorphs
 
             Func<Vector3, Vector3, float> angle = (from, to) => Vector3.Angle(from, to);
             interpreter.SetFunction("angle", angle);
+
+            // Distance
+            Func<Vector3, Vector3, float> distance = (a, b) => Vector3.Distance(a, b);
+            interpreter.SetFunction("distance", distance);
         }
 
         /// <summary>
@@ -114,7 +121,7 @@ namespace DxR.VisMorphs
         {
             string sourceType = sourceJToken.SelectToken("type").ToString();        // What type of source is this observable?
             string reference = sourceJToken.SelectToken("ref").ToString();          // What is the name of the actual entity to get the value from?
-            string select = sourceJToken.SelectToken("select")?.ToString() ?? "";   // What specific value from this entity do we then extract?
+            string selector = sourceJToken.SelectToken("select")?.ToString() ?? "";   // What specific value from this entity do we then extract?
 
             IObservable<dynamic> observable = null;
 
@@ -122,20 +129,20 @@ namespace DxR.VisMorphs
             {
                 case "event":
                     {
-                        observable = GenerateObservableFromEvent(reference);
+                        observable = GenerateObservableFromEvent(reference, selector);
+                        break;
+                    }
 
-                        if (select != "")
-                            observable.Select(x => x.GetPropValue(select));
+                // TODO: Make sure this works for both hands and controllers
+                case "hands":
+                    {
+                        observable = GenerateObservableFromHands(reference, selector);
                         break;
                     }
 
                 case "gameobject":
                     {
-                        if (select == "")
-                            throw new Exception("Signal of type gameobject needs a select expression.");
-
-                        // Find the referenced gameobject and emit values whenever the selected property has changed
-                        observable = GameObject.Find(reference).ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(select));
+                        observable = GenerateObservableFromGameObject(reference, selector);
                         break;
                     }
             }
@@ -143,18 +150,67 @@ namespace DxR.VisMorphs
             return observable;
         }
 
-        private IObservable<dynamic> GenerateObservableFromEvent(string eventName)
+        private IObservable<dynamic> GenerateObservableFromEvent(string reference, string selector)
         {
-            switch (eventName.ToString())
+            switch (reference.ToLower())
             {
                 case "mousedown":
                     return Observable.EveryUpdate()
                         .Select(_ => Input.GetMouseButton(0))
                         .DistinctUntilChanged()
                         .Select(_ => (dynamic)_);
+
+                // TODO: Improve the syntax of these events
+                case "controller":
+                    var mrtkInputDown = new ObservableMRTKInputDown(selector, Handedness.Any);
+                    return mrtkInputDown.OnMRTKInputDownAsObservable()
+                                .DistinctUntilChanged()
+                                .Select(_ => (dynamic)_);
+
+                case "righthandpinch":
+                    return Observable.EveryUpdate()
+                        .Where(_ => HandJointUtils.FindHand(Handedness.Right) != null)
+                        .Select(_ =>
+                        {
+                            return (dynamic)HandPoseUtils.CalculateIndexPinch(Handedness.Right);
+                        })
+                        .DistinctUntilChanged();
+
                 default:
-                    throw new Exception("Event of ref \"" + eventName + "\" does not exist.");
+                    throw new Exception("Event of ref \"" + reference + "\" does not exist.");
             }
+        }
+
+        private IObservable<dynamic> GenerateObservableFromHands(string reference, string selector)
+        {
+            Handedness handedness = reference.ToLower() == "left" ? Handedness.Left : Handedness.Right;
+
+            return Observable.EveryUpdate()
+                .Select(_ =>
+                {
+                    foreach (var controller in CoreServices.InputSystem.DetectedControllers)
+                    {
+                        if (controller.ControllerHandedness == Handedness.Right && controller.Visualizer != null)
+                        {
+                            return (controller.InputSource.Pointers[0] as MonoBehaviour).gameObject;
+                        }
+                    }
+
+                    return null;
+                })
+                .Where(_ => _ != null)
+                .StartWith(gameObject)
+                .Select(x => (dynamic)x.GetPropValue(selector));
+        }
+
+        private IObservable<dynamic> GenerateObservableFromGameObject(string reference, string selector)
+        {
+            if (selector == "")
+                throw new Exception("Signal of type gameobject needs a select expression.");
+
+            // Find the referenced gameobject and emit values whenever the selected property has changed
+            return GameObject.Find(reference)
+                .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector));
         }
 
         private IObservable<dynamic> GenerateObservableFromExpression(string expression)
@@ -204,84 +260,7 @@ namespace DxR.VisMorphs
             {
                 return Utils.CreateAnonymousObservable(interpreter.Eval(expression));
             }
-            // // If there was no merged observable created (i.e., no Signals were used)
-            // if (mergedObservable != null)
-            // {
-            //     var expressionObservable = mergedObservable.Select(_ =>
-            //     {
-            //         return interpreter.Eval(expression);
-            //     });
-
-            //     return expressionObservable;
-            // }
-            // else
-            // {
-            //     return Utils.CreateAnonymousObservable(interpreter.Eval(expression));
-            // }
         }
-
-        private void ReevaluateExpressionObservables()
-        {
-
-        }
-
-        // private IObservable<dynamic> ApplyTransformToObservable(IObservable<dynamic> observable, string transformType, JToken value)
-        // {
-        //     switch (transformType)
-        //     {
-        //         case "clamp":
-        //             {
-        //                 float min = (float)value[0];
-        //                 float max = (float)value[1];
-        //                 observable = observable.Select(x => (dynamic)Mathf.Clamp(x, min, max));
-        //                 break;
-        //             }
-
-        //         case "normalise":
-        //             {
-        //                 float i0 = (float)value[0];
-        //                 float i1 = (float)value[1];
-        //                 float j0 = value[2] != null ? (float)value[2] : 0;
-        //                 float j1 = value[3] != null ? (float)value[3] : 0;
-        //                 observable = observable.Select(x => (dynamic)Utils.NormaliseValue(x, i0, i1, j0, j1));
-        //                 break;
-        //             }
-
-        //         case "add":
-        //             {
-        //                 if (value.Type == JTokenType.String)
-        //                 {
-        //                     string name = value.ToString();
-        //                     var otherObservable = GetObservable(name);
-        //                     observable = observable.CombineLatest(otherObservable, (x, y) =>
-        //                     {
-        //                         return x + y;
-        //                     });
-        //                 }
-        //                 else if (value.Type == JTokenType.String)
-        //                 {
-        //                     float n = (float)value;
-        //                     observable = observable.Select(x => x + n);
-        //                 }
-        //                 break;
-        //             }
-
-        //         case "conditional":
-        //             {
-        //                 string expression = value.ToString();
-        //                 DynamicExpresso.Interpreter interpreter = new DynamicExpresso.Interpreter();
-
-        //                 observable = observable.Select(x =>
-        //                 {
-        //                     interpreter.SetVariable("x", x);
-        //                     return interpreter.Eval<dynamic>(expression);
-        //                 });
-        //                 break;
-        //             }
-        //     }
-
-        //     return observable;
-        // }
 
         /// <summary>
         /// Saves a given observable such that it can be accessed later on

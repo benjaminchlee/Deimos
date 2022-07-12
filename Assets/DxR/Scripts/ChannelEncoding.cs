@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace DxR
 {
-    public class ChannelEncoding 
+    public class ChannelEncoding
     {
         public string channel;          // Name of channel.
 
@@ -24,6 +24,16 @@ namespace DxR
             scale = null;
             axis = null;
             legend = null;
+        }
+
+        public bool IsOffset()
+        {
+            return channel.EndsWith("offset");
+        }
+
+        public bool IsFacetWrap()
+        {
+            return channel == "facetwrap";
         }
     }
 }

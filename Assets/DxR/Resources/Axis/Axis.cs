@@ -158,6 +158,17 @@ namespace DxR
             gameObject.transform.localPosition = new Vector3(0.0f, 0.0f, GetLength() / 2.0f);
         }
 
+        /// <summary>
+        /// Translates the axes along a spatial direction. To be used AFTER the orient functions
+        /// </summary>
+        public void SetTranslation(float value, int dim)
+        {
+            float offset = value * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+            Vector3 translateBy = transform.localPosition;
+            translateBy[dim] = offset + translateBy[dim];
+            transform.localPosition = translateBy;
+        }
+
         internal void SetLength(float length)
         {
             length = length * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;

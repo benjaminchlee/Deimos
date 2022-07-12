@@ -76,6 +76,9 @@ namespace DxR.VisMorphs
 
         public bool ReadTransformationJson(string jsonString)
         {
+            if (jsonString == "")
+                return false;
+
             return ReadTransformationJson(JSON.Parse(jsonString));
         }
 
@@ -122,6 +125,9 @@ namespace DxR.VisMorphs
         /// <param name="visSpecs"></param>
         private void VisUpdated(Vis vis, JSONNode visSpecs)
         {
+            if (!isInitialised)
+                return;
+
             // If there is already a morph that is being applied by this MorphManager on a different Vis, then we ignore it
             if (isCandidateActive && vis != candidateVis)
                 return;
@@ -618,8 +624,8 @@ namespace DxR.VisMorphs
                         _newVisSpecs["encoding"][encoding.Name]["value"]?.Parent.Remove();
                     }
 
-                    _newVisSpecs["encoding"][encoding.Name].Parent.Merge(
-                        _finalStateSpecs["encoding"][encoding.Name].Parent, new JsonMergeSettings
+                    ((JObject)_newVisSpecs["encoding"][encoding.Name]).Merge(
+                        _finalStateSpecs["encoding"][encoding.Name], new JsonMergeSettings
                         {
                             MergeArrayHandling = MergeArrayHandling.Replace,
                             MergeNullValueHandling = MergeNullValueHandling.Merge
