@@ -2,8 +2,8 @@
     "signals": [{
             "name": "mousedown",
             "source": {
-                "type": "event",
-                "ref": "mousedown"
+                "type": "mouse",
+                "select": "leftmousedown"
             }
         }, {
             "name": "mouseup",

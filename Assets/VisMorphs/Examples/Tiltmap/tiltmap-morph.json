@@ -3,15 +3,13 @@
         {
             "name": "rotationX",
             "source": {
-                "type": "gameobject",
-                "ref": "TiltMap",
+                "type": "vis",
                 "select": "transform.localRotation.eulerAngles.x"
             }
         }, {
             "name": "upVector",
             "source": {
-                "type": "gameobject",
-                "ref": "TiltMap",
+                "type": "vis",
                 "select": "transform.up"
             }
         }, {

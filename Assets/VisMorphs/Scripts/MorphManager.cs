@@ -1,52 +1,27 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
+using DynamicExpresso;
 using SimpleJSON;
-using UnityEditor;
 using UnityEngine;
-using Newtonsoft.Json.Linq;
 using UniRx;
+using Microsoft.MixedReality.Toolkit.Utilities;
+using Microsoft.MixedReality.Toolkit;
+using Microsoft.MixedReality.Toolkit.Input;
 
 namespace DxR.VisMorphs
 {
-    /// <summary>
-    /// Reads in a Morph JSON specification and applies morphs to any eligible DxR Vis.
-    ///
-    /// Currently, this only supports morphs being applied to a SINGLE Vis at a time. This means that morphs will only
-    /// accurately apply to the most recently updated visualisation, and transition cannot occur simultaneously on two
-    /// or more Vis objects.
-    ///
-    /// TODO: Make this support multiple Vis's.
-    /// </summary>
     public class MorphManager : MonoBehaviour
     {
+        public bool DebugSignals = false;
+
+        public TextAsset[] MorphJsonSpecifications;
+
         public static MorphManager Instance { get; private set; }
+        public static Interpreter interpreter;
 
-        public bool DebugStates = false;
-
-        [TextArea(5, 60)]
-        public string Json;
-
-        /// <summary>
-        /// JSON container objects for the different specifications provided by the Json string
-        /// </summary>
-        private JSONNode transformationSpecification;
-        private JSONNode statesSpecification;
-        private JSONNode transitionsSpecification;
-
-        /// <summary>
-        /// Variables relating to the currently active morph
-        /// </summary>
-        private Vis candidateVis;                   // The Vis that matches one of the states in the Morph specification and is therefore a candidate for morphing
-        private bool isCandidateActive = false;
-        private JSONNode currentState;              // The state in the Morph specification which the candidate Vis matches
-        private List<Tuple<JSONNode, CompositeDisposable, bool>> candidateTransitions; // The transitions in the Morph specification which are candidates to be applied to the Vis, assuming that their Predicates are matched
-        private JSONNode currentTransition;         // The transition in the Morph specification which is currently being applied (i.e., the Vis is morphing)
-        private bool isTransitionActive = false;    // Indicates whether the Morph is being applied or not
-
-        private bool isInitialised = false;
-        private bool isTransitionReversed = false;
+        public List<Morph> Morphs = new List<Morph>();
+        private Dictionary<string, IObservable<dynamic>> GlobalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
 
         private void Awake()
         {
@@ -59,715 +34,500 @@ namespace DxR.VisMorphs
                 Instance = this;
             }
 
-            ReadTransformationJson(Json);
+            ReadMorphJsonSpecifications();
         }
 
-        private void OnValidate()
+        private void ReadMorphJsonSpecifications()
         {
-            if (EditorApplication.isPlaying && isInitialised)
+            // If there are already morph specs defined (i.e., this is being called more than once), delete the previous ones
+            if (Morphs.Count > 0)
             {
-                ReadTransformationJson(Json);
-
-                // Dirty hack override: Call the ActiveVisualisationSpecficationUpdated function an all visualisations to update them
-                foreach (Vis vis in FindObjectsOfType<Vis>())
-                    VisUpdated(vis, vis.GetVisSpecs());
-            }
-        }
-
-        public bool ReadTransformationJson(string jsonString)
-        {
-            if (jsonString == "")
-                return false;
-
-            return ReadTransformationJson(JSON.Parse(jsonString));
-        }
-
-        public bool ReadTransformationJson(JSONNode transformationsSpecs)
-        {
-            if (isInitialised)
-            {
-                SignalManager.Instance.ResetObservables();
-                // PredicateManager.Instance.ResetObservables();
+                ResetMorphSpecifications();
             }
 
-            transformationSpecification = transformationsSpecs;
+            // Initialise variables
+            if (interpreter == null)
+                InitialiseExpressionInterpreter();
 
-            // LAZY IMPLEMENTATION: Use Newtonsoft's JSON.NET for now, will need to swap to SimpleJSON later
-            JObject jObject = JObject.Parse(transformationsSpecs.ToString());
-            JToken signalJToken = jObject.SelectToken("signals");
-            SignalManager.Instance.GenerateSignals(signalJToken);
-
-            // JToken predicateJToken = jObject.SelectToken("predicates");
-            // PredicateManager.Instance.GeneratePredicates(predicateJToken);
-
-            statesSpecification = transformationsSpecs["states"];
-            transitionsSpecification = transformationsSpecs["transitions"];
-
-            isInitialised = true;
-
-            return true;
-        }
-
-        public void RegisterVisualisation(Vis vis)
-        {
-            vis.VisUpdated.AddListener(VisUpdated);
-        }
-
-        public void DeregisterVisualisation(Vis vis)
-        {
-            vis.VisUpdated.RemoveListener(VisUpdated);
-        }
-
-        /// <summary>
-        /// Called whenever a DxR visualisation is updated.
-        /// </summary>
-        /// <param name="vis"></param>
-        /// <param name="visSpecs"></param>
-        private void VisUpdated(Vis vis, JSONNode visSpecs)
-        {
-            if (!isInitialised)
-                return;
-
-            // If there is already a morph that is being applied by this MorphManager on a different Vis, then we ignore it
-            if (isCandidateActive && vis != candidateVis)
-                return;
-
-            // Get the state specification that matches the Vis which was just updated, if there even is one
-            var newCurrentState = GetMatchingState(visSpecs);
-
-            // If there is a matching state specification, we continue
-            if (newCurrentState != null)
+            foreach (TextAsset jsonSpecification in MorphJsonSpecifications)
             {
-                // If the new state is the same as the old one, we ignore
-                // NOTE THIS MIGHT BREAK THINGS
-                if (newCurrentState == currentState)
-                    return;
+                JSONNode morphSpec = JSON.Parse(jsonSpecification.text);
+                ReadMorphSpecification(morphSpec);
+            }
 
-                // If this Vis was actually undergoing a Morph and has changed states, we should reset the (now previous) Morph before we progress further
-                if (isTransitionActive && currentState["name"] != newCurrentState["name"])
+            if (Morphs.Count > 0)
+            {
+                foreach (Morphable morphable in GameObject.FindObjectsOfType<Morphable>())
                 {
-                    ResetMorph();
-                }
-
-                candidateVis = vis;
-                isCandidateActive = true;
-                currentState = newCurrentState;
-                Debug.Log("VISMORPHS: New state \"" + currentState["name"] + "\" found!");
-
-                // Get a list of Transition specifications that have our new Current State as the starting state
-                List<Tuple<JSONNode, bool>> newCandidateTransitions = GetCandidateTransitionsFromState(currentState);
-
-                // Create Tuples of JSONNode, CompositeDisposable, and boolean which tracks:
-                // 1. What each Candidate Transition is
-                // 2. The subscriptions of that Candidate Transition to its defined Triggers
-                // 3. Whether or not the transition is being applied from a reverse direction
-                candidateTransitions = new List<Tuple<JSONNode, CompositeDisposable, bool>>();
-                foreach (var transitionInfo in newCandidateTransitions)
-                {
-                    SubscribeToTransitionTriggers(transitionInfo.Item1, transitionInfo.Item2, ref candidateTransitions);
+                    morphable.CheckForMorphs();
                 }
             }
-            // Otherwise, reset the morph. Even if no morph is currently in progress, we do this anyway just to be extra safe
+        }
+
+        private void ResetMorphSpecifications()
+        {
+            Morphs.Clear();
+
+            foreach (Morphable morphable in GameObject.FindObjectsOfType<Morphable>())
+            {
+                morphable.Reset();
+            }
+        }
+
+        private void ReadMorphSpecification(JSONNode morphSpec)
+        {
+            // We need to initialise three separate things: states, signals, and transitions
+            Morph newMorph = new Morph();
+            newMorph.Name = morphSpec["name"] != null ? morphSpec["name"] : "Morph " + Morphs.Count;
+
+            ReadStatesSpecification(newMorph, morphSpec);
+            ReadSignalsSpecification(newMorph, morphSpec);
+            ReadTransitionsSpecification(newMorph, morphSpec);
+
+            Morphs.Add(newMorph);
+        }
+
+        #region States
+
+        private void ReadStatesSpecification(Morph morph, JSONNode morphSpec)
+        {
+            JSONNode statesSpec = morphSpec["states"];
+            if (statesSpec != null)
+            {
+                foreach (JSONNode stateSpec in statesSpec.Children)
+                {
+                    morph.States.Add(stateSpec);
+                }
+            }
             else
             {
-                ResetMorph();
+                Debug.LogWarning(string.Format("Vis Morphs: No state specification has been provided for Morph {0}. Is this correct?", morph.Name));
             }
         }
 
-        private void ResetMorph()
+        #endregion States
+
+        #region Signals
+
+        private void ReadSignalsSpecification(Morph morph, JSONNode morphSpec)
         {
-            candidateVis = null;
-
-            // Dispose of all subscriptions
-            // If there was a Transition in progress, terminate it early
-            if (isTransitionActive)
+            JSONNode signalsSpec = morphSpec["signals"];
+            if (signalsSpec != null)
             {
-                DeactivateTransition(currentTransition);
-
-                // Dispose of all subscriptions
-                foreach (var tuple in candidateTransitions)
+                foreach (JSONNode signalSpec in signalsSpec.Children)
                 {
-                    tuple.Item2.Dispose();
-                }
-                candidateTransitions.Clear();
-            }
+                    string signalName = signalSpec["name"];
+                    if (signalName == null)
+                        throw new Exception("Vis Morphs: All signals need to have a name.");
 
-            candidateVis = null;
-            currentState = null;
-            isCandidateActive = false;
-            isTransitionActive = false;
-            isTransitionReversed = false;
+                    /// We handle signals differently depending on whether it is a global or local signal
+                    /// Global signals are those that can easily be shared across multiple visualisations (e.g., controller events)
+                    /// Local signals are those that are specific to a visualisation (e.g., its position/rotation)
+                    ///     We also consider expressions to be local, at least for now
+                    /// This script will handle global signals, but each Morphable will need to create these local signals independently
+                    if (IsSignalGlobal(signalSpec))
+                    {
+                        IObservable<dynamic> observable = CreateObservableFromSpec(signalSpec);
+                        SaveGlobalSignal(signalName, observable);
+                        morph.GlobalSignals.Add(signalSpec);
+                    }
+                    else
+                    {
+                        morph.LocalSignals.Add(signalSpec);
+                    }
+                }
+            }
+            else
+            {
+                Debug.LogWarning(string.Format("Vis Morphs: No signal specification has been provided for Morph {0}. Is this correct?", morph.Name));
+            }
         }
 
         /// <summary>
-        /// Creates all required subscriptions to a Transition's defined Triggers. These Triggers hook onto the Signals defined separately in the Morph
+        /// Initialises the defined functions that are part of the DynamicExpresso expression interpreter.
+        ///
+        /// This should only need to be called once at initialisation.
         /// </summary>
-        private void SubscribeToTransitionTriggers(JSONNode transitionSpecs, bool isReversed, ref List<Tuple<JSONNode, CompositeDisposable, bool>> candidateTransitions)
+        private void InitialiseExpressionInterpreter()
         {
-            // Create an array of booleans that will be modified by the later observables
-            // This is probably bad coding practice but eh it works for now
-            List<bool> boolList = new List<bool>();
+            interpreter = new Interpreter();
 
-            // Create a new CompositeDisposable that will store the subscriptions for this specific transitionSpecs
-            CompositeDisposable disposables = new CompositeDisposable();
+            // Set types
+            interpreter = interpreter.Reference(typeof(Vector3));
 
-            // If this Transition is using a Predicate as a tweener, we subscribe to it such that the Transition only
-            // actually begins if this tweener returns a value between 0 and 1 (exclusive)
-            if (transitionSpecs["timing"] != null && transitionSpecs["timing"]["control"] != null)
+            // Set functions
+
+            // Clamp
+            Func<double, double, double, double> clamp = (input, min, max) => Math.Clamp(input, min, max);
+            interpreter.SetFunction("clamp", clamp);
+
+            // Normalise
+            Func<double, double, double, double, double, double> normalise1 = (input, i0, i1, j0, j1) => Utils.NormaliseValue(input, i0, i1, j0, j1);
+            Func<double, double, double, double> normalise2 = (input, i0, i1) => Utils.NormaliseValue(input, i0, i1);
+            interpreter.SetFunction("normalise", normalise1);
+            interpreter.SetFunction("normalise", normalise2);
+
+            // Vector
+            Func<double, double, double, Vector3> vector3 = (x, y, z) => new Vector3((float)x, (float)y, (float)z);
+            interpreter.SetFunction("vector3", vector3);
+
+            // Angle
+            Func<Vector3, Vector3, Vector3, float> signedAngle = (from, to, axis) => Vector3.SignedAngle(from, to, axis);
+            interpreter.SetFunction("signedangle", signedAngle);
+
+            Func<Vector3, Vector3, float> angle = (from, to) => Vector3.Angle(from, to);
+            interpreter.SetFunction("angle", angle);
+
+            // Distance
+            Func<Vector3, Vector3, float> distance = (a, b) => Vector3.Distance(a, b);
+            interpreter.SetFunction("distance", distance);
+        }
+
+        /// <summary>
+        /// Returns true if the signal is global, or false if it is local
+        /// </summary>
+        private bool IsSignalGlobal(JSONNode signalSpec)
+        {
+            // For now, any signal that has to do with hand/controller input is considered global
+            // TODO: Expand this to detect global/local expression-based signals too
+            if (signalSpec["source"] != null &&
+                (signalSpec["source"]["type"] == "hands" || signalSpec["source"]["type"] == "mouse"
+                || signalSpec["source"]["type"] == "controller" || signalSpec["source"]["type"] == "gameobject"))
+                return true;
+
+            return false;
+        }
+
+        /// <summary>
+        /// Saves a given signal such that it can be accessed later on, typically by external Morphable scripts
+        /// </summary>
+        private void SaveGlobalSignal(string name, IObservable<dynamic> observable)
+        {
+            // Make the signal a ReplaySubject which returns the most recently emitted item as soon as it is subscribed to
+            observable = observable.Replay(1).RefCount();
+
+            // Subscribe to both force the signal to behave as a hot observable, and also for debugging purposes
+            observable.Subscribe(_ =>
             {
-                string tweenerName = transitionSpecs["timing"]["control"];
-                var observable = SignalManager.Instance.GetObservable(tweenerName);
+                if (DebugSignals)
+                    Debug.Log("Global Signal " + name + ": " + _);
+            });
 
-                if (observable != null)
-                {
-                    boolList.Add(false);
-                    observable.Subscribe(f =>
-                    {
-                        boolList[0] = 0 < f && f < 1;
+            if (!GlobalSignalObservables.ContainsKey(name))
+            {
+                GlobalSignalObservables.Add(name, observable);
+            }
+            else
+            {
+                Debug.LogWarning(string.Format("Vis Morphs: A global signal with the name {0} already exists and therefore has not been overwritten. Is this intentional?", name));
+            }
+        }
 
-                        // If all of the predicates for this Transition returned true...
-                        if (!boolList.Contains(false))
-                        {
-                            // AND there is not an already active transition, we can then formally activate the Transition
-                            if (!isTransitionActive)
-                                ActivateTransition(transitionSpecs, isReversed);
-                        }
-                        else
-                        {
-                            // Otherwise, if this Tweener has now reached either end of the tweening range, end the transition
-                            if (isTransitionActive && currentTransition == transitionSpecs)
-                            {
-                                // If the tweening value is 1 or more, the Vis should rest at the final state
-                                bool goToEnd = f >= 1;
-                                DeactivateTransition(transitionSpecs, goToEnd);
-                            }
-                        }
-                    }).AddTo(disposables);
-                }
+        public IObservable<dynamic> GetGlobalSignal(string name)
+        {
+            if (GlobalSignalObservables.TryGetValue(name, out IObservable<dynamic> observable))
+            {
+                return observable;
             }
 
-            // Subscribe to the rest of the Triggers. If no triggers are defined, then we can just skip this process entirely
-            var triggerNames = transitionSpecs["triggers"];
-            if (triggerNames != null)
+            return null;
+        }
+
+        public static IObservable<dynamic> CreateObservableFromSpec(JSONNode signalSpec, Morphable morphable = null)
+        {
+            if (signalSpec["source"] != null)
             {
-                for (int i = 0; i < triggerNames.Count; i++)
+                JSONNode sourceSpec = signalSpec["source"];
+                string sourceType = sourceSpec["type"];        // What type of source is this observable?
+                string reference = sourceSpec["ref"];          // What is the name of the actual entity to get the value from?
+                string selector = sourceSpec["select"];   // What specific value from this entity do we then extract?
+
+                switch (sourceType)
                 {
-                    // Set the index that will be used to then modify the boolean in our boolArray
-                    int index = boolList.Count;
-                    boolList.Add(false);
-
-                    // Get the corresponding Signal observable by using its name, casting it to a boolean
-                    IObservable<bool> triggerObservable = SignalManager.Instance.GetObservable(triggerNames[i]).Select(x => (bool)x);
-                    triggerObservable.Subscribe(b =>
-                    {
-                        boolList[index] = b;
-
-                        // If all of the predicates for this Transition returned true...
-                        if (!boolList.Contains(false))
+                    case "mouse":
                         {
-                            // AND there is not an already active transition, we can then formally activate the Transition
-                            if (!isTransitionActive)
-                                ActivateTransition(transitionSpecs, isReversed);
+                            return CreateObservableFromMouseSpec(reference, selector);
                         }
-                        else
+                    case "controller":
                         {
-                            // Otherwise, if this Transition WAS active but now no longer meets the trigger conditions,
-                            if (isTransitionActive && currentTransition == transitionSpecs)
-                            {
-                                // If the Transition specification includes which direction (start or end) to reset the Vis to, we use it
-                                bool goToEnd = false;
+                            return CreateObservableFromControllerSpec(reference, selector);
+                        }
 
-                                if (transitionSpecs["interrupt"]["control"] == "reset")
+                    case "hands":
+                        {
+                            return CreateObservableFromHandSpec(reference, selector);
+                        }
+
+                    case "gameobject":
+                        {
+                            return CreateObservableFromGameObjectSpec(reference, selector);
+                        }
+
+                    case "vis":
+                        {
+                            // Creating an observable from a vis signal should only be done by a Morphable
+                            if (morphable != null)
+                                return CreateObservableFromVisSpec(reference, selector, morphable);
+                            return null;
+                        }
+
+                    default:
+                        return null;
+                }
+            }
+            else
+            {
+                // Creating an expression observable from a vis signal should only be done by a Morphable
+                string expression = signalSpec["expression"];
+                if (expression != null && morphable != null)
+                {
+                    return CreateObservableFromExpression(expression, morphable);
+                }
+                else
+                {
+                    throw new Exception(string.Format("Vis Morphs: Signal {0} needs either a source or expression property.", signalSpec["name"]));
+                }
+            }
+        }
+
+        private static IObservable<dynamic> CreateObservableFromMouseSpec(string reference, string selector)
+        {
+            // Mouse signals shouldn't need a reference
+            switch (selector.ToLower())
+            {
+                case "leftmousedown":
+                    return Observable.EveryUpdate()
+                        .Select(_ => Input.GetMouseButton(0))
+                        .DistinctUntilChanged()
+                        .Select(_ => (dynamic)_);
+
+                case "rightmousedown":
+                    return Observable.EveryUpdate()
+                        .Select(_ => Input.GetMouseButton(1))
+                        .DistinctUntilChanged()
+                        .Select(_ => (dynamic)_);
+
+                case "position":
+                    throw new NotImplementedException();
+
+                default:
+                    throw new Exception(string.Format("Vis Morphs: Mouse event of selector {0} does not exist.", selector));
+            }
+        }
+
+        private static IObservable<dynamic> CreateObservableFromControllerSpec(string reference, string selector)
+        {
+            Handedness handedness = reference.ToLower() == "left" ? Handedness.Left : reference.ToLower() == "right" ? Handedness.Right : Handedness.Any;
+
+            switch (selector.ToLower())
+            {
+                case "position":
+                {
+                    return Observable.EveryUpdate()
+                        .Select(_ =>
+                        {
+                            foreach (var controller in CoreServices.InputSystem.DetectedControllers)
+                            {
+                                if (controller.ControllerHandedness == handedness && controller.Visualizer != null)
                                 {
-                                    goToEnd = transitionSpecs["interrupt"]["value"] == "end";
+                                    return (controller.InputSource.Pointers[0] as MonoBehaviour).gameObject;
                                 }
-
-                                DeactivateTransition(transitionSpecs, goToEnd);
                             }
-                        }
-                    }).AddTo(disposables);
+
+                            return null;
+                        })
+                        .Where(_ => _ != null)
+                        .Select(x => (dynamic)x.transform.position)
+                        .StartWith(Vector3.zero);
                 }
-            }
 
-            candidateTransitions.Add(new Tuple<JSONNode, CompositeDisposable, bool>(transitionSpecs, disposables, isReversed));
-        }
-
-        private void ActivateTransition(JSONNode newTransitionSpecs, bool isReversed = false)
-        {
-            if (candidateVis == null)
-                return;
-
-            currentTransition = newTransitionSpecs;
-            isTransitionReversed = isReversed;
-
-            // Generate the initial and final states
-            JSONNode initialState, finalState;
-            if (!isTransitionReversed)
-            {
-                initialState = candidateVis.GetVisSpecs();
-                finalState = GenerateVisSpecKeyframeFromState(initialState, GetStateFromName(currentTransition["states"][0]), GetStateFromName(currentTransition["states"][1]));
-            }
-            else
-            {
-                // If the transition is being called in the reversed direction, the candidate vis actually starts from the *final* state,
-                // in order to not mess with the tweening value. Note this does mean that it doesn't really work with time-based tweens
-                finalState = candidateVis.GetVisSpecs();
-                initialState = GenerateVisSpecKeyframeFromState(finalState, GetStateFromName(currentTransition["states"][1]), GetStateFromName(currentTransition["states"][0]));
-                //candidateVis.UpdateVisSpecsFromJSONNode(initialState, false, false);
-            }
-
-            if (DebugStates)
-            {
-                var initial = JSONNode.Parse(initialState.ToString());
-                initial.Remove("data");
-                Debug.Log("DEBUG INITIAL STATE: " + initial.ToString());
-                var final = JSONNode.Parse(finalState.ToString());
-                final.Remove("data");
-                Debug.Log("DEBUG FINAL STATE " + final.ToString());
-            }
-
-            // Change to initial state instantly
-            candidateVis.UpdateVisSpecsFromJSONNode(initialState, false, false);
-
-            // Call update to final state using a tweening observable
-            var tweeningObservable = CreateMorphTweenObservable(currentTransition);
-            candidateVis.ApplyVisMorph(finalState, tweeningObservable);
-
-            isTransitionActive = true;
-            Debug.Log("MORPHS: New transition \"" + currentTransition["name"] + "\" now active!");
-        }
-
-        private void DeactivateTransition(JSONNode oldTransitionSpecs, bool goToEnd = false)
-        {
-            if (candidateVis == null || !isTransitionActive)
-                return;
-
-            candidateVis.StopVisMorph(goToEnd);
-
-            isTransitionActive = false;
-            isTransitionReversed = false;
-            Debug.Log("MORPHS: Transition \"" + oldTransitionSpecs["name"] + "\" now deactive!");
-
-            // Do another check on this Vis to see if it now matches any new states
-            //VisUpdated(candidateVis, candidateVis.GetVisSpecs());
-        }
-
-        /// <summary>
-        /// Checks for and returns the state specified in the transformation JSON which the given visualisation specification
-        /// matches. If no state matches, returns null
-        /// </summary>
-        /// <param name="visSpec"></param>
-        /// <returns></returns>
-        private JSONNode GetMatchingState(JSONNode visSpecs)
-        {
-            foreach (JSONNode stateSpecs in statesSpecification.Children)
-            {
-                if (CheckSpecsMatching(visSpecs, stateSpecs))
+                case "rotation":
                 {
-                    Debug.Log("Visualisation matching state\"" + stateSpecs["name"] + "\" found.");
-                    return stateSpecs;
-                }
-            }
-
-            return null;
-        }
-
-        private JSONNode GetStateFromName(string name)
-        {
-            foreach (JSONNode stateSpecs in statesSpecification.Children)
-            {
-                if (stateSpecs["name"] == name)
-                    return stateSpecs;
-            }
-            return null;
-        }
-
-        private Dictionary<string, JSONNode> GetDeepChildrenWithPaths(JSONNode jsonNode)
-        {
-            List<string> path = new List<string>();
-            Dictionary<string, JSONNode> dictionary = new Dictionary<string, JSONNode>();
-
-            return GetDeepChildrenWithPaths(jsonNode, ref path, ref dictionary);
-        }
-
-        private Dictionary<string, JSONNode> GetDeepChildrenWithPaths(JSONNode jsonNode, ref List<string> path, ref Dictionary<string, JSONNode> dictionary)
-        {
-            if (jsonNode.Children.Count() == 0 || jsonNode.IsArray)
-            {
-                dictionary.Add(string.Join(".", path), jsonNode);
-                return dictionary;
-            }
-
-            foreach (string key in jsonNode.Keys)
-            {
-                path.Add(key);
-                GetDeepChildrenWithPaths(jsonNode[key], ref path, ref dictionary);
-                path.RemoveAt(path.Count() - 1);
-            }
-
-            return dictionary;
-        }
-
-        private int KeyCount(JSONNode jsonNode)
-        {
-            int count = 0;
-            foreach (var key in jsonNode.Keys)
-            {
-                count++;
-            }
-            return count;
-        }
-
-        private bool CheckSpecsMatching(JSONNode visSpecs, JSONNode stateSpecs)
-        {
-            return CheckViewSpecsMatching(visSpecs, stateSpecs) &&
-                   CheckEncodingSpecsMatching(visSpecs["encoding"], stateSpecs["encoding"]);
-        }
-
-        private bool CheckViewSpecsMatching(JSONNode visSpecs, JSONNode stateSpecs)
-        {
-            foreach (var property in stateSpecs)
-            {
-                // Ignore the name and encoding properties
-                if (property.Key == "name" || property.Key == "encoding")
-                    continue;
-
-                // We also ignore the data property for now
-                // TODO: Check the data as well
-                if (property.Key == "data")
-                    continue;
-
-                JSONNode statePropertyValue = property.Value;
-                JSONNode visPropertyValue = visSpecs[property.Key];
-
-                // Condition 1: the value of this property is defined, but as null
-                if (statePropertyValue.IsNull)
-                {
-                    if (visPropertyValue != null && !visPropertyValue.IsNull)
-                    {
-                        return false;
-                    }
-                }
-                // Condition 2: the value of this property is defined as a wildcard ("*")
-                else if (statePropertyValue.ToString() == "\"*\"")
-                {
-                    if (visPropertyValue == null ||
-                        (visPropertyValue != null && visPropertyValue.IsNull))
-                        return false;
-                }
-                // Condition 3: the value of this property is defined as a specific value
-                else
-                {
-                    if (visPropertyValue == null ||
-                        (visPropertyValue != null && visPropertyValue.ToString() != statePropertyValue.ToString()))
-                        return false;
-                }
-            }
-
-            return true;
-        }
-
-        private bool CheckEncodingSpecsMatching(JSONNode visEncodingSpecs, JSONNode stateEncodingSpecs)
-        {
-            if (stateEncodingSpecs == null)
-                return true;
-
-            if (stateEncodingSpecs.IsNull)
-                return true;
-
-
-            foreach (var encoding in stateEncodingSpecs)
-            {
-                string stateEncodingKey = encoding.Key.ToLower();
-                JSONNode stateEncodingValue = encoding.Value;
-
-                JSONNode visEncodingValue = visEncodingSpecs[stateEncodingKey];
-
-                // If the value of this encoding is null, it means that our vis specs should NOT have it
-                // e.g., "x": null
-                if (stateEncodingValue.IsNull)
-                {
-                    // If the vis specs does actually have this encoding with a properly defined value, then it fails the check
-                    if (visEncodingValue != null && !visEncodingValue.IsNull)
-                    {
-                        return false;
-                    }
-                }
-                // Otherwise, we check all of the properties within this property (i.e., field, value, type) to ensure they match
-                else
-                {
-                    foreach (var stateEncodingProperty in stateEncodingValue)
-                    {
-                        JSONNode stateEncodingPropertyValue = stateEncodingProperty.Value;
-                        JSONNode visEncodingPropertyValue = visEncodingValue[stateEncodingProperty.Key];
-
-                        // Condition 1: the value of this state property is defined, but as null
-                        // e.g.,: "x": {
-                        //          "field": null
-                        //         }
-                        if (stateEncodingProperty.Value.IsNull)
+                    return Observable.EveryUpdate()
+                        .Select(_ =>
                         {
-                            if (visEncodingPropertyValue != null && !visEncodingPropertyValue.IsNull)
-                                return false;
-                        }
-                        // Condition 2: the value of this property is defined as a wildcard ("*")
-                        // e.g.,: "x": {
-                        //          "field": "*"
-                        //         }
-                        else if (stateEncodingProperty.Value.ToString() == "\"*\"")
-                        {
-                            if (visEncodingPropertyValue == null ||
-                                (visEncodingPropertyValue != null && visEncodingPropertyValue.IsNull))
-                                return false;
-                        }
-                        // Condition 3: the value of this property is some specific value
-                        // e.g.,: "x": {
-                        //          "field": "Miles_Per_Gallon"
-                        //         }
-                        else
-                        {
-                            if (visEncodingPropertyValue == null ||
-                                (visEncodingPropertyValue != null && visEncodingPropertyValue.ToString() != stateEncodingPropertyValue.ToString()))
-                                return false;
-                        }
-                    }
-                }
-            }
+                            foreach (var controller in CoreServices.InputSystem.DetectedControllers)
+                            {
+                                if (controller.ControllerHandedness == handedness && controller.Visualizer != null)
+                                {
+                                    return (controller.InputSource.Pointers[0] as MonoBehaviour).gameObject;
+                                }
+                            }
 
-            return true;
+                            return null;
+                        })
+                        .Where(_ => _ != null)
+                        .Select(x => (dynamic)x.transform.rotation)
+                        .StartWith(Vector3.zero);
+                }
+
+                case "select":
+                case "grip":
+                {
+                    var mrtkInputDown = new ObservableMRTKInputDown(selector, Handedness.Any);
+                    return mrtkInputDown.OnMRTKInputDownAsObservable()
+                                .DistinctUntilChanged()
+                                .Select(_ => (dynamic)_);
+                }
+
+                default:
+                    throw new Exception(string.Format("Vis Morphs: Controller event of select {0} does not exist.", reference));
+            }
         }
 
-        /// <summary>
-        /// Returns a list of all Transition specifications that have the given state as its starting state
-        /// </summary>
-        private List<Tuple<JSONNode, bool>> GetCandidateTransitionsFromState(JSONNode stateSpecification)
+        private static IObservable<dynamic> CreateObservableFromHandSpec(string reference, string selector)
         {
-            string stateName = stateSpecification["name"].ToString();
-            List<Tuple<JSONNode, bool>> candidateTransitions = new List<Tuple<JSONNode, bool>>();
+            Handedness handedness = reference.ToLower() == "left" ? Handedness.Left : reference.ToLower() == "right" ? Handedness.Right : Handedness.Any;
 
-            foreach (JSONNode transition in transitionsSpecification.Children)
+            switch (selector.ToLower())
             {
-                // Get the tuple of states
-                JSONArray states = transition["states"].AsArray;
+                case "pinch":
+                    return Observable.EveryUpdate()
+                        .Where(_ => HandJointUtils.FindHand(handedness) != null)
+                        .Select(_ =>
+                        {
+                            return (dynamic)HandPoseUtils.CalculateIndexPinch(Handedness.Right);
+                        })
+                        .StartWith(0)
+                        .DistinctUntilChanged();
 
-                // Add this transition to our list if the first name in the states array matches the input state
-                if (states[0].ToString() == stateName)
-                {
-                    candidateTransitions.Add(new Tuple<JSONNode, bool>(transition, false));
-                }
-                // We can also add it if the second name matches the input AND the transition is set to bidirectional
-                else if (states[1].ToString() == stateName && transition["bidirectional"])
-                {
-                    candidateTransitions.Add(new Tuple<JSONNode, bool>(transition, true));
-                }
+
+                case "position":
+                    return Observable.EveryUpdate()
+                        .Select(_ =>
+                        {
+                            foreach (var controller in CoreServices.InputSystem.DetectedControllers)
+                            {
+                                if (controller.ControllerHandedness == Handedness.Right && controller.Visualizer != null)
+                                {
+                                    return (controller.InputSource.Pointers[0] as MonoBehaviour).gameObject;
+                                }
+                            }
+
+                            return null;
+                        })
+                        .Where(_ => _ != null)
+                        .Select(x => (dynamic)x.transform.position)
+                        .StartWith(Vector3.zero);
+
+                default:
+                    throw new Exception(string.Format("Vis Morphs: Mouse event of selector {0} does not exist.", selector));
             }
-
-            return candidateTransitions;
         }
 
-        private JSONNode GenerateVisSpecKeyframeFromState(JSONNode visSpecs, JSONNode initialStateSpecs, JSONNode finalStateSpecs)
+        private static IObservable<dynamic> CreateObservableFromGameObjectSpec(string reference, string selector)
         {
-            // SimpleJSON doesn't really work well with editing JSON objects, so we just use JSON.NET instead
-            JObject _initialStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(initialStateSpecs.ToString());
-            JObject _finalStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(finalStateSpecs.ToString());
+            if (selector == "")
+                throw new Exception("Vis Morphs: Signal of type gameobject requires a select expression.");
 
-            // Create another vis specs object which will be the one which we are actually modifying
-            // But first, we should remove the data property from the vis spec in order to not have to serialise and parse it twice
-            JSONNode dataSpecs = visSpecs["data"];
-            visSpecs.Remove("data");
-            JObject _newVisSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
+            // Find the referenced gameobject and emit values whenever the selected property has changed
+            return GameObject.Find(reference)
+                .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector));
+        }
 
-            /// There are three different types of encoding changes that are possible here, one of which has two sub-conditions:
-            /// A) undefined -> defined (i.e., encoding is added)
-            /// B) defined -> undefined (i.e., encoding is removed)
-            /// C) defined -> defined (i.e., encoding is changed)
-            ///
-            /// We simplify this down to the following psudocode:
-            /// 1. For each encoding defined in the initial state, if it is not defined in the final state, it will be removed from the vis state (REMOVED)
-            /// 2. For each encoding defined in the final state:
-            ///     a. If it was not defined in the initial state, we add it to the vis state (ADDED)
-            ///     b. If it was defined in the initial state, we modify the vis state depending on the following rules: (CHANGED)
-            ///         i. If the final state defines a field or value, remove any pre-exisiting field or value in the vis state before adding the one from the final state
-            ///         ii. If the final state specifies NULLs anywhere, these are removed from the vis state. Everything else is left unchanged (for now)
+        private static IObservable<dynamic> CreateObservableFromVisSpec(string reference, string selector, Morphable morphable)
+        {
+            if (selector == "")
+                throw new Exception("Vis Morphs: Signal of type vis requires a select expression.");
 
-            foreach (var encoding in ((JObject)_initialStateSpecs["encoding"]).Properties())
+            // Find the referenced gameobject and emit values whenever the selected property has changed
+            return morphable.gameObject
+                .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector));
+        }
+
+        private static IObservable<dynamic> CreateObservableFromExpression(string expression, Morphable morphable)
+        {
+            // 1. Find all observables that this expression references
+            // 2. When any of these emits:
+            //      a. Update the variable on the interpreter
+            //      b. Evaluate the interpreter expression
+            //      c. Emit a new value
+
+            // Iterate through all Signals that this expression references, checking both global and local signals
+            List<IObservable<dynamic>> signalObservables = new List<IObservable<dynamic>>();
+
+            foreach (KeyValuePair<string, IObservable<dynamic>> kvp in MorphManager.Instance.GlobalSignalObservables)
             {
-                // Step 1: Check which encodings to remove
-                if (IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]))
+                string signalName = kvp.Key;
+                if (expression.Contains(signalName))
                 {
-                    _newVisSpecs["encoding"][encoding.Name]?.Parent.Remove();
-                }
-            }
-
-            foreach (var encoding in ((JObject)_finalStateSpecs["encoding"]).Properties())
-            {
-                // Ignore any encodings that are defined as null, as these were already handled in Step 1
-                if (IsJTokenNullOrUndefined(encoding.Value))
-                    continue;
-
-                // Step 2a: Add any encodings to the vis state
-                if (IsJTokenNullOrUndefined(_initialStateSpecs["encoding"][encoding.Name]))
-                {
-                    // TODO: We might have to resolve any instances of fields being declared by reference
-                    // We use first Remove then Add here to forcefully replace any encodings already in the vis spec
-                    _newVisSpecs["encoding"][encoding.Name]?.Parent.Remove();
-                    ((JObject)_newVisSpecs["encoding"]).Add(encoding);
-                }
-                // Step 2b: Modify any encodings that are defined in both
-                else
-                {
-                    // Step 2bi: Make sure that the vis state doesn't have both a field and value (the final state takes priority)
-                    if (!IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]["field"]) || !IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]["value"]))
+                    IObservable<dynamic> observable = kvp.Value;
+                    // When this Signal emits, we want to first ensure its variable is updated in the interpreter
+                    var newObservable = observable.Select(x =>
                     {
-                        // If the final state has either a field or value, we remove fields and values from the vis state to simplify the merging later
-                        _newVisSpecs["encoding"][encoding.Name]["field"]?.Parent.Remove();
-                        _newVisSpecs["encoding"][encoding.Name]["value"]?.Parent.Remove();
-                    }
+                        // This will be repeated when multiple expressions reference the same Signal,
+                        // but it should be okay performance wise I think
+                        interpreter.SetVariable(signalName, x);
+                        return x;
+                    });
+                    newObservable.Subscribe();  // We need to have this subscribe here otherwise later selects don't work, for some reason
 
-                    ((JObject)_newVisSpecs["encoding"][encoding.Name]).Merge(
-                        _finalStateSpecs["encoding"][encoding.Name], new JsonMergeSettings
+                    signalObservables.Add(newObservable);
+                }
+            }
+
+            foreach (CandidateMorph candidateMorph in morphable.CandidateMorphs)
+            {
+                foreach (KeyValuePair<string, IObservable<dynamic>> kvp in candidateMorph.LocalSignalObservables)
+                {
+                    string signalName = kvp.Key;
+                    if (expression.Contains(signalName))
+                    {
+                        IObservable<dynamic> observable = kvp.Value;
+                        // When this Signal emits, we want to first ensure its variable is updated in the interpreter
+                        var newObservable = observable.Select(x =>
                         {
-                            MergeArrayHandling = MergeArrayHandling.Replace,
-                            MergeNullValueHandling = MergeNullValueHandling.Merge
+                            // This will be repeated when multiple expressions reference the same Signal,
+                            // but it should be okay performance wise I think
+                            interpreter.SetVariable(signalName, x);
+                            return x;
                         });
-                }
-            }
+                        newObservable.Subscribe();  // We need to have this subscribe here otherwise later selects don't work, for some reason
 
-            // Clean up any nulls in the vis specs
-            RemoveNullProperties(ref _newVisSpecs);
-
-            // Add the data specs back in
-            JSONNode __newVisSpecs = JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_newVisSpecs));
-            visSpecs.Add("data", dataSpecs);
-            __newVisSpecs.Add("data", dataSpecs);
-
-            return __newVisSpecs;
-        }
-
-        private bool IsJTokenNullOrUndefined(JToken? jObject)
-        {
-            return jObject == null || (jObject != null && jObject.Type == JTokenType.Null);
-        }
-
-        /// <summary>
-        /// Removes all properties with a value of null in a JSON.NET object
-        /// </summary>
-        private void RemoveNullProperties(ref JObject specs)
-        {
-            var descendants = specs.Descendants()
-                .Where(x => !x.HasValues);
-
-            List<string> pathsToRemove = new List<string>();
-
-            foreach (var descendant in descendants)
-            {
-                if (descendant.Type == JTokenType.Null)
-                {
-                    pathsToRemove.Add(descendant.Parent.Path);
-                }
-            }
-
-            foreach (string path in pathsToRemove)
-            {
-                specs.SelectToken(path).Parent.Remove();
-            }
-        }
-
-        /// <summary>
-        /// Clean up a vis spec such that it may render properly during a morph
-        /// </summary>
-        public void CleanVisSpec(ref JObject specs, JObject stateSpecs)
-        {
-            foreach (string dim in new string[] { "x", "y", "z" })
-            {
-                string offset = dim + "offset";
-                string offsetpct = dim + "offsetpct";
-
-                // If there is no base spatial encoding given, remove its associated offset encodings (if any)
-                if (specs["encoding"][dim] == null)
-                {
-                    specs["encoding"][offset]?.Parent.Remove();
-                    specs["encoding"][offsetpct]?.Parent.Remove();
-                }
-            }
-
-            // Check to see if any defined encoding now has BOTH a field and value defined within in
-            foreach (var kvp in ((JObject)specs["encoding"]).Properties())
-            {
-                var encoding = specs["encoding"][kvp.Name];
-
-                if (encoding["field"] != null && encoding["value"] != null)
-                {
-                    // If it does, then we keep the one which is defined in the state specs
-                    if (stateSpecs["base"]["encoding"][kvp.Name] != null)
-                    {
-                        if (stateSpecs["base"]["encoding"][kvp.Name]["field"] != null)
-                        {
-                            encoding["value"].Parent.Remove();
-                        }
-                        else if (stateSpecs["base"]["encoding"][kvp.Name]["value"] != null)
-                        {
-                            encoding["field"].Parent.Remove();
-                        }
-                    }
-                    else if (stateSpecs["override"]["encoding"][kvp.Name] != null)
-                    {
-                        if (stateSpecs["override"]["encoding"][kvp.Name]["field"] != null)
-                        {
-                            encoding["value"].Parent.Remove();
-                        }
-                        else if (stateSpecs["override"]["encoding"][kvp.Name]["value"] != null)
-                        {
-                            encoding["field"].Parent.Remove();
-                        }
+                        signalObservables.Add(newObservable);
                     }
                 }
             }
 
-            // Make sure that all of the offset encodings are at the end
-            ((JObject)specs.GetValue("encoding")).Properties().OrderBy(p => p.Name.Contains("offset"));
-        }
-
-        private IObservable<float> CreateMorphTweenObservable(JSONNode transitionSpecs)
-        {
-            JSONNode timingSpecs = transitionSpecs["timing"];
-
-            // If no timing specs are given, we just use a generic timer
-            if (timingSpecs == null)
+            if (signalObservables.Count > 0)
             {
-                return CreateTimerObservable(transitionSpecs, 1);
+                var expressionObservable = signalObservables[0];
+
+                for (int i = 1; i < signalObservables.Count; i++)
+                {
+                    expressionObservable = expressionObservable.Merge(signalObservables[i]);
+                }
+
+                return expressionObservable.Select(_ => {
+                    return interpreter.Eval(expression);
+                });
             }
             else
             {
-                // Otherwise, if the name of the control corresponds with a parameter, use that instead
-                string timerName = timingSpecs["control"];
-                if (timerName != null && SignalManager.Instance.GetObservable(timerName) != null)
-                {
-                    return SignalManager.Instance.GetObservable(timerName).Select(_ => (float)_);
-                }
-                // Otherwise, use the time provided in the specification
-                else
-                {
-                    return CreateTimerObservable(transitionSpecs, timingSpecs["control"]);
-                }
+                return Utils.CreateAnonymousObservable(interpreter.Eval(expression));
             }
         }
 
-        private IObservable<float> CreateTimerObservable(JSONNode transitionSpecs, float duration)
+        #endregion Signals
+
+        #region Transitions
+
+        private void ReadTransitionsSpecification(Morph morph, JSONNode morphSpec)
         {
-            float startTime = Time.time;
-
-            var cancellationObservable = Observable.Timer(TimeSpan.FromSeconds(duration));
-            var timerObservable = Observable.EveryUpdate().Select(_ =>
+            JSONNode transitionsSpec = morphSpec["transitions"];
+            if (transitionsSpec != null)
             {
-                float timer = Time.time - startTime;
-                return Mathf.Clamp(timer / duration, 0, 1);
-            })
-                .TakeUntil(cancellationObservable);
-
-            cancellationObservable.Subscribe(_ => DeactivateTransition(transitionSpecs, true));
-
-            return timerObservable;
+                foreach (JSONNode transitionSpec in transitionsSpec.Children)
+                {
+                    morph.Transitions.Add(transitionSpec);
+                }
+            }
+            else
+            {
+                Debug.LogWarning(string.Format("Vis Morphs: No transition specification has been provided for Morph {0}. Is this correct?", morph.Name));
+            }
         }
+
+        #endregion Transitions
     }
 }

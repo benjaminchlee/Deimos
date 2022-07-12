@@ -2,7 +2,7 @@ using System;
 using UnityEditor;
 using UnityEngine;
 
-namespace DxR.VisMorphs
+namespace DxR.VisMorphs.Deprecated
 {
     /// <summary>
     /// From https://forum.unity.com/threads/is-there-a-way-to-input-text-using-a-unity-editor-utility.473743/

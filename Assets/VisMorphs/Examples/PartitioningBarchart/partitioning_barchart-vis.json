@@ -1,0 +1,114 @@
+[
+{
+    "name": "3d barchart",
+    "width": 300,
+    "height": 400,
+    "depth": 600,
+    "mark": "cube",
+    "encoding": {
+        "x": {
+            "field": "Sex",
+            "type": "nominal"
+        },
+        "width": {
+            "value": 130
+        },
+        "y": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 900]
+            }
+        },
+        "height": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 900]
+            }
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "z": {
+            "field": "Class",
+            "type": "nominal"
+        },
+        "depth": {
+            "value": 130
+        },
+        "color": {
+            "field": "Survived",
+            "type": "nominal",
+            "legend": "none"
+        },
+        "yoffset": {
+            "channel": "color"
+        }
+    },
+    "data": {
+        "url": "titanic_3d.csv"
+    }
+}
+
+,
+
+{
+    "name": "faceted barchart",
+    "width": 300,
+    "height": 400,
+    "mark": "cube",
+    "encoding": {
+        "x": {
+            "field": "Sex",
+            "type": "nominal"
+        },
+        "width": {
+            "value": 130
+        },
+        "y": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 900]
+            }
+        },
+        "height": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 900]
+            }
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "depth": {
+            "value": 10
+        },
+        "color": {
+            "field": "Survived",
+            "type": "nominal",
+            "legend": "none"
+        },
+        "yoffset": {
+            "channel": "color"
+        },
+        "facetwrap": {
+            "field": "Class",
+            "type": "nominal",
+            "directions": ["x", "y"],
+            "spacing": [400, -500],
+            "size": 2
+        }
+    },
+    "data": {
+        "url": "titanic_3d.csv"
+    }
+}
+
+]

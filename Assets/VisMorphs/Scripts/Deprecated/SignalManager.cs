@@ -10,7 +10,7 @@ using Microsoft.MixedReality.Toolkit.Input;
 using Microsoft.MixedReality.Toolkit.Utilities;
 using Microsoft.MixedReality.Toolkit;
 
-namespace DxR.VisMorphs
+namespace DxR.VisMorphs.Deprecated
 {
     /// <summary>
     /// Generates and stores all observable streams for the Signals defined in the Morphing spec

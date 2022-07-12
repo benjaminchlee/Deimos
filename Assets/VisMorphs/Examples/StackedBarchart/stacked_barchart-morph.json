@@ -1,0 +1,109 @@
+{
+    "signals": [{
+            "name": "mousedown",
+            "source": {
+                "type": "mouse",
+                "select": "leftmousedown"
+            }
+        }, {
+            "name": "mouseup",
+            "expression": "!mousedown"
+        }
+    ],
+
+    "states": [
+        {
+            "name": "stacked",
+            "encoding": {
+                "x": {
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "z": {
+                    "field": "Class",
+                    "type": "nominal"
+                },
+                "depth": {
+                    "value": 130
+                },
+                "color": {
+                    "type": "nominal"
+                },
+                "yoffset": {
+                    "channel": "color"
+                }
+            }
+        },
+        {
+            "name": "faceted",
+            "encoding": {
+                "x": {
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "z": null,
+                "depth": {
+                    "value": 10
+                },
+                "color": {
+                    "type": "nominal"
+                },
+                "yoffset": {
+                    "channel": "color"
+                },
+                "facetwrap": {
+                    "field": "Class",
+                    "type": "nominal",
+                    "directions": ["x", "y"],
+                    "spacing": [400, -500],
+                    "size": 2
+                }
+            }
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "stacked2faceted",
+            "states": ["stacked", "faceted"],
+            "triggers": ["mousedown"],
+            "timing": {
+                "control": 0.5
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "end"
+            },
+            "bidirectional": false
+        },
+        {
+            "name": "faceted2stacked",
+            "states": ["faceted", "stacked"],
+            "triggers": ["mouseup"],
+            "timing": {
+                "control": 0.5
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "end"
+            },
+            "bidirectional": false
+        }
+    ]
+}

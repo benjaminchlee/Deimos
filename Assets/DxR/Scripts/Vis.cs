@@ -86,9 +86,6 @@ namespace DxR
             if (VisUpdated == null)
                 VisUpdated = new VisUpdatedEvent();
 
-            if (DxR.VisMorphs.MorphManager.Instance != null)
-                DxR.VisMorphs.MorphManager.Instance.RegisterVisualisation(this);
-
             // Initialize objects:
             parentObject = gameObject;
             viewParentObject = gameObject.transform.Find("DxRView").gameObject;
@@ -131,12 +128,6 @@ namespace DxR
         private void Update()
         {
             FrameCount++;
-        }
-
-        private void OnDestroy()
-        {
-            if (DxR.VisMorphs.MorphManager.Instance != null)
-                DxR.VisMorphs.MorphManager.Instance.DeregisterVisualisation(this);
         }
 
         public JSONNode GetVisSpecs()
@@ -247,14 +238,14 @@ namespace DxR
             if (goToEnd)
             {
                 isMorphing = false;
-                UpdateVisSpecsFromJSONNode(finalMorphSpecs);
+                UpdateVisSpecsFromJSONNode(finalMorphSpecs, false);
                 initialMorphSpecs = null;
                 finalMorphSpecs = null;
             }
             else
             {
                 isMorphing = false;
-                UpdateVisSpecsFromJSONNode(initialMorphSpecs);
+                UpdateVisSpecsFromJSONNode(initialMorphSpecs, false);
                 initialMorphSpecs = null;
                 finalMorphSpecs = null;
             }
@@ -593,7 +584,6 @@ namespace DxR
                             {
                                 channelValue = offsetChannelEncoding.scale.ApplyScale(offsetChannelEncoding.values[i]);
                             }
-
                             markComponent.SetChannelValue(offsetChannelEncoding.channel, channelValue);
                         }
                     }
@@ -861,24 +851,19 @@ namespace DxR
                 {
                     OffsetChannelEncoding offsetCE = (OffsetChannelEncoding)channelEncoding;
 
-                    // 1. Get the ChannelEncoding of the categorical channel that this offset relates to (accessed via "channel" property)
+                    // Get the ChannelEncoding of the categorical channel that this offset relates to (accessed via "channel" property)
                     ChannelEncoding categoricalCE = channelEncodings.Single(ch => ch.channel == offsetCE.linkedChannel);
 
-                    // 1a. Check to make sure that it is actually categorical
+                    // Check to make sure that it is actually categorical
                     if (categoricalCE.fieldDataType != "ordinal" && categoricalCE.fieldDataType != "nominal")
                     {
                         throw new Exception("The channel which an offset references must be either ordinal or nominal type.");
                     }
 
-                    // 2. Get the ChannelEncodings of the spatial dimensions. These are used to determine the groups
+                    // Get the ChannelEncodings of the spatial dimensions. These are used to determine the groups
                     List<ChannelEncoding> spatialCEs = new List<ChannelEncoding>();
                     foreach (string dimension in new string[] { "x", "y,", "z" })
                     {
-                        // // We do not use the spatial dimension of the one which we are offsetting by however
-                        // // i.e., if we are offsetting along y, then don't use y as a way to group values
-                        // if (offsetCE.channel.StartsWith(dimension))
-                        //     continue;
-
                         ChannelEncoding ce = channelEncodings.SingleOrDefault(x => x.channel == dimension);
                         if (ce != null)
                         {
@@ -888,9 +873,18 @@ namespace DxR
                             }
                         }
                     }
+
+                    // Convert the ChannelEncodings to string names
                     List<string> spatialGroupFieldNames = spatialCEs.Select(x => x.field).ToList();
 
-                    // 3. Get the ChannelEncoding of the size dimension associated with the offsetting CE direction
+                    // If there is a facet wrap also included, we use its field as another grouping
+                    ChannelEncoding facetWrapCE = channelEncodings.SingleOrDefault(ch => ch.channel == "facetwrap");
+                    if (facetWrapCE != null)
+                    {
+                        spatialGroupFieldNames.Add(facetWrapCE.field);
+                    }
+
+                    // Get the ChannelEncoding of the size dimension associated with the offsetting CE direction
                     string spatialChannelName = channelEncoding.channel[0].ToString();
                     string sizeChannelName = (spatialChannelName == "x" ? "width" : (spatialChannelName == "y" ? "height" : "depth"));
                     ChannelEncoding offsettingSizeCE = channelEncodings.Single(ch => ch.channel == sizeChannelName);
