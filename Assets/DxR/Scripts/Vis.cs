@@ -211,16 +211,16 @@ namespace DxR
         /// Update the visualisation based on the given newVisSpecs object and applies a morph (i.e., animated transition)
         /// using the given tweeningObservable stream. This stream should return a value between 0 and 1.
         /// </summary>
-        public void ApplyVisMorph(JSONNode newVisSpecs, IObservable<float> tweeningObservable)
+        public void ApplyVisMorph(JSONNode newInitialVisSpecs, JSONNode newFinalVisSpecs, IObservable<float> tweeningObservable, bool isReversed = false)
         {
             // TODO: For now, if there is any morph currently being applied, we ignore all further morph requests
             if (IsMorphing)
                 return;
 
             IsMorphing = true;
-            initialMorphSpecs = visSpecs;
-            finalMorphSpecs = newVisSpecs;
-            visSpecs = newVisSpecs;
+            initialMorphSpecs = newInitialVisSpecs;
+            finalMorphSpecs = newFinalVisSpecs;
+            visSpecs = !isReversed ? newFinalVisSpecs : newInitialVisSpecs;
 
             // Required parts of DxR (part of UpdateVis)
             UpdateVisConfig();
@@ -231,7 +231,7 @@ namespace DxR
             // Required parts of DxR (part of ConstructVis)
             CreateChannelEncodingObjects(visSpecsInferred);
             UpdateMarkInstances(false);  // NEW: Reuses existing mark instances rather than creating new ones from scratch each time
-            ApplyMorphingChannelEncodings(tweeningObservable);
+            ApplyMorphingChannelEncodings(tweeningObservable, isReversed);
             ConstructInteractions(visSpecsInferred);
             ConstructAxes(visSpecsInferred);
             ConstructLegends(visSpecsInferred);
@@ -329,16 +329,28 @@ namespace DxR
             }
         }
 
-        private void ApplyMorphingChannelEncodings(IObservable<float> tweeningObservable)
+        private void ApplyMorphingChannelEncodings(IObservable<float> tweeningObservable, bool isReversed)
         {
             List<Mark> marks = markInstances.Select(go => go.GetComponent<Mark>()).ToList();
 
-            foreach (Mark mark in marks)
+            if (!isReversed)
             {
+                foreach (Mark mark in marks)
+                {
                 // Before any channel encodings are applied, we make a call to the mark to store its starting geometric values
-                mark.StoreInitialMarkValues();
-                // // We then reset its geometric values to default in order to handle cases where channel encodings are removed
-                mark.ResetToDefault();
+                    mark.StoreInitialMarkValues();
+                // We then reset its geometric values to default in order to handle cases where channel encodings are removed
+                    mark.ResetToDefault();
+                }
+            }
+            // If the morph is being applied from the reverse direction, then what we consider the initial and final is flipped
+            else
+            {
+                foreach (Mark mark in marks)
+                {
+                    mark.StoreFinalMarkValues();
+                    mark.ResetToDefault();
+                }
             }
 
             // Apply channel encoding changes
@@ -363,13 +375,25 @@ namespace DxR
 
             // Now that all mark values have been set, store the final mark values and reload the initial state values
             // We will interpolate between the inital and final stored mark values
-            foreach (Mark mark in marks)
+            if (!isReversed)
             {
-                mark.StoreFinalMarkValues();
-                mark.LoadInitialMarkValues();
-
-                // Lastly, we have the marks subscribe to the observable to interpolate between the initial and final mark values
-                mark.InitialiseMorphing(tweeningObservable);
+                foreach (Mark mark in marks)
+                {
+                    mark.StoreFinalMarkValues();
+                    mark.LoadInitialMarkValues();
+                    // Lastly, we have the marks subscribe to the observable to interpolate between the initial and final mark values
+                    mark.InitialiseMorphing(tweeningObservable);
+                }
+            }
+            // If the morph is being applied from the reverse direction, then what we consider the initial and final is flipped
+            else
+            {
+                foreach (Mark mark in marks)
+                {
+                    mark.StoreInitialMarkValues();
+                    mark.LoadFinalMarkValues();
+                    mark.InitialiseMorphing(tweeningObservable);
+                }
             }
         }
 

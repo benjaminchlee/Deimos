@@ -21,7 +21,7 @@
             }
         }, {
             "name": "pinching",
-            "expression": "rightHandPinch > 0.8 "
+            "expression": "rightHandPinch > 0.5 "
         }, {
             "name": "extrudeDistance",
             "expression": "distance(rightHandPos, visPos)"
@@ -30,7 +30,7 @@
             "expression":"normalise(extrudeDistance, 0.05, 0.15, 0, 1)"
         }, {
             "name": "tweener2",
-            "expression":"normalise(extrudeDistance, 0.2, 0.3, 0, 1)"
+            "expression":"normalise(extrudeDistance, 0.15, 0.3, 0, 1)"
         }
     ],
 

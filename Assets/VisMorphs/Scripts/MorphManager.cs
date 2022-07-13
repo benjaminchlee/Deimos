@@ -405,11 +405,13 @@ namespace DxR.VisMorphs
                         .Where(_ => HandJointUtils.FindHand(handedness) != null)
                         .Select(_ =>
                         {
-                            return (dynamic)HandPoseUtils.CalculateIndexPinch(Handedness.Right);
+                            if (HandJointUtils.FindHand(handedness) != null)
+                                return (dynamic)HandPoseUtils.CalculateIndexPinch(handedness);
+                            else
+                                return 0;
                         })
                         .StartWith(0)
                         .DistinctUntilChanged();
-
 
                 case "position":
                     return Observable.EveryUpdate()
@@ -427,7 +429,8 @@ namespace DxR.VisMorphs
                         })
                         .Where(_ => _ != null)
                         .Select(x => (dynamic)x.transform.position)
-                        .StartWith(Vector3.zero);
+                        .StartWith(Vector3.zero)
+                        .DistinctUntilChanged();
 
                 default:
                     throw new Exception(string.Format("Vis Morphs: Hand event of selector {0} does not exist.", selector));
@@ -441,7 +444,8 @@ namespace DxR.VisMorphs
 
             // Find the referenced gameobject and emit values whenever the selected property has changed
             return GameObject.Find(reference)
-                .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector));
+                .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector))
+                .DistinctUntilChanged();
         }
 
         private static IObservable<dynamic> CreateObservableFromVisSpec(string reference, string selector, Morphable morphable)
@@ -530,7 +534,8 @@ namespace DxR.VisMorphs
 
             // Use the Vis itself and emit values whenever the selected property has changed
             return morphable.gameObject
-                .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector));
+                .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector))
+                .DistinctUntilChanged();
         }
 
         private static IObservable<dynamic> CreateObservableFromExpression(string expression, Morphable morphable)
@@ -598,7 +603,7 @@ namespace DxR.VisMorphs
 
                 return expressionObservable.Select(_ => {
                     return interpreter.Eval(expression);
-                });
+                }).DistinctUntilChanged();
             }
             else
             {

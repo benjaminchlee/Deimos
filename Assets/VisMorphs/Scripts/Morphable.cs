@@ -30,6 +30,7 @@ namespace DxR.VisMorphs
         private JSONNode activeTransition;
         private bool isTransitionActive = false;
         private bool isTransitionReversed = false;
+        private bool isDeactivatingThisFrame = false;
 
         private void Start()
         {
@@ -443,13 +444,11 @@ namespace DxR.VisMorphs
                 Debug.Log("Vis Morphs: Final state specification:\n" + _finalState.ToString());
             }
 
-            // Change to initial state instantly
-            parentVis.UpdateVisSpecsFromJSONNode(initialState, false, false);
-
             // Call update to final state using a tweening observable
             var tweeningObservable = CreateMorphTweenObservable(candidateMorph, transitionSpec);
-            parentVis.ApplyVisMorph(finalState, tweeningObservable);
+            parentVis.ApplyVisMorph(initialState, finalState, tweeningObservable, isTransitionReversed);
         }
+
 
         private JSONNode GenerateVisSpecKeyframeFromState(JSONNode visSpecs, JSONNode initialStateSpecs, JSONNode finalStateSpecs)
         {
@@ -612,21 +611,26 @@ namespace DxR.VisMorphs
         /// </summary>
         private void DeactivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, bool goToEnd = true)
         {
-            StartCoroutine(DeactivateAtEndOfFrame(candidateMorph, transitionSpec, goToEnd));
+            if (!isTransitionActive)
+                return;
+
+            // Only the morph which activated the transition can stop it
+            if (ActiveTransitionName == candidateMorph.Morph.Name)
+            {
+                if (!isDeactivatingThisFrame)
+                {
+                    isDeactivatingThisFrame = true;
+                    StartCoroutine(DeactivateAtEndOfFrame(candidateMorph, transitionSpec, goToEnd));
+                }
+            }
         }
 
         private IEnumerator DeactivateAtEndOfFrame(CandidateMorph candidateMorph, JSONNode transitionSpec, bool goToEnd = true)
         {
             yield return new WaitForEndOfFrame();
 
-            if (!isTransitionActive)
-                yield break;
-
-            // Only the morph which activated the transition can stop it
-            if (ActiveTransitionName == candidateMorph.Morph.Name)
-            {
-                Reset(true, goToEnd);
-            }
+            isDeactivatingThisFrame = false;
+            Reset(true, goToEnd);
         }
 
         /// <summary>
@@ -655,15 +659,14 @@ namespace DxR.VisMorphs
             CandidateStateNames.Clear();
             CandidateTransitionNames.Clear();
 
-            // Mark the transition as inactive only AFTER all morphs have been checked, in order to prevent infinite loops
-            // Moved this back for now...
-            isTransitionActive = false;
-
             // Check for morphs again to allow for further morphing without needing to update the vis
             if (checkForMorphs)
             {
                 CheckForMorphs();
             }
+
+            // Mark the transition as inactive only AFTER all morphs have been checked, in order to prevent infinite loops
+            isTransitionActive = false;
         }
 
         private void OnDestroy()

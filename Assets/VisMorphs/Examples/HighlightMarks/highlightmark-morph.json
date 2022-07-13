@@ -38,7 +38,7 @@
             },
             "interrupt": {
                 "control": "reset",
-                "value": "end"
+                "value": "start"
             },
             "bidirectional": false
         },
@@ -51,7 +51,7 @@
             },
             "interrupt": {
                 "control": "reset",
-                "value": "end"
+                "value": "start"
             },
             "bidirectional": false
         }
