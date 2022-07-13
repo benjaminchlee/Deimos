@@ -49,7 +49,7 @@ namespace DxR
         bool IsLinked = false;                                          // Link to other vis object for interaction.
         string data_name=null;
 
-        public List<GameObject> markInstances;                                 // List of mark instances; each mark instance corresponds to a datum.
+        public List<GameObject> markInstances;                          // List of mark instances; each mark instance corresponds to a datum.
 
         private GameObject parentObject = null;                         // Parent game object for all generated objects associated to vis.
 
@@ -70,11 +70,11 @@ namespace DxR
         private int frameCount = 0;
         public int FrameCount { get { return frameCount; } set { frameCount = value; } }
 
-        private static readonly string[] supportedViewTransforms = new string[] { "aggregate", "bin", "density", "filter", "stack", "timeUnit" };
-        private static readonly string[] supportedFieldTransforms = new string[] { "aggregate", "bin", "density", "filter", "stack", "timeUnit" };
+        private BoxCollider boxCollider;
 
         [Serializable]
         public class VisUpdatedEvent : UnityEvent<Vis, JSONNode> { }
+        [HideInInspector]
         public VisUpdatedEvent VisUpdated;
         private JSONNode initialMorphSpecs;
         private JSONNode finalMorphSpecs;
@@ -92,6 +92,9 @@ namespace DxR
             marksParentObject = viewParentObject.transform.Find("DxRMarks").gameObject;
             guidesParentObject = viewParentObject.transform.Find("DxRGuides").gameObject;
             interactionsParentObject = gameObject.transform.Find("DxRInteractions").gameObject;
+
+            boxCollider = gameObject.GetComponent<BoxCollider>();
+            if (boxCollider == null) boxCollider = gameObject.AddComponent<BoxCollider>();
 
             if (viewParentObject == null || marksParentObject == null)
             {
@@ -122,6 +125,7 @@ namespace DxR
 
             // Update vis based on the vis specs.
             UpdateVis();
+
             isReady = true;
         }
 
@@ -176,6 +180,8 @@ namespace DxR
 
             if (callUpdateEvent)
                 VisUpdated.Invoke(this, GetVisSpecs());
+
+            UpdateCollider();
         }
 
         private void ConstructVis(JSONNode specs)
@@ -1445,17 +1451,20 @@ namespace DxR
         {
             foreach (Transform child in guidesParentObject.transform)
             {
+                child.gameObject.SetActive(false);      // Set these as inactive so that UpdateColliders ignores these
                 GameObject.Destroy(child.gameObject);
             }
 
             foreach (Transform child in marksParentObject.transform)
             {
+                child.gameObject.SetActive(false);
                 GameObject.Destroy(child.gameObject);
             }
 
             // TODO: Do not delete, but only update:
             foreach (Transform child in interactionsParentObject.transform)
             {
+                child.gameObject.SetActive(false);
                 GameObject.Destroy(child.gameObject);
             }
         }
@@ -1464,12 +1473,14 @@ namespace DxR
         {
             foreach (Transform child in guidesParentObject.transform)
             {
+                child.gameObject.SetActive(false);
                 GameObject.Destroy(child.gameObject);
             }
 
             // TODO: Do not delete, but only update:
             foreach (Transform child in interactionsParentObject.transform)
             {
+                child.gameObject.SetActive(false);
                 GameObject.Destroy(child.gameObject);
             }
         }
@@ -1478,6 +1489,7 @@ namespace DxR
         {
             foreach (Transform child in marksParentObject.transform)
             {
+                child.gameObject.SetActive(false);
                 GameObject.Destroy(child.gameObject);
             }
         }
@@ -1849,6 +1861,44 @@ namespace DxR
         public Vector3 GetVisSize()
         {
             return new Vector3(width, height, depth);
+        }
+
+        private List<GameObject> centres = new List<GameObject>();
+
+        /// <summary>
+        /// Updates the BoxCollider on this Vis to be the same size as the bounding box of all of its renderers (marks, axes, text, etc.)
+        ///
+        /// Code to handle rotation from: https://answers.unity.com/questions/17968/finding-the-bounds-of-a-grouped-model.html?childToView=1147799#answer-1147799
+        /// </summary>
+        private void UpdateCollider()
+        {
+            Quaternion currentRotation = transform.rotation;
+            transform.rotation = Quaternion.identity;
+
+            // Iterate through all renderers on this Vis gameobject
+            Renderer[] renderers = gameObject.GetComponentsInChildren<Renderer>();
+            if (renderers.Length > 0)
+            {
+                Bounds bounds = renderers[0].bounds;
+
+                for (int i = 1; i < renderers.Length; i++)
+                {
+                    bounds.Encapsulate(renderers[i].bounds);
+                }
+
+                Vector3 localCenter = bounds.center - transform.position;
+                bounds.center = localCenter;
+
+                boxCollider.center = bounds.center;
+                boxCollider.size = bounds.size;
+            }
+            // If no renderers, then just hide the collider
+            else
+            {
+                boxCollider.size = Vector3.zero;
+            }
+
+            transform.rotation = currentRotation;
         }
     }
 
