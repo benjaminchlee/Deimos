@@ -1,27 +1,36 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using DynamicExpresso;
 using SimpleJSON;
 using UnityEngine;
 using UniRx;
+using UniRx.Triggers;
 using Microsoft.MixedReality.Toolkit.Utilities;
 using Microsoft.MixedReality.Toolkit;
 using Microsoft.MixedReality.Toolkit.Input;
 
 namespace DxR.VisMorphs
 {
+    [System.Serializable]
+    public class MorphSpecification
+    {
+        public TextAsset Json;
+        public bool Enabled = true;
+    }
+
     public class MorphManager : MonoBehaviour
     {
-        public bool DebugSignals = false;
-
-        public TextAsset[] MorphJsonSpecifications;
+        public bool DebugSignals;
+        public List<MorphSpecification> MorphJsonSpecifications;
 
         public static MorphManager Instance { get; private set; }
         public static Interpreter interpreter;
 
         public List<Morph> Morphs = new List<Morph>();
         private Dictionary<string, IObservable<dynamic>> GlobalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
+        private static CompositeDisposable disposables;
 
         private void Awake()
         {
@@ -37,7 +46,7 @@ namespace DxR.VisMorphs
             ReadMorphJsonSpecifications();
         }
 
-        private void ReadMorphJsonSpecifications()
+        public void ReadMorphJsonSpecifications()
         {
             // If there are already morph specs defined (i.e., this is being called more than once), delete the previous ones
             if (Morphs.Count > 0)
@@ -48,11 +57,17 @@ namespace DxR.VisMorphs
             // Initialise variables
             if (interpreter == null)
                 InitialiseExpressionInterpreter();
+            if (disposables == null)
+                disposables = new CompositeDisposable();
 
-            foreach (TextAsset jsonSpecification in MorphJsonSpecifications)
+            foreach (MorphSpecification morphSpecification in MorphJsonSpecifications)
             {
-                JSONNode morphSpec = JSON.Parse(jsonSpecification.text);
-                ReadMorphSpecification(morphSpec);
+                if (morphSpecification.Enabled)
+                {
+                    JSONNode morphSpec = JSON.Parse(morphSpecification.Json.text);
+                    string morphName = morphSpec["name"] != null ? morphSpec["name"] : morphSpecification.Json.name;
+                    ReadMorphSpecification(morphSpec, morphName);
+                }
             }
 
             if (Morphs.Count > 0)
@@ -62,23 +77,27 @@ namespace DxR.VisMorphs
                     morphable.CheckForMorphs();
                 }
             }
+
+            Debug.Log(string.Format("Vis Morphs: {0} morphs loaded: {1}", Morphs.Count, string.Join(", ", Morphs.Select(m => m.Name))));
         }
 
         private void ResetMorphSpecifications()
         {
             Morphs.Clear();
+            GlobalSignalObservables.Clear();
+            disposables.Clear();
 
             foreach (Morphable morphable in GameObject.FindObjectsOfType<Morphable>())
             {
-                morphable.Reset();
+                morphable.Reset(checkForMorphs: true);
             }
         }
 
-        private void ReadMorphSpecification(JSONNode morphSpec)
+        private void ReadMorphSpecification(JSONNode morphSpec, string morphName)
         {
             // We need to initialise three separate things: states, signals, and transitions
             Morph newMorph = new Morph();
-            newMorph.Name = morphSpec["name"] != null ? morphSpec["name"] : "Morph " + Morphs.Count;
+            newMorph.Name = morphName;
 
             ReadStatesSpecification(newMorph, morphSpec);
             ReadSignalsSpecification(newMorph, morphSpec);
@@ -238,9 +257,13 @@ namespace DxR.VisMorphs
             if (signalSpec["source"] != null)
             {
                 JSONNode sourceSpec = signalSpec["source"];
-                string sourceType = sourceSpec["type"];        // What type of source is this observable?
-                string reference = sourceSpec["ref"];          // What is the name of the actual entity to get the value from?
-                string selector = sourceSpec["select"];   // What specific value from this entity do we then extract?
+                string sourceType = sourceSpec["type"] ?? "";        // What type of source is this observable?
+                string reference = sourceSpec["ref"] ?? "";          // What is the name of the actual entity to get the value from?
+                string selector = sourceSpec["select"] ?? "";        // What specific value from this entity do we then extract?
+
+                if (sourceType != null) sourceType = sourceType.ToLower();
+                if (reference != null) reference = reference.ToLower();
+                if (selector != null) selector = selector.ToLower();
 
                 switch (sourceType)
                 {
@@ -293,7 +316,7 @@ namespace DxR.VisMorphs
         private static IObservable<dynamic> CreateObservableFromMouseSpec(string reference, string selector)
         {
             // Mouse signals shouldn't need a reference
-            switch (selector.ToLower())
+            switch (selector)
             {
                 case "leftmousedown":
                     return Observable.EveryUpdate()
@@ -317,9 +340,9 @@ namespace DxR.VisMorphs
 
         private static IObservable<dynamic> CreateObservableFromControllerSpec(string reference, string selector)
         {
-            Handedness handedness = reference.ToLower() == "left" ? Handedness.Left : reference.ToLower() == "right" ? Handedness.Right : Handedness.Any;
+            Handedness handedness = reference == "left" ? Handedness.Left : reference == "right" ? Handedness.Right : Handedness.Any;
 
-            switch (selector.ToLower())
+            switch (selector)
             {
                 case "position":
                 {
@@ -377,9 +400,9 @@ namespace DxR.VisMorphs
 
         private static IObservable<dynamic> CreateObservableFromHandSpec(string reference, string selector)
         {
-            Handedness handedness = reference.ToLower() == "left" ? Handedness.Left : reference.ToLower() == "right" ? Handedness.Right : Handedness.Any;
+            Handedness handedness = reference == "left" ? Handedness.Left : reference == "right" ? Handedness.Right : Handedness.Any;
 
-            switch (selector.ToLower())
+            switch (selector)
             {
                 case "pinch":
                     return Observable.EveryUpdate()
@@ -411,7 +434,7 @@ namespace DxR.VisMorphs
                         .StartWith(Vector3.zero);
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: Mouse event of selector {0} does not exist.", selector));
+                    throw new Exception(string.Format("Vis Morphs: Hand event of selector {0} does not exist.", selector));
             }
         }
 
@@ -427,10 +450,104 @@ namespace DxR.VisMorphs
 
         private static IObservable<dynamic> CreateObservableFromVisSpec(string reference, string selector, Morphable morphable)
         {
-            if (selector == "")
-                throw new Exception("Vis Morphs: Signal of type vis requires a select expression.");
+            // Special observables for when surfaces are referenced
+            if (reference == "surface")
+            {
+                switch (selector)
+                {
+                    // Emits true if the vis is attached to a surface, otherwise emits false
+                    case "attached":
+                    // For now we just use the same code as for intersecting
 
-            // Find the referenced gameobject and emit values whenever the selected property has changed
+                    // Emits true if the Vis is intersecting with any surface, otherwise emits false
+                    case "intersecting":
+                        {
+                            // Imediately check if the Vis is currently intersecting with anything, as OntriggerEnter does not work in this case
+                            BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
+                            List<GameObject> intersectingSurfaces = Physics.OverlapBox(boxCollider.center, boxCollider.size / 2f, morphable.transform.rotation)
+                                .Select(collider => collider.gameObject)
+                                .Where(go => go.tag == "Surface")
+                                .ToList();
+
+                            return morphable.gameObject.OnTriggerEnterAsObservable()
+                                .CombineLatest(morphable.gameObject.OnTriggerExitAsObservable(), (Collider enter, Collider exit) =>
+                                {
+                                    if (enter.gameObject.tag == "Surface")
+                                    {
+                                        if (!intersectingSurfaces.Contains(enter.gameObject))
+                                            intersectingSurfaces.Add(enter.gameObject);
+                                    }
+                                    if (exit.gameObject.tag == "Surface")
+                                    {
+                                        if (intersectingSurfaces.Contains(enter.gameObject))
+                                            intersectingSurfaces.Add(exit.gameObject);
+                                    }
+
+                                    return (dynamic)(intersectingSurfaces.Count > 0);
+                                })
+                                .StartWith(intersectingSurfaces.Count > 0)
+                                .DistinctUntilChanged();
+                        }
+
+
+                    // Emits a Vector3 in world space of the collision point between the vis and the largest surface. Does not emit if no collision is found
+                    case "collisionpoint":
+                        {
+                            BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
+                            return Observable.EveryUpdate()
+                                .Select(_ =>
+                                {
+                                    var surfaceColliders = Physics.OverlapBox(boxCollider.center, boxCollider.size / 2f, morphable.transform.rotation).Where(c => c.gameObject.tag == "Surface");
+                                    if (surfaceColliders.Count() > 0)
+                                    {
+                                        Collider largestTouchingSurface = surfaceColliders.OrderByDescending(c => c.gameObject.transform.localScale.x * c.gameObject.transform.localScale.y * c.gameObject.transform.localScale.z).First();
+                                        Collider A = boxCollider;
+                                        Collider B = largestTouchingSurface;
+                                        Vector3 ptA = B.ClosestPoint(A.transform.position);
+                                        Vector3 ptB = A.ClosestPoint(B.transform.position);
+                                        Vector3 ptM = ptA + (ptB - ptA) / 2;
+                                        Vector3 closestAtB = B.ClosestPoint(ptM);
+                                        return (dynamic)closestAtB;
+                                    }
+                                    else
+                                    {
+                                        return null;
+                                    }
+                                })
+                                // .StartWith(Vector3.positiveInfinity)
+                                .Where(_ => _ != null)
+                                .DistinctUntilChanged();
+                        }
+
+                    // Finds the largest surface that the vis is touching and emits the selected property of the surface (not the vis)
+                    default:
+                        {
+                            BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
+                            return Observable.EveryUpdate()
+                                .Select(_ =>
+                                {
+                                    var surfaceColliders = Physics.OverlapBox(boxCollider.center, boxCollider.size / 2f, morphable.transform.rotation).Where(c => c.gameObject.tag == "Surface");
+                                    if (surfaceColliders.Count() > 0)
+                                    {
+                                        Collider largestTouchingSurface = surfaceColliders.OrderByDescending(c => c.gameObject.transform.localScale.x * c.gameObject.transform.localScale.y * c.gameObject.transform.localScale.z).First();
+                                        return largestTouchingSurface.GetPropValue(selector);
+                                    }
+                                    else
+                                    {
+                                        return null;
+                                    }
+                                })
+                                // .StartWith(Vector3.positiveInfinity)
+                                .Where(_ => _ != null)
+                                .DistinctUntilChanged();
+                        }
+                }
+            }
+
+            if (selector == "")
+                throw new Exception("Vis Morphs: Signal of type vis that do not reference surfaces requires a select expression.");
+
+            // Use the Vis itself and emit values whenever the selected property has changed
             return morphable.gameObject
                 .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector));
         }
@@ -460,7 +577,7 @@ namespace DxR.VisMorphs
                         interpreter.SetVariable(signalName, x);
                         return x;
                     });
-                    newObservable.Subscribe();  // We need to have this subscribe here otherwise later selects don't work, for some reason
+                    newObservable.Subscribe().AddTo(disposables);  // We need to have this subscribe here otherwise later selects don't work, for some reason
 
                     signalObservables.Add(newObservable);
                 }
@@ -482,7 +599,7 @@ namespace DxR.VisMorphs
                             interpreter.SetVariable(signalName, x);
                             return x;
                         });
-                        newObservable.Subscribe();  // We need to have this subscribe here otherwise later selects don't work, for some reason
+                        newObservable.Subscribe().AddTo(candidateMorph.Disposables);  // We need to have this subscribe here otherwise later selects don't work, for some reason
 
                         signalObservables.Add(newObservable);
                     }

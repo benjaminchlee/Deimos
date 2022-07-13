@@ -243,18 +243,16 @@ namespace DxR
 
             if (goToEnd)
             {
-                isMorphing = false;
                 UpdateVisSpecsFromJSONNode(finalMorphSpecs, false);
-                initialMorphSpecs = null;
-                finalMorphSpecs = null;
             }
             else
             {
-                isMorphing = false;
                 UpdateVisSpecsFromJSONNode(initialMorphSpecs, false);
-                initialMorphSpecs = null;
-                finalMorphSpecs = null;
             }
+
+            initialMorphSpecs = null;
+            finalMorphSpecs = null;
+            isMorphing = false;
         }
 
         /// <summary>

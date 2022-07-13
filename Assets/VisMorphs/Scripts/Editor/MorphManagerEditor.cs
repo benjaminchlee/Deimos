@@ -1,35 +1,30 @@
-// using UnityEngine;
-// using UnityEditor;
+using UnityEngine;
+using UnityEditor;
 
-// namespace DxR.VisMorphs
-// {
-//     [CustomEditor(typeof(MorphManager))]
-//     [CanEditMultipleObjects]
-//     public class MorphManagerEditor : Editor
-//     {
-//         MorphManager morphManagerScript;
-//         SerializedProperty json;
+namespace DxR.VisMorphs
+{
+    [CustomEditor(typeof(MorphManager))]
+    [CanEditMultipleObjects]
+    public class MorphManagerEditor : Editor
+    {
+        MorphManager morphManagerScript;
 
-//         void OnEnable()
-//         {
-//             morphManagerScript = (MorphManager)target;
-//             json = serializedObject.FindProperty("Json");
-//         }
+        void OnEnable()
+        {
+            morphManagerScript = (MorphManager)target;
+        }
 
-//         public override void OnInspectorGUI()
-//         {
-//             serializedObject.Update();
+        public override void OnInspectorGUI()
+        {
+            if (Application.isPlaying)
+            {
+                if (GUILayout.Button("Refresh Morphs"))
+                {
+                    morphManagerScript.ReadMorphJsonSpecifications();
+                }
+            }
 
-//             if (GUILayout.Button("Edit JSON"))
-//             {
-//                 var updatedJson = EditorInputDialog.Show("Edit JSON", "", json.stringValue);
-//                 json.stringValue = updatedJson;
-//                 morphManagerScript.TransformationJsonUpdated();
-//             }
-
-//             EditorGUILayout.TextArea( json.stringValue );
-
-//             serializedObject.ApplyModifiedProperties();
-//         }
-//     }
-// }
+            DrawDefaultInspector();
+        }
+    }
+}

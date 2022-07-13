@@ -44,11 +44,6 @@ namespace DxR.VisMorphs
                 parentVis.VisUpdated.AddListener(VisUpdated);
                 isInitialised = true;
             }
-            // If this Morphable is already initialised, call Reset() again just to be safe
-            else
-            {
-                Reset();
-            }
 
             CheckForMorphs();
         }
@@ -74,7 +69,8 @@ namespace DxR.VisMorphs
 
             // We reset our morphing variables each time the visualisation is updated
             // TODO: Make this retain some information between morphs if the candidates are still the same, for performance reasons
-            Reset();
+            if (CandidateMorphs.Count > 0)
+                Reset();
 
             // First, we get a list of Morphs which we deem as "candidates"
             // Each object in this list also stores the set of candidate states and transitions which match our current vis spec
@@ -403,7 +399,9 @@ namespace DxR.VisMorphs
             if (isTransitionActive)
                 return;
 
-            ActiveTransitionName = candidateMorph.Morph.Name + "." + transitionSpec["name"];
+            isTransitionActive = true;
+
+            ActiveTransitionName = candidateMorph.Morph.Name;
 
             activeTransition = transitionSpec;
             isTransitionReversed = isReversed;
@@ -443,8 +441,6 @@ namespace DxR.VisMorphs
             // Call update to final state using a tweening observable
             var tweeningObservable = CreateMorphTweenObservable(candidateMorph, transitionSpec);
             parentVis.ApplyVisMorph(finalState, tweeningObservable);
-
-            isTransitionActive = true;
         }
 
         private JSONNode GenerateVisSpecKeyframeFromState(JSONNode visSpecs, JSONNode initialStateSpecs, JSONNode finalStateSpecs)
@@ -600,42 +596,55 @@ namespace DxR.VisMorphs
             return timerObservable;
         }
 
+        /// <summary>
+        /// Stops the active transition if there is any. Meant to be called by signal tweeners
+        /// </summary>
         private void DeactivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, bool goToEnd = true)
         {
-            if (isTransitionActive)
+            if (!isTransitionActive)
+                return;
+
+            // Only the morph which activated the transition can stop it
+            if (ActiveTransitionName == candidateMorph.Morph.Name)
             {
-                // Only the morph which activated the transition can stop it
-                string deactivatingTransitionName = candidateMorph.Morph.Name + "." + transitionSpec["name"];
-
-                if (ActiveTransitionName == deactivatingTransitionName)
-                {
-                    Reset(goToEnd);
-
-                    CheckForMorphs();
-                }
+                Reset(true, goToEnd);
             }
-
         }
 
-        public void Reset(bool goToEnd = false)
+        /// <summary>
+        /// Stops the active transition if there is any, and resets the Morphable back to a neutral state. Meant to be called externally
+        /// </summary>
+        public void Reset(bool checkForMorphs = false, bool goToEnd = false)
         {
-            // Dispose of all subscriptions before doing anything else
+            // Dispose of all subscriptions
             foreach (CandidateMorph candidateMorph in CandidateMorphs)
             {
-                foreach (var candidateTransition in candidateMorph.CandidateTransitionsWithSubscriptions)
-                {
-                    candidateTransition.Item2.Dispose();
-                }
+                candidateMorph.ClearLocalSignals();
             }
 
-            CandidateMorphs.Clear();
-
+            // If there was a transition in progress, we need to stop the morph as well
             if (isTransitionActive)
             {
                 parentVis.StopVisMorph(goToEnd);
-                isTransitionActive = false;
-                isTransitionReversed = false;
             }
+
+            // Reset variables
+            CandidateMorphs.Clear();
+            ActiveTransitionName = "";
+            activeTransition = null;
+            isTransitionReversed = false;
+            CandidateMorphNames.Clear();
+            CandidateStateNames.Clear();
+            CandidateTransitionNames.Clear();
+
+            // Check for morphs again to allow for further morphing without needing to update the vis
+            if (checkForMorphs)
+            {
+                CheckForMorphs();
+            }
+
+            // Mark the transition as inactive only AFTER all morphs have been checked, in order to prevent infinite loops
+            isTransitionActive = false;
         }
 
         private void OnDestroy()

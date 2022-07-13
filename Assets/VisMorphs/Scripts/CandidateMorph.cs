@@ -14,6 +14,7 @@ namespace DxR.VisMorphs
         public List<Tuple<JSONNode, bool>> CandidateTransitions;
         public List<Tuple<JSONNode, CompositeDisposable, List<bool>, bool>> CandidateTransitionsWithSubscriptions;
         public Dictionary<string, IObservable<dynamic>> LocalSignalObservables;
+        public CompositeDisposable Disposables;
 
         public CandidateMorph(Morph morph)
         {
@@ -22,6 +23,7 @@ namespace DxR.VisMorphs
             CandidateTransitions = new List<Tuple<JSONNode, bool>>();
             CandidateTransitionsWithSubscriptions = new List<Tuple<JSONNode, CompositeDisposable, List<bool>, bool>>();
             LocalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
+            Disposables = new CompositeDisposable();
         }
 
         public void SaveLocalSignal(string name, IObservable<dynamic> observable)
@@ -34,7 +36,7 @@ namespace DxR.VisMorphs
             {
                 if (MorphManager.Instance.DebugSignals)
                     Debug.Log("Local Signal " + name + ": " + _);
-            });
+            }).AddTo(Disposables);
 
             if (!LocalSignalObservables.ContainsKey(name))
             {
@@ -54,6 +56,16 @@ namespace DxR.VisMorphs
             }
 
             return null;
+        }
+
+        public void ClearLocalSignals()
+        {
+            foreach (var candidateTransition in CandidateTransitionsWithSubscriptions)
+            {
+                candidateTransition.Item2.Dispose();
+            }
+
+            Disposables.Clear();
         }
     }
 }
