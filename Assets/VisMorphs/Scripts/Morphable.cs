@@ -164,10 +164,14 @@ namespace DxR.VisMorphs
         private void CreateCandidateMorphSubscriptions(ref List<CandidateMorph> candidateMorphs)
         {
             // Create subscriptions for each candidate transition
-            foreach (CandidateMorph candidateMorph in candidateMorphs)
+            for (int i = 0; i < candidateMorphs.Count; i++)
             {
-                foreach (Tuple<JSONNode, bool> candidateTransition in candidateMorph.CandidateTransitions)
+                CandidateMorph candidateMorph = candidateMorphs[i];
+
+                for (int j = 0; j < candidateMorph.CandidateTransitions.Count; j++)
                 {
+                    Tuple<JSONNode, bool> candidateTransition = candidateMorph.CandidateTransitions[j];
+
                     // Create the data structures which we need to store information regarding each of these candidate transitions with subscriptions
                     JSONNode transitionSpec = candidateTransition.Item1;
                     CompositeDisposable disposables = new CompositeDisposable();    // A container object to hold all of the observable subscriptions. We call Dispose() on this object when the subscriptions are no longer needed
@@ -196,7 +200,9 @@ namespace DxR.VisMorphs
                                 {
                                     // AND there is not an already active transition, we can then formally activate the Transition
                                     if (!isTransitionActive)
+                                    {
                                         ActivateTransition(candidateMorph, transitionSpec, isReversed);
+                                    }
                                 }
                                 else
                                 {
@@ -216,15 +222,15 @@ namespace DxR.VisMorphs
                     var triggerNames = transitionSpec["triggers"];
                     if (triggerNames != null)
                     {
-                        for (int i = 0; i < triggerNames.Count; i++)
+                        for (int k = 0; k < triggerNames.Count; k++)
                         {
                             // Set the index that will be used to then modify the boolean in our boolArray
                             int index = boolList.Count;
                             boolList.Add(false);
 
                             // Get the corresponding Signal observable by using its name, casting it to a boolean
-                            var observable = candidateMorph.GetLocalSignal(triggerNames[i]);
-                            if (observable == null) observable = MorphManager.Instance.GetGlobalSignal(triggerNames[i]);
+                            var observable = candidateMorph.GetLocalSignal(triggerNames[k]);
+                            if (observable == null) observable = MorphManager.Instance.GetGlobalSignal(triggerNames[k]);
 
                             if (observable != null)
                             {
@@ -239,7 +245,9 @@ namespace DxR.VisMorphs
                                     {
                                         // AND there is not an already active transition, we can then formally activate the Transition
                                         if (!isTransitionActive)
+                                        {
                                             ActivateTransition(candidateMorph, transitionSpec, isReversed);
+                                        }
                                     }
                                     else
                                     {
@@ -261,7 +269,7 @@ namespace DxR.VisMorphs
                             }
                             else
                             {
-                                throw new Exception(string.Format("Vis Morphs: Trigger with name {0} cannot be found.", triggerNames[i]));
+                                throw new Exception(string.Format("Vis Morphs: Trigger with name {0} cannot be found.", triggerNames[k]));
                             }
                         }
                     }
@@ -598,11 +606,21 @@ namespace DxR.VisMorphs
 
         /// <summary>
         /// Stops the active transition if there is any. Meant to be called by signal tweeners
+        ///
+        /// Only actually deactivates the transition at the end of the frame. This is to ensure all Signals have emitted their values before
+        /// making any changes to the Vis
         /// </summary>
         private void DeactivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, bool goToEnd = true)
         {
+            StartCoroutine(DeactivateAtEndOfFrame(candidateMorph, transitionSpec, goToEnd));
+        }
+
+        private IEnumerator DeactivateAtEndOfFrame(CandidateMorph candidateMorph, JSONNode transitionSpec, bool goToEnd = true)
+        {
+            yield return new WaitForEndOfFrame();
+
             if (!isTransitionActive)
-                return;
+                yield break;
 
             // Only the morph which activated the transition can stop it
             if (ActiveTransitionName == candidateMorph.Morph.Name)
@@ -637,14 +655,15 @@ namespace DxR.VisMorphs
             CandidateStateNames.Clear();
             CandidateTransitionNames.Clear();
 
+            // Mark the transition as inactive only AFTER all morphs have been checked, in order to prevent infinite loops
+            // Moved this back for now...
+            isTransitionActive = false;
+
             // Check for morphs again to allow for further morphing without needing to update the vis
             if (checkForMorphs)
             {
                 CheckForMorphs();
             }
-
-            // Mark the transition as inactive only AFTER all morphs have been checked, in order to prevent infinite loops
-            isTransitionActive = false;
         }
 
         private void OnDestroy()

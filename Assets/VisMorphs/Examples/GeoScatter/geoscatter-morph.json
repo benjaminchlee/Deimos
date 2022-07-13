@@ -3,8 +3,8 @@
             "name": "sliderX",
             "source": {
                 "type": "gameobject",
-                "ref": "GeoScatterSlider",
-                "select": "transform.position.x"
+                "ref": "GeoScatterSliderHandle",
+                "select": "transform.localPosition.x"
             }
         }, {
             "name": "sliderStage1",
@@ -31,6 +31,12 @@
                         "type": "linear",
                         "domain": [ 70, 85 ]
                     }
+                },
+                "width": {
+                    "value": 10
+                },
+                "height": {
+                    "value": 10
                 }
             }
         },

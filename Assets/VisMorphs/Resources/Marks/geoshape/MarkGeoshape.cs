@@ -257,7 +257,7 @@ namespace DxR
                 geoPositions.Add(polygonGeoPositions);
 
                 // Use these positions to triangulate triangles for our forward and back faces
-                Triangulator triangulator = new Triangulator(polygonGeoPositions);
+                Triangulator triangulator = new Triangulator(polygonGeoPositions.ToArray());
                 // Triangulate the triangles on this 2D plane
                 int[] tris = triangulator.Triangulate();
 
@@ -289,11 +289,11 @@ namespace DxR
                     int v4 = v3 + 1;
 
                     triangles.Add(v1);
-                    triangles.Add(v4);
                     triangles.Add(v3);
-                    triangles.Add(v1);
-                    triangles.Add(v2);
                     triangles.Add(v4);
+                    triangles.Add(v1);
+                    triangles.Add(v4);
+                    triangles.Add(v2);
                 }
                 // Complete the side vertices where they loop back with the start
                 {
@@ -303,11 +303,11 @@ namespace DxR
                     int v4 = (polygonPositionCount * 2) + vertexIdx + polygonPositionCount;
 
                     triangles.Add(v1);
-                    triangles.Add(v4);
                     triangles.Add(v3);
-                    triangles.Add(v1);
-                    triangles.Add(v2);
                     triangles.Add(v4);
+                    triangles.Add(v1);
+                    triangles.Add(v4);
+                    triangles.Add(v2);
                 }
 
                 vertexIdx += (polygonPositionCount * 4);

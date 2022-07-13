@@ -261,10 +261,6 @@ namespace DxR.VisMorphs
                 string reference = sourceSpec["ref"] ?? "";          // What is the name of the actual entity to get the value from?
                 string selector = sourceSpec["select"] ?? "";        // What specific value from this entity do we then extract?
 
-                if (sourceType != null) sourceType = sourceType.ToLower();
-                if (reference != null) reference = reference.ToLower();
-                if (selector != null) selector = selector.ToLower();
-
                 switch (sourceType)
                 {
                     case "mouse":
@@ -462,33 +458,18 @@ namespace DxR.VisMorphs
                     // Emits true if the Vis is intersecting with any surface, otherwise emits false
                     case "intersecting":
                         {
-                            // Imediately check if the Vis is currently intersecting with anything, as OntriggerEnter does not work in this case
                             BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
-                            List<GameObject> intersectingSurfaces = Physics.OverlapBox(boxCollider.center, boxCollider.size / 2f, morphable.transform.rotation)
-                                .Select(collider => collider.gameObject)
-                                .Where(go => go.tag == "Surface")
-                                .ToList();
-
-                            return morphable.gameObject.OnTriggerEnterAsObservable()
-                                .CombineLatest(morphable.gameObject.OnTriggerExitAsObservable(), (Collider enter, Collider exit) =>
+                            return Observable.EveryUpdate()
+                                .Select(_ =>
                                 {
-                                    if (enter.gameObject.tag == "Surface")
-                                    {
-                                        if (!intersectingSurfaces.Contains(enter.gameObject))
-                                            intersectingSurfaces.Add(enter.gameObject);
-                                    }
-                                    if (exit.gameObject.tag == "Surface")
-                                    {
-                                        if (intersectingSurfaces.Contains(enter.gameObject))
-                                            intersectingSurfaces.Add(exit.gameObject);
-                                    }
-
-                                    return (dynamic)(intersectingSurfaces.Count > 0);
+                                    var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center),
+                                                                              (boxCollider.size / 2f) + (Vector3.one * 0.05f),
+                                                                              morphable.transform.rotation)
+                                        .Where(c => c.gameObject.tag == "Surface");
+                                    return (dynamic)surfaceColliders.Count() > 0;
                                 })
-                                .StartWith(intersectingSurfaces.Count > 0)
                                 .DistinctUntilChanged();
                         }
-
 
                     // Emits a Vector3 in world space of the collision point between the vis and the largest surface. Does not emit if no collision is found
                     case "collisionpoint":

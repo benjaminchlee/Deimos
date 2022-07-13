@@ -71,14 +71,15 @@ namespace DxR
         public int FrameCount { get { return frameCount; } set { frameCount = value; } }
 
         private BoxCollider boxCollider;
+        private Rigidbody rigidbody;
 
+        public bool IsMorphing = false;
         [Serializable]
         public class VisUpdatedEvent : UnityEvent<Vis, JSONNode> { }
         [HideInInspector]
         public VisUpdatedEvent VisUpdated;
         private JSONNode initialMorphSpecs;
         private JSONNode finalMorphSpecs;
-        private bool isMorphing = false;
         private CompositeDisposable morphSubscriptions;
 
         private void Awake()
@@ -93,8 +94,10 @@ namespace DxR
             guidesParentObject = viewParentObject.transform.Find("DxRGuides").gameObject;
             interactionsParentObject = gameObject.transform.Find("DxRInteractions").gameObject;
 
-            boxCollider = gameObject.GetComponent<BoxCollider>();
-            if (boxCollider == null) boxCollider = gameObject.AddComponent<BoxCollider>();
+            boxCollider = gameObject.GetComponent<BoxCollider>() != null ? gameObject.GetComponent<BoxCollider>() : gameObject.AddComponent<BoxCollider>();
+            rigidbody = gameObject.GetComponent<Rigidbody>() != null ? gameObject.GetComponent<Rigidbody>() : gameObject.AddComponent<Rigidbody>();
+            boxCollider.isTrigger = true;
+            rigidbody.isKinematic = true;
 
             if (viewParentObject == null || marksParentObject == null)
             {
@@ -211,10 +214,10 @@ namespace DxR
         public void ApplyVisMorph(JSONNode newVisSpecs, IObservable<float> tweeningObservable)
         {
             // TODO: For now, if there is any morph currently being applied, we ignore all further morph requests
-            if (isMorphing)
+            if (IsMorphing)
                 return;
 
-            isMorphing = true;
+            IsMorphing = true;
             initialMorphSpecs = visSpecs;
             finalMorphSpecs = newVisSpecs;
             visSpecs = newVisSpecs;
@@ -252,7 +255,7 @@ namespace DxR
 
             initialMorphSpecs = null;
             finalMorphSpecs = null;
-            isMorphing = false;
+            IsMorphing = false;
         }
 
         /// <summary>

@@ -1,14 +1,22 @@
 
 {
     "signals": [{
-            "name": "mousedown",
+            "name": "intersectingSurface",
             "source": {
-                "type": "mouse",
-                "select": "leftmousedown"
+                "type": "vis",
+                "ref": "surface",
+                "select": "intersecting"
             }
         }, {
-            "name": "mouseup",
-            "expression": "!mousedown"
+            "name": "collisionPoint",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "collisionpoint"
+            }
+        }, {
+            "name": "notIntersectingSurface",
+            "expression": "!intersectingSurface"
         }
     ],
 
@@ -83,20 +91,20 @@
         {
             "name": "stacked2faceted",
             "states": ["stacked", "faceted"],
-            "triggers": ["mousedown"],
+            "triggers": ["intersectingSurface"],
             "timing": {
                 "control": 0.5
             },
             "interrupt": {
                 "control": "reset",
-                "value": "end"
+                "value": "start"
             },
             "bidirectional": false
         },
         {
             "name": "faceted2stacked",
             "states": ["faceted", "stacked"],
-            "triggers": ["mouseup"],
+            "triggers": ["notIntersectingSurface"],
             "timing": {
                 "control": 0.5
             },
