@@ -20,21 +20,53 @@ namespace DxR.VisMorphs
         public List<string> CandidateMorphNames = new List<string>();
         public List<string> CandidateStateNames = new List<string>();
         public List<string> CandidateTransitionNames = new List<string>();
-        public string ActiveTransitionName;
 
+        public List<string> ActiveTransitionNames = new List<string>();
         public List<CandidateMorph> CandidateMorphs = new List<CandidateMorph>();
+
+        public bool AllowSimultaneousTransitions = true;
 
         private Vis parentVis;
         private JSONNode currentVisSpec;
         private bool isInitialised;
-        private JSONNode activeTransition;
-        private bool isTransitionActive = false;
-        private bool isTransitionReversed = false;
-        private bool isDeactivatingThisFrame = false;
+
+        private Dictionary<string, Action> queuedTransitionActivations = new Dictionary<string, Action>();
+        private Dictionary<string, Action> queuedTransitionDeactivations = new Dictionary<string, Action>();
 
         private void Start()
         {
             Initialise();
+        }
+
+        private void LateUpdate()
+        {
+            // Resolve all deactivations first
+            if (queuedTransitionDeactivations.Count > 0)
+            {
+                while (queuedTransitionDeactivations.Count > 0)
+                {
+                    var kvp = queuedTransitionDeactivations.First();
+                    Action Deactivation = kvp.Value;
+                    queuedTransitionDeactivations.Remove(kvp.Key);
+                    Deactivation();
+                }
+
+                queuedTransitionDeactivations.Clear();
+            }
+
+            // Then resolve all activations
+            if (queuedTransitionActivations.Count > 0)
+            {
+                while (queuedTransitionActivations.Count > 0)
+                {
+                    var kvp = queuedTransitionActivations.First();
+                    Action Activation = kvp.Value;
+                    queuedTransitionActivations.Remove(kvp.Key);
+                    Activation();
+                }
+
+                queuedTransitionActivations.Clear();
+            }
         }
 
         public void Initialise()
@@ -68,10 +100,11 @@ namespace DxR.VisMorphs
 
             currentVisSpec = visSpec;
 
-            // We reset our morphing variables each time the visualisation is updated
-            // TODO: Make this retain some information between morphs if the candidates are still the same, for performance reasons
-            if (CandidateMorphs.Count > 0)
-                Reset();
+            // Only check if there are no more activations/deactivations to go
+            if (queuedTransitionActivations.Count > 0 || queuedTransitionDeactivations.Count > 0)
+            {
+                return;
+            }
 
             // First, we get a list of Morphs which we deem as "candidates"
             // Each object in this list also stores the set of candidate states and transitions which match our current vis spec
@@ -81,6 +114,9 @@ namespace DxR.VisMorphs
             // If there were indeed some Morphs which are candidates, we need to create subscriptions to their observables and so on
             if (newCandidateMorphs.Count > 0)
             {
+                // Any morphs that are currently active and that are still valid should be retained. Ones that are no longer valid should be deactivated
+                TransferActiveCandidateMorphsAndTransitions(CandidateMorphs, ref newCandidateMorphs);
+
                 CandidateMorphs = newCandidateMorphs;
 
                 CreateCandidateMorphSignals(ref CandidateMorphs);
@@ -94,9 +130,18 @@ namespace DxR.VisMorphs
                     CandidateTransitionNames = CandidateMorphs.SelectMany(_ => _.CandidateTransitions).Select(_ => _.Item1["name"].ToString()).ToList();
                 }
             }
+            // Otherwise, clear all morphs
             else
             {
-                CandidateMorphs.Clear();
+                if (CandidateMorphs.Count > 0)
+                {
+                    foreach (CandidateMorph morph in CandidateMorphs)
+                    {
+                        morph.ClearLocalSignals();
+                    }
+
+                    CandidateMorphs.Clear();
+                }
             }
         }
 
@@ -145,9 +190,57 @@ namespace DxR.VisMorphs
             }
         }
 
-    /// <summary>
-    /// Creates signals associated with each candidate morph, and stores the observables separately
-    /// </summary>
+        /// <summary>
+        /// Transfers any transitions that are currently active and still valid from one list of candidate morphs to the other.
+        /// Retains variable references to minimise re-instantiation and performance hits.
+        /// This function will automatically disable any active transitions that are no longer valid.
+        /// </summary>
+        private void TransferActiveCandidateMorphsAndTransitions(List<CandidateMorph> oldCandidateMorphs, ref List<CandidateMorph> newCandidateMorphs)
+        {
+            var newCandidateTransitions = newCandidateMorphs.SelectMany(cm => cm.CandidateTransitions).Select(ct => (string)ct.Item1["name"]);
+
+            List<string> transferredMorphNames = new List<string>();
+
+            foreach (string activeTransitionName in ActiveTransitionNames.ToList())
+            {
+                // If the active transition is in the new list of candidate transitions, transfer its variable references over
+                if (newCandidateTransitions.Contains(activeTransitionName))
+                {
+                    // Get the morph that this active transition belongs to
+                    CandidateMorph sourceMorph = oldCandidateMorphs.Single(cm => cm.CandidateTransitions.Select(ct => (string)ct.Item1["name"]).Contains(activeTransitionName));
+                    // Only copy over the equivalent transition and its subscriptions, and the local signal references
+                    CandidateMorph targetMorph = newCandidateMorphs.Single(cm => cm.Name == sourceMorph.Name);
+
+                    Tuple<JSONNode, CompositeDisposable, List<bool>, bool> sourceTransitionWithSubscriptions = sourceMorph.CandidateTransitionsWithSubscriptions.Single(ct => ct.Item1["name"] == activeTransitionName);
+                    targetMorph.CandidateTransitionsWithSubscriptions.Add(sourceTransitionWithSubscriptions);
+
+                    targetMorph.LocalSignalObservables = sourceMorph.LocalSignalObservables;
+
+                    // Keep track of this old morph, we will not clear its local signals later
+                    transferredMorphNames.Add(sourceMorph.Name);
+                }
+                // Otherwise, it means that the conditions of the candidate morph are no longer valid. Force disable it
+                else
+                {
+                    // This probably causes issues whereby changing visualisation encodings means that sometimes conditions will no longer be met, but oh well
+                    parentVis.StopTransition(activeTransitionName);
+                    ActiveTransitionNames.Remove(activeTransitionName);
+                }
+            }
+
+            // Clear the signals of the old candidate morphs that did not have a single transition transferred
+            foreach (CandidateMorph oldMorph in oldCandidateMorphs)
+            {
+                if (!transferredMorphNames.Contains(oldMorph.Name))
+                {
+                    oldMorph.ClearLocalSignals();
+                }
+            }
+        }
+
+        /// <summary>
+        /// Creates signals associated with each candidate morph, and stores the observables separately
+        /// </summary>
         private void CreateCandidateMorphSignals(ref List<CandidateMorph> candidateMorphs)
         {
             foreach (CandidateMorph candidateMorph in candidateMorphs)
@@ -172,9 +265,14 @@ namespace DxR.VisMorphs
                 for (int j = 0; j < candidateMorph.CandidateTransitions.Count; j++)
                 {
                     Tuple<JSONNode, bool> candidateTransition = candidateMorph.CandidateTransitions[j];
+                    JSONNode transitionSpec = candidateTransition.Item1;
+                    string transitionName = transitionSpec["name"];
+
+                    // If this candidate transition already has a version with subscriptions, skip it (caused by an old transition being transferred)
+                    if (candidateMorph.CandidateTransitionsWithSubscriptions.Select(cts => (string)cts.Item1["name"]).Contains(transitionName))
+                        continue;
 
                     // Create the data structures which we need to store information regarding each of these candidate transitions with subscriptions
-                    JSONNode transitionSpec = candidateTransition.Item1;
                     CompositeDisposable disposables = new CompositeDisposable();    // A container object to hold all of the observable subscriptions. We call Dispose() on this object when the subscriptions are no longer needed
                     List<bool> boolList = new List<bool>();                         // A list of booleans which will be modified by later observables. The transition begins when all booleans are true
                     bool isReversed = candidateTransition.Item2;                    // Whether the transition is reversed
@@ -192,27 +290,29 @@ namespace DxR.VisMorphs
                         if (observable != null)
                         {
                             boolList.Add(false);
-                            observable.Subscribe(f =>
+                            // Delay subscription until end of frame so that all signals can be subscribed to
+                            observable.DelayFrameSubscription(0, FrameCountType.EndOfFrame).Subscribe(f =>
                             {
                                 boolList[0] = 0 < f && f < 1;
 
                                 // If all of the predicates for this Transition returned true...
                                 if (!boolList.Contains(false))
                                 {
-                                    // AND there is not an already active transition, we can then formally activate the Transition
-                                    if (!isTransitionActive)
+                                    // AND this morph is not currently active, we can then formally activate the Transition
+                                    if (!ActiveTransitionNames.Contains(transitionName) && !queuedTransitionActivations.ContainsKey(transitionName))
                                     {
-                                        ActivateTransition(candidateMorph, transitionSpec, isReversed);
+                                        queuedTransitionActivations.Add(transitionName, () => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed));
                                     }
                                 }
                                 else
                                 {
                                     // Otherwise, if this Tweener has now reached either end of the tweening range, end the transition
-                                    if (isTransitionActive)
+                                    if (ActiveTransitionNames.Contains(transitionName) && !queuedTransitionDeactivations.ContainsKey(transitionName))
                                     {
                                         // If the tweening value is 1 or more, the Vis should rest at the final state
                                         bool goToEnd = f >= 1;
-                                        DeactivateTransition(candidateMorph, transitionSpec, goToEnd);
+
+                                        queuedTransitionDeactivations.Add(transitionName, () => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd));
                                     }
                                 }
                             }).AddTo(disposables);
@@ -237,23 +337,23 @@ namespace DxR.VisMorphs
                             {
                                 IObservable<bool> triggerObservable = observable.Select(x => (bool)x);
 
-                                triggerObservable.Subscribe(b =>
+                                triggerObservable.DelayFrameSubscription(0, FrameCountType.EndOfFrame).Subscribe(b =>
                                 {
                                     boolList[index] = b;
 
                                     // If all of the predicates for this Transition returned true...
                                     if (!boolList.Contains(false))
                                     {
-                                        // AND there is not an already active transition, we can then formally activate the Transition
-                                        if (!isTransitionActive)
+                                        // AND this morph is not currently active, we can then formally activate the Transition
+                                        if (!ActiveTransitionNames.Contains(transitionName) && !queuedTransitionActivations.ContainsKey(transitionName))
                                         {
-                                            ActivateTransition(candidateMorph, transitionSpec, isReversed);
+                                            queuedTransitionActivations.Add(transitionName, () => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed));
                                         }
                                     }
                                     else
                                     {
                                         // Otherwise, if this Transition WAS active but now no longer meets the trigger conditions,
-                                        if (isTransitionActive)
+                                        if (ActiveTransitionNames.Contains(transitionName) && !queuedTransitionDeactivations.ContainsKey(transitionName))
                                         {
                                             // If the Transition specification includes which direction (start or end) to reset the Vis to, we use it
                                             bool goToEnd = false;
@@ -263,7 +363,7 @@ namespace DxR.VisMorphs
                                                 goToEnd = transitionSpec["interrupt"]["value"] == "end";
                                             }
 
-                                            DeactivateTransition(candidateMorph, transitionSpec, goToEnd);
+                                            queuedTransitionDeactivations.Add(transitionName,() => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd));
                                         }
                                     }
                                 }).AddTo(disposables);
@@ -403,26 +503,28 @@ namespace DxR.VisMorphs
             return true;
         }
 
-        private void ActivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, bool isReversed = false)
+        /// <summary>
+        /// Starts the given transition only if there is not already one with the same name already active. Meant to be called by signal tweeners.
+        ///
+        /// Only actually activates the transition at the end of the frame. This is to ensure all Signals have emitted their values before making any changes to the Vis.
+        /// This function should be called by adding an anonymous lambda to queuedTransitionActivations in the form () => ActivateTransition(...)
+        /// </summary>
+        private void ActivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, string transitionName, bool isReversed = false)
         {
-            if (isTransitionActive)
+            if (ActiveTransitionNames.Contains(transitionName))
+            {
+                Debug.LogError(string.Format("Vis Morphs: Transition {0} tried to activate, but it is already active", transitionName));
                 return;
-
-            isTransitionActive = true;
-
-            ActiveTransitionName = candidateMorph.Morph.Name;
-
-            activeTransition = transitionSpec;
-            isTransitionReversed = isReversed;
+            }
 
             // Generate the initial and final vis states
             JSONNode initialState, finalState;
-            if (!isTransitionReversed)
+            if (!isReversed)
             {
                 initialState = currentVisSpec;
                 finalState = GenerateVisSpecKeyframeFromState(initialState,
-                    candidateMorph.Morph.GetStateFromName(activeTransition["states"][0]),
-                    candidateMorph.Morph.GetStateFromName(activeTransition["states"][1]));
+                    candidateMorph.Morph.GetStateFromName(transitionSpec["states"][0]),
+                    candidateMorph.Morph.GetStateFromName(transitionSpec["states"][1]));
             }
             else
             {
@@ -430,8 +532,8 @@ namespace DxR.VisMorphs
                 // in order to not mess with the tweening value. Note this does mean that it doesn't really work with time-based tweens
                 finalState = currentVisSpec;
                 initialState = GenerateVisSpecKeyframeFromState(finalState,
-                    candidateMorph.Morph.GetStateFromName(activeTransition["states"][1]),
-                    candidateMorph.Morph.GetStateFromName(activeTransition["states"][0]));
+                    candidateMorph.Morph.GetStateFromName(transitionSpec["states"][1]),
+                    candidateMorph.Morph.GetStateFromName(transitionSpec["states"][0]));
             }
 
             if (DebugStates)
@@ -445,8 +547,13 @@ namespace DxR.VisMorphs
             }
 
             // Call update to final state using a tweening observable
-            var tweeningObservable = CreateMorphTweenObservable(candidateMorph, transitionSpec);
-            parentVis.ApplyVisMorph(initialState, finalState, tweeningObservable, isTransitionReversed);
+            var tweeningObservable = CreateTweeningObservable(candidateMorph, transitionSpec);
+            bool success = parentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservable, isReversed);
+
+            if (success)
+            {
+                ActiveTransitionNames.Add(transitionName);
+            }
         }
 
 
@@ -505,8 +612,13 @@ namespace DxR.VisMorphs
                     if (!IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]["field"]) || !IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]["value"]))
                     {
                         // If the final state has either a field or value, we remove fields and values from the vis state to simplify the merging later
-                        _newVisSpecs["encoding"][encoding.Name]["field"]?.Parent.Remove();
-                        _newVisSpecs["encoding"][encoding.Name]["value"]?.Parent.Remove();
+                        if (_newVisSpecs["encoding"][encoding.Name] != null)
+                        {
+                            if (_newVisSpecs["encoding"][encoding.Name]["field"] != null)
+                                _newVisSpecs["encoding"][encoding.Name]["field"].Parent.Remove();
+                            if (_newVisSpecs["encoding"][encoding.Name]["value"] != null)
+                                _newVisSpecs["encoding"][encoding.Name]["value"]?.Parent.Remove();
+                        }
                     }
 
                     ((JObject)_newVisSpecs["encoding"][encoding.Name]).Merge(
@@ -558,7 +670,7 @@ namespace DxR.VisMorphs
             }
         }
 
-        private IObservable<float> CreateMorphTweenObservable(CandidateMorph candidateMorph, JSONNode transitionSpec)
+        private IObservable<float> CreateTweeningObservable(CandidateMorph candidateMorph, JSONNode transitionSpec)
         {
             JSONNode timingSpecs = transitionSpec["timing"];
 
@@ -586,7 +698,7 @@ namespace DxR.VisMorphs
             }
         }
 
-        private IObservable<float> CreateTimerObservable(CandidateMorph candidateMorph, JSONNode transitionSpecs, float duration)
+        private IObservable<float> CreateTimerObservable(CandidateMorph candidateMorph, JSONNode transitionSpec, float duration)
         {
             float startTime = Time.time;
 
@@ -598,45 +710,47 @@ namespace DxR.VisMorphs
             })
                 .TakeUntil(cancellationObservable);
 
-            cancellationObservable.Subscribe(_ => DeactivateTransition(candidateMorph, transitionSpecs, true));
+            bool goToEnd = transitionSpec["timing"]["elapsed"] != null ? transitionSpec["timing"]["elapsed"] == "end" : true;
+
+            // HACKY WORKAROUND: We need some way to cancel this timer early in case it gets interrupted. For now we just find the composite
+            // disposable tied to the transition and the subscription to it. Ideally this should be done alongside with all of the other signals
+            cancellationObservable.Subscribe(_ => DeactivateTransition(candidateMorph, transitionSpec, transitionSpec["name"], goToEnd))
+                .AddTo(candidateMorph.CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"]).Item2);
 
             return timerObservable;
         }
 
         /// <summary>
-        /// Stops the active transition if there is any. Meant to be called by signal tweeners
+        /// Stops the specified transition if there is any. Meant to be called by signal tweeners.
         ///
-        /// Only actually deactivates the transition at the end of the frame. This is to ensure all Signals have emitted their values before
-        /// making any changes to the Vis
+        /// Only actually activates the transition at the end of the frame. This is to ensure all Signals have emitted their values before making any changes to the Vis.
+        /// This function should be called by adding an anonymous lambda to queuedTransitionActivations in the form () => ActivateTransition(...)
         /// </summary>
-        private void DeactivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, bool goToEnd = true)
+        private void DeactivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, string transitionName, bool goToEnd = true)
         {
-            if (!isTransitionActive)
-                return;
-
-            // Only the morph which activated the transition can stop it
-            if (ActiveTransitionName == candidateMorph.Morph.Name)
+            if (!ActiveTransitionNames.Contains(transitionName))
             {
-                if (!isDeactivatingThisFrame)
-                {
-                    isDeactivatingThisFrame = true;
-                    StartCoroutine(DeactivateAtEndOfFrame(candidateMorph, transitionSpec, goToEnd));
-                }
+                Debug.LogError(string.Format("Vis Morphs: Transition {0} tried to deactivate, but it is not active in the first place", transitionName));
+                return;
             }
-        }
 
-        private IEnumerator DeactivateAtEndOfFrame(CandidateMorph candidateMorph, JSONNode transitionSpec, bool goToEnd = true)
-        {
-            yield return new WaitForEndOfFrame();
+            parentVis.StopTransition(transitionName, goToEnd);
 
-            isDeactivatingThisFrame = false;
-            Reset(true, goToEnd);
+            // Unsubscribe to this transition's signals
+            candidateMorph.DisposeTransitionSubscriptions(transitionName);
+
+            ActiveTransitionNames.Remove(transitionName);
+
+            // Check for morphs again so that they can seamlessly progress
+            CheckForMorphs();
         }
 
         /// <summary>
-        /// Stops the active transition if there is any, and resets the Morphable back to a neutral state. Meant to be called externally
+        /// Does a complete reset.
+        ///
+        /// Stops all active transitions if there are any, and resets the Morphable back to a neutral state.
         /// </summary>
-        public void Reset(bool checkForMorphs = false, bool goToEnd = false)
+        public void Reset(bool goToEnd = false)
         {
             // Dispose of all subscriptions
             foreach (CandidateMorph candidateMorph in CandidateMorphs)
@@ -644,29 +758,21 @@ namespace DxR.VisMorphs
                 candidateMorph.ClearLocalSignals();
             }
 
-            // If there was a transition in progress, we need to stop the morph as well
-            if (isTransitionActive)
+            // If there were transitions in progress, stop all of them
+            foreach (string activeMorph in ActiveTransitionNames)
             {
-                parentVis.StopVisMorph(goToEnd);
+                parentVis.StopTransition(activeMorph, goToEnd);
             }
+            ActiveTransitionNames.Clear();
 
             // Reset variables
             CandidateMorphs.Clear();
-            ActiveTransitionName = "";
-            activeTransition = null;
-            isTransitionReversed = false;
             CandidateMorphNames.Clear();
             CandidateStateNames.Clear();
             CandidateTransitionNames.Clear();
 
             // Check for morphs again to allow for further morphing without needing to update the vis
-            if (checkForMorphs)
-            {
-                CheckForMorphs();
-            }
-
-            // Mark the transition as inactive only AFTER all morphs have been checked, in order to prevent infinite loops
-            isTransitionActive = false;
+            CheckForMorphs();
         }
 
         private void OnDestroy()

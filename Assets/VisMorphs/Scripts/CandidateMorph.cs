@@ -1,6 +1,7 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.Linq;
 using SimpleJSON;
 using UniRx;
 using UnityEngine;
@@ -15,6 +16,7 @@ namespace DxR.VisMorphs
         public List<Tuple<JSONNode, CompositeDisposable, List<bool>, bool>> CandidateTransitionsWithSubscriptions;
         public Dictionary<string, IObservable<dynamic>> LocalSignalObservables;
         public CompositeDisposable Disposables;
+        public string Name { get => Morph.Name; }
 
         public CandidateMorph(Morph morph)
         {
@@ -44,7 +46,7 @@ namespace DxR.VisMorphs
             }
             else
             {
-                Debug.LogWarning(string.Format("Vis Morphs: A local signal with the name {0} already exists and therefore has not been overwritten. Is this intentional?"));
+                Debug.LogWarning(string.Format("Vis Morphs: A local signal with the name {0} already exists and therefore has not been overwritten. Is this intentional?", name));
             }
         }
 
@@ -56,6 +58,11 @@ namespace DxR.VisMorphs
             }
 
             return null;
+        }
+
+        public void DisposeTransitionSubscriptions(string transitionName)
+        {
+            CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"] == transitionName).Item2.Dispose();
         }
 
         public void ClearLocalSignals()

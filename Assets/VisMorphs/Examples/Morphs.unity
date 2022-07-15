@@ -8193,7 +8193,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 0
+  ShowInternalSpecification: 1
   InputSpecification: "{\r\n    \"width\": 800,\r\n    \"height\": 500,\r\n    \"mark\":
     \"geoshape\",\r\n    \"encoding\": {\r\n        \"x\": {\r\n            \"field\":
     \"Population\",\r\n            \"type\": \"quantitative\"\r\n        },\r\n       
@@ -8201,9 +8201,8 @@ MonoBehaviour:
     \"quantitative\",\r\n            \"scale\": {\r\n                \"type\": \"linear\",\r\n               
     \"domain\": [ 70, 85 ]\r\n            }\r\n        },\r\n        \"width\": {\r\n           
     \"value\": 10\r\n        },\r\n        \"height\": {\r\n            \"value\":
-    10\r\n        },\r\n        \"color\": {\r\n            \"field\": \"Population\",\r\n           
-    \"type\": \"quantitative\"\r\n        }\r\n    },\r\n    \"data\": {\r\n       
-    \"url\": \"us-states.json\"\r\n    }\r\n}"
+    10\r\n        },\n    },\r\n    \"data\": {\r\n        \"url\": \"us-states.json\"\r\n   
+    }\r\n}"
   InternalSpecification: 
 --- !u!114 &639472984
 MonoBehaviour:
@@ -8223,7 +8222,6 @@ MonoBehaviour:
   enableTooltip: 0
   verbose: 0
   markInstances: []
-  IsMorphing: 0
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
@@ -8260,11 +8258,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   DebugStates: 0
-  ShowValuesInInspector: 0
+  ShowValuesInInspector: 1
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
-  ActiveTransitionName: 
+  ActiveTransitionNames: []
+  AllowSimultaneousTransitions: 1
 --- !u!1 &644369574
 GameObject:
   m_ObjectHideFlags: 0
@@ -13269,7 +13268,8 @@ MonoBehaviour:
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
-  ActiveTransitionName: 
+  ActiveTransitionNames: []
+  AllowSimultaneousTransitions: 1
 --- !u!65 &982090488
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -13396,7 +13396,6 @@ MonoBehaviour:
   enableTooltip: 0
   verbose: 0
   markInstances: []
-  IsMorphing: 0
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
@@ -15189,7 +15188,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 0
+  ShowInternalSpecification: 1
   InputSpecification: "{\r\n    \"mark\": \"sphere\",\r\n    \"encoding\": {\r\n     
     \"x\": {\r\n        \"field\": \"Horsepower\",\r\n        \"type\": \"quantitative\"\r\n     
     },\r\n      \"y\": {\r\n        \"field\": \"Miles_per_Gallon\",\r\n        \"type\":
@@ -15215,7 +15214,6 @@ MonoBehaviour:
   enableTooltip: 0
   verbose: 0
   markInstances: []
-  IsMorphing: 0
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
@@ -15251,11 +15249,12 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   DebugStates: 0
-  ShowValuesInInspector: 0
+  ShowValuesInInspector: 1
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
-  ActiveTransitionName: 
+  ActiveTransitionNames: []
+  AllowSimultaneousTransitions: 1
 --- !u!1 &1123277458
 GameObject:
   m_ObjectHideFlags: 0
@@ -16985,7 +16984,8 @@ MonoBehaviour:
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
-  ActiveTransitionName: 
+  ActiveTransitionNames: []
+  AllowSimultaneousTransitions: 1
 --- !u!114 &1245073525
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -17034,7 +17034,6 @@ MonoBehaviour:
   enableTooltip: 0
   verbose: 0
   markInstances: []
-  IsMorphing: 0
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
@@ -20587,7 +20586,8 @@ MonoBehaviour:
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
-  ActiveTransitionName: 
+  ActiveTransitionNames: []
+  AllowSimultaneousTransitions: 1
 --- !u!114 &1512344089
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -20612,7 +20612,8 @@ MonoBehaviour:
     \"type\": \"quantitative\",\r\n            \"scale\": {\r\n                \"type\":
     \"linear\",\r\n                \"domain\": [0, 2000]\r\n            }\r\n       
     },\r\n        \"yoffsetpct\": {\r\n            \"value\": -0.5\r\n        },\r\n       
-    \"color\": {\r\n            \"field\": \"Class\",\r\n            \"type\": \"nominal\"\r\n       
+    \"depth\": {\r\n            \"value\": 10\r\n        },\r\n        \"color\":
+    {\r\n            \"field\": \"Class\",\r\n            \"type\": \"nominal\"\r\n       
     },\r\n        \"yoffset\": {\r\n            \"channel\": \"color\"\r\n       
     }\r\n    },\r\n    \"data\": {\r\n        \"url\": \"titanic_2d.csv\"\r\n   
     }\r\n}"
@@ -20635,7 +20636,6 @@ MonoBehaviour:
   enableTooltip: 0
   verbose: 0
   markInstances: []
-  IsMorphing: 0
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []

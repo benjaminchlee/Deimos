@@ -12,6 +12,7 @@ namespace DxR
         public List<string> xTranslation;         // List of positional offsets along the three spatial dimension. Each element corresponds with a Mark
         public List<string> yTranslation;         // List of positional offsets along the three spatial dimension. Each element corresponds with a Mark
         public List<string> zTranslation;         // List of positional offsets along the three spatial dimension. Each element corresponds with a Mark
+        public List<Vector3> translation;
         public int numFacets = 0;                   // The number of small multiples that will be created
 
         public List<GameObject> axes;
@@ -23,6 +24,7 @@ namespace DxR
             xTranslation = new List<string>();
             yTranslation = new List<string>();
             zTranslation = new List<string>();
+            translation = new List<Vector3>();
             axes = new List<GameObject>();
         }
     }

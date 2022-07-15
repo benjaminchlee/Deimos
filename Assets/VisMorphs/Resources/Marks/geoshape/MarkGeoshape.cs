@@ -28,147 +28,9 @@ namespace DxR
         private ChannelEncoding longitudeChannelEncoding;
         private ChannelEncoding latitudeChannelEncoding;
 
-        private IObservable<float> tweeningObservable;
-        private GeoshapeGeometricValues initialGeoshapeValues;
-        private GeoshapeGeometricValues finalGeoshapeValues;
-        private CompositeDisposable morphingSubscriptions;
-
-
         public MarkGeoshape() : base()
         {
         }
-
-        #region Morphing functions
-
-
-        private class GeoshapeGeometricValues
-        {
-            public List<Vector3> vertices;
-            public Vector3 localPosition;
-            public Vector3 localEulerAngles;
-            public Vector3 localScale;
-            public Color colour;
-        }
-
-        public override void StoreInitialMarkValues()
-        {
-            initialGeoshapeValues = new GeoshapeGeometricValues
-            {
-                vertices = this.vertices.ConvertAll(v => new Vector3(v.x, v.y, v.z)),
-                localPosition = transform.localPosition,
-                localEulerAngles = transform.localEulerAngles,
-                localScale = transform.localScale,
-                colour = myRenderer.material.color
-            };
-        }
-
-        public override void StoreFinalMarkValues()
-        {
-            finalGeoshapeValues = new GeoshapeGeometricValues
-            {
-                vertices = this.vertices.ConvertAll(v => new Vector3(v.x, v.y, v.z)),
-                localPosition = transform.localPosition,
-                localEulerAngles = transform.localEulerAngles,
-                localScale = transform.localScale,
-                colour = myRenderer.material.color
-            };
-        }
-
-        public override void LoadInitialMarkValues()
-        {
-            LoadMarkValues(initialGeoshapeValues);
-        }
-
-        public override void LoadFinalMarkValues()
-        {
-            LoadMarkValues(finalGeoshapeValues);
-        }
-
-        private void LoadMarkValues(GeoshapeGeometricValues geoshapeValues)
-        {
-            vertices = geoshapeValues.vertices;
-            geoshapeMesh.SetVertices(vertices);
-            geoshapeMesh.RecalculateNormals();
-            geoshapeMesh.RecalculateBounds();
-
-            transform.localPosition = geoshapeValues.localPosition;
-            transform.localEulerAngles = geoshapeValues.localEulerAngles;
-            transform.localScale = geoshapeValues.localScale;
-            myRenderer.material.color = geoshapeValues.colour;
-        }
-
-        public override void InitialiseMorphing(IObservable<float> tweeningObservable)
-        {
-            morphingSubscriptions = new CompositeDisposable();
-
-            // TODO: For now, we make a subscription for each geometric value that has actually changed
-            // There probably is a more elegant way of doing this though
-            if (initialGeoshapeValues.vertices[0] != finalGeoshapeValues.vertices[0])
-            {
-                tweeningObservable.Subscribe(t =>
-                {
-                    if (isMorphing)
-                    {
-                        List<Vector3> interpolatedVertices = new List<Vector3>();
-
-                        for (int i = 0; i < initialGeoshapeValues.vertices.Count; i++)
-                        {
-                            interpolatedVertices.Add(Vector3.Lerp(initialGeoshapeValues.vertices[i], finalGeoshapeValues.vertices[i], t));
-                        }
-
-                        geoshapeMesh.SetVertices(interpolatedVertices);
-                        geoshapeMesh.RecalculateNormals();
-                        geoshapeMesh.RecalculateBounds();
-                    }
-                }).AddTo(morphingSubscriptions);
-            }
-
-            if (initialGeoshapeValues.localPosition != finalGeoshapeValues.localPosition)
-            {
-                tweeningObservable.Subscribe(t =>
-                {
-                    if (isMorphing)
-                        transform.localPosition = Vector3.Lerp(initialGeoshapeValues.localPosition, finalGeoshapeValues.localPosition, t);
-                }).AddTo(morphingSubscriptions);
-            }
-            if (initialGeoshapeValues.localEulerAngles != finalGeoshapeValues.localEulerAngles)
-            {
-                tweeningObservable.Subscribe(t =>
-                {
-                    if (isMorphing)
-                        transform.localEulerAngles = Vector3.Lerp(initialGeoshapeValues.localEulerAngles, finalGeoshapeValues.localEulerAngles, t);
-                }).AddTo(morphingSubscriptions);
-            }
-            if (initialGeoshapeValues.localScale != finalGeoshapeValues.localScale)
-            {
-                tweeningObservable.Subscribe(t =>
-                {
-                    if (isMorphing)
-                        transform.localScale = Vector3.Lerp(initialGeoshapeValues.localScale, finalGeoshapeValues.localScale, t);
-                }).AddTo(morphingSubscriptions);
-            }
-            if (initialGeoshapeValues.colour != finalGeoshapeValues.colour)
-            {
-                tweeningObservable.Subscribe(t =>
-                {
-                    if (isMorphing)
-                        myRenderer.material.color = Color.Lerp(initialGeoshapeValues.colour, finalGeoshapeValues.colour, t);
-                }).AddTo(morphingSubscriptions);
-            }
-
-            isMorphing = true;
-        }
-
-        public override void DisableMorphing()
-        {
-            // Cleanup subscriptions
-            morphingSubscriptions.Dispose();
-
-            isMorphing = false;
-            // The data values on this mark will also need to be reset. We will just have this be set externally
-        }
-
-        #endregion // Morphing functions
 
         public override void ResetToDefault()
         {
@@ -181,47 +43,92 @@ namespace DxR
             }
         }
 
+        #region Morphing functions
+
+        protected override string GetValueForChannelEncoding(ChannelEncoding channelEncoding, int markIndex)
+        {
+            if (channelEncoding.fieldDataType != null && channelEncoding.fieldDataType == "spatial")
+            {
+                // If the channel is either x, y, or z, we can just pass it the centroid of this mark's polygons
+                if (channelEncoding.channel == "x" || channelEncoding.channel == "y" || channelEncoding.channel == "z")
+                {
+                    if (channelEncoding.field.ToLower() == "latitude")
+                    {
+                        return channelEncoding.scale.ApplyScale(centre.Latitude.ToString());
+                    }
+                    else if (channelEncoding.field.ToLower() == "longitude")
+                    {
+                        return channelEncoding.scale.ApplyScale(centre.Longitude.ToString());
+                    }
+                }
+                // Otherwise, if it is a size channel, pass in a value of either just "latitude" or "longituide"
+                // A custom function will set the size based on the stored GeoShapeValues array
+                else if (channelEncoding.channel == "width" || channelEncoding.channel == "height" || channelEncoding.channel == "depth")
+                {
+                    SetSpatialChannelEncoding(channelEncoding.field.ToLower(), channelEncoding);
+                    return channelEncoding.field.ToLower();
+                }
+            }
+
+            return base.GetValueForChannelEncoding(channelEncoding, markIndex);
+        }
+
+        protected override void InitialiseTweeners(string channel, string initialValue, string finalValue, IObservable<float> tweeningObservable, CompositeDisposable transitionDisposable)
+        {
+            // We initialise the tweener differently if it is affecting a size channel (width, height, depth), as these channels
+            // operate by manipulating an array, rather than just a singular value
+            if (channel == "width" || channel == "height" || channel == "depth")
+            {
+                // Initialise our arrays that will be used for tweening between
+                List<float> initialVertexPositions = null;
+                List<float> finalVertexPositions = null;
+                List<Vector3> tmpVertices = Enumerable.Repeat(Vector3.zero, vertices.Count).ToList();
+
+                int dim = (channel == "width") ? 0 : (channel == "height") ? 1 : 2;
+
+                CalculateSizeVertices(initialValue, dim, ref tmpVertices);
+                initialVertexPositions = tmpVertices.Select(v => v[dim]).ToList();
+                CalculateSizeVertices(finalValue, dim, ref tmpVertices);
+                finalVertexPositions = tmpVertices.Select(v => v[dim]).ToList();
+
+                tweeningObservable.Subscribe(t =>
+                {
+                    for (int i = 0; i < vertices.Count; i++)
+                    {
+                        Vector3 vertex = vertices[i];
+                        vertex[dim] = Mathf.Lerp(initialVertexPositions[i], finalVertexPositions[i], t);
+                        vertices[i] = vertex;
+                    }
+
+                    geoshapeMesh.SetVertices(vertices);
+                    geoshapeMesh.RecalculateNormals();
+                    geoshapeMesh.RecalculateBounds();
+                }).AddTo(transitionDisposable);
+            }
+            else
+            {
+                base.InitialiseTweeners(channel, initialValue, finalValue, tweeningObservable, transitionDisposable);
+            }
+        }
+
+        #endregion Morphing functions
+
+        #region Channel value functions
+
         public override void SetChannelValue(string channel, string value)
         {
             switch (channel)
             {
-                case "x":
-                    if (value == "longitude" || value == "latitude")
-                        SetGeoPosition(value, 0);
-                    else
-                        base.SetChannelValue(channel, value);
-                    break;
-                case "y":
-                    if (value == "longitude" || value == "latitude")
-                        SetGeoPosition(value, 1);
-                    else
-                        base.SetChannelValue(channel, value);
-                    break;
-                case "z":
-                    if (value == "longitude" || value == "latitude")
-                        SetGeoPosition(value, 2);
-                    else
-                        base.SetChannelValue(channel, value);
-                    break;
                 case "length":
                     throw new Exception("Length for GeoShapes is not yet implemented.");
                 case "width":
-                    if (value == "longitude" || value == "latitude")
-                        SetGeoSize(value, 0);
-                    else
-                        SetSize(value, 0);
+                    SetSize(value, 0);
                     break;
                 case "height":
-                    if (value == "longitude" || value == "latitude")
-                        SetGeoSize(value, 1);
-                    else
-                        SetSize(value, 1);
+                    SetSize(value, 1);
                     break;
                 case "depth":
-                    if (value == "longitude" || value == "latitude")
-                        SetGeoSize(value, 2);
-                    else
-                        SetSize(value, 2);
+                    SetSize(value, 2);
                     break;
                 default:
                     base.SetChannelValue(channel, value);
@@ -229,12 +136,16 @@ namespace DxR
             }
         }
 
-        public void SetChannelEncoding(ChannelEncoding channelEncoding)
+        public void SetSpatialChannelEncoding(string field, ChannelEncoding channelEncoding)
         {
-            if (channelEncoding.field.ToLower() == "longitude")
+            if (field == "longitude")
+            {
                 longitudeChannelEncoding = channelEncoding;
-            else if (channelEncoding.field.ToLower() == "latitude")
+            }
+            else if (field == "latitude")
+            {
                 latitudeChannelEncoding = channelEncoding;
+            }
         }
 
         private void InitialiseGeoshapeMesh()
@@ -321,265 +232,242 @@ namespace DxR
         }
 
         /// <summary>
-        /// Sets the position of this mark using the centrepoint of the polygon
-        /// </summary>
-        private void SetGeoPosition(string value, int dim)
-        {
-            if (geoPositions == null)
-                InitialiseGeoshapeMesh();
-
-            float position = 0;
-
-            if (value == "longitude")
-            {
-                position = float.Parse(longitudeChannelEncoding.scale.ApplyScale(centre.Longitude.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-            }
-            else if (value == "latitude")
-            {
-                position = float.Parse(latitudeChannelEncoding.scale.ApplyScale(centre.Latitude.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-            }
-
-            Vector3 localPos = gameObject.transform.localPosition;
-            localPos[dim] = position;
-            gameObject.transform.localPosition = localPos;
-        }
-
-        /// <summary>
-        /// Sets the size of this mark using the geometric values provided as part of the polygon
-        /// </summary>
-        private void SetGeoSize(string value, int dim)
-        {
-            if (geoPositions == null)
-                InitialiseGeoshapeMesh();
-
-            int geoPositionsCount = geoPositions.Count;
-
-            if (value == "longitude")
-            {
-                float longitudeOffset = float.Parse(longitudeChannelEncoding.scale.ApplyScale(centre.Longitude.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-
-                int vertexIdx = 0;
-                foreach (List<Vector2> polygonGeoPositions in geoPositions)
-                {
-                    int polygonPositionCount = polygonGeoPositions.Count;
-
-                    for (int i = 0; i < polygonPositionCount; i++)
-                    {
-                        int v1 = vertexIdx + i;
-                        int v2 = v1 + polygonPositionCount;
-                        int v3 = v2 + polygonPositionCount;
-                        int v4 = v3 + polygonPositionCount;
-
-                        Vector3 vertexFront1 = vertices[v1];
-                        Vector3 vertexBack1 = vertices[v2];
-                        Vector3 vertexFront2 = vertices[v3];
-                        Vector3 vertexBack2 = vertices[v4];
-
-                        float longitudeValue = float.Parse(longitudeChannelEncoding.scale.ApplyScale(polygonGeoPositions[i].x.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-                        longitudeValue -= longitudeOffset;
-
-                        vertexFront1[dim] = longitudeValue;
-                        vertexBack1[dim] = longitudeValue;
-                        vertexFront2[dim] = longitudeValue;
-                        vertexBack2[dim] = longitudeValue;
-
-                        vertices[v1] = vertexFront1;
-                        vertices[v2] = vertexBack1;
-                        vertices[v3] = vertexFront2;
-                        vertices[v4] = vertexBack2;
-                    }
-
-                    vertexIdx += (polygonPositionCount * 4);
-                }
-
-                Vector3 localPos = gameObject.transform.localPosition;
-                localPos[dim] = longitudeOffset;
-                gameObject.transform.localPosition = localPos;
-            }
-            else if (value == "latitude")
-            {
-                float latitudeOffset = float.Parse(latitudeChannelEncoding.scale.ApplyScale(centre.Latitude.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-
-                int vertexIdx = 0;
-                foreach (List<Vector2> polygonGeoPositions in geoPositions)
-                {
-                    int polygonPositionCount = polygonGeoPositions.Count;
-
-                    for (int i = 0; i < polygonPositionCount; i++)
-                    {
-                        int v1 = vertexIdx + i;
-                        int v2 = v1 + polygonPositionCount;
-                        int v3 = v2 + polygonPositionCount;
-                        int v4 = v3 + polygonPositionCount;
-
-                        Vector3 vertexFront1 = vertices[v1];
-                        Vector3 vertexBack1 = vertices[v2];
-                        Vector3 vertexFront2 = vertices[v3];
-                        Vector3 vertexBack2 = vertices[v4];
-
-                        float latitudeValue = float.Parse(latitudeChannelEncoding.scale.ApplyScale(polygonGeoPositions[i].y.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-                        latitudeValue -= latitudeOffset;
-
-                        vertexFront1[dim] = latitudeValue;
-                        vertexBack1[dim] = latitudeValue;
-                        vertexFront2[dim] = latitudeValue;
-                        vertexBack2[dim] = latitudeValue;
-
-                        vertices[v1] = vertexFront1;
-                        vertices[v2] = vertexBack1;
-                        vertices[v3] = vertexFront2;
-                        vertices[v4] = vertexBack2;
-                    }
-
-                    vertexIdx += (polygonPositionCount * 4);
-                }
-            }
-
-            geoshapeMesh.SetVertices(vertices);
-            geoshapeMesh.RecalculateNormals();
-            geoshapeMesh.RecalculateBounds();
-        }
-
-        /// <summary>
-        /// Sets the size of this mark using a specified value in a rectangular fashion.
+        /// Sets the size of this mark using either the geometric values provided as part of the polygon, or a specified value in a rectangular fashion.
+        ///
+        /// If value is either "longitude" or "latitude", will do the former
         /// </summary>
         private void SetSize(string value, int dim)
         {
             if (geoPositions == null)
                 InitialiseGeoshapeMesh();
 
-            float size = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-            float halfSize = size / 2f;
-
-            if (dim == 0)
-            {
-                // Split the different polygons into two
-                int vertexIdx = 0;
-                foreach (List<Vector2> polygonGeoPositions in geoPositions)
-                {
-                    int polygonPositionCount = polygonGeoPositions.Count;
-                    int startRange = 0;
-                    int endRange = Mathf.FloorToInt(polygonPositionCount * 0.5f);
-
-                    for (int i = 0; i < polygonPositionCount; i++)
-                    {
-                        int v1 = vertexIdx + i;
-                        int v2 = v1 + polygonPositionCount;
-                        int v3 = v2 + polygonPositionCount;
-                        int v4 = v3 + polygonPositionCount;
-
-                        Vector3 vertexFront1 = vertices[v1];
-                        Vector3 vertexBack1 = vertices[v2];
-                        Vector3 vertexFront2 = vertices[v3];
-                        Vector3 vertexBack2 = vertices[v4];
-
-                        if (startRange < i && i < endRange)
-                        {
-                            vertexFront1[dim] = halfSize;
-                            vertexBack1[dim] = halfSize;
-                            vertexFront2[dim] = halfSize;
-                            vertexBack2[dim] = halfSize;
-                        }
-                        else
-                        {
-                            vertexFront1[dim] = -halfSize;
-                            vertexBack1[dim] = -halfSize;
-                            vertexFront2[dim] = -halfSize;
-                            vertexBack2[dim] = -halfSize;
-                        }
-
-                        vertices[v1] = vertexFront1;
-                        vertices[v2] = vertexBack1;
-                        vertices[v3] = vertexFront2;
-                        vertices[v4] = vertexBack2;
-                    }
-
-                    vertexIdx += (polygonPositionCount * 4);
-                }
-            }
-            else if (dim == 1)
-            {
-                // Split the different polygons into two
-                int vertexIdx = 0;
-                foreach (List<Vector2> polygonGeoPositions in geoPositions)
-                {
-                    int polygonPositionCount = polygonGeoPositions.Count;
-                    int startRange = Mathf.FloorToInt(polygonPositionCount * 0.25f);
-                    int endRange = Mathf.FloorToInt(polygonPositionCount * 0.75f);
-
-                    for (int i = 0; i < polygonPositionCount; i++)
-                    {
-                        int v1 = vertexIdx + i;
-                        int v2 = v1 + polygonPositionCount;
-                        int v3 = v2 + polygonPositionCount;
-                        int v4 = v3 + polygonPositionCount;
-
-                        Vector3 vertexFront1 = vertices[v1];
-                        Vector3 vertexBack1 = vertices[v2];
-                        Vector3 vertexFront2 = vertices[v3];
-                        Vector3 vertexBack2 = vertices[v4];
-
-                        if (startRange < i && i < endRange)
-                        {
-                            vertexFront1[dim] = -halfSize;
-                            vertexBack1[dim] = -halfSize;
-                            vertexFront2[dim] = -halfSize;
-                            vertexBack2[dim] = -halfSize;
-                        }
-                        else
-                        {
-                            vertexFront1[dim] = halfSize;
-                            vertexBack1[dim] = halfSize;
-                            vertexFront2[dim] = halfSize;
-                            vertexBack2[dim] = halfSize;
-                        }
-
-                        vertices[v1] = vertexFront1;
-                        vertices[v2] = vertexBack1;
-                        vertices[v3] = vertexFront2;
-                        vertices[v4] = vertexBack2;
-                    }
-
-                    vertexIdx += (polygonPositionCount * 4);
-                }
-            }
-            else if (dim == 2)
-            {
-                int vertexIdx = 0;
-                foreach (List<Vector2> polygonGeoPositions in geoPositions)
-                {
-                    int polygonPositionCount = polygonGeoPositions.Count;
-
-                    for (int i = 0; i < polygonPositionCount; i++)
-                    {
-                        int v1 = vertexIdx + i;
-                        int v2 = v1 + polygonPositionCount;
-                        int v3 = v2 + polygonPositionCount;
-                        int v4 = v3 + polygonPositionCount;
-
-                        Vector3 vertexFront1 = vertices[v1];
-                        Vector3 vertexBack1 = vertices[v2];
-                        Vector3 vertexFront2 = vertices[v3];
-                        Vector3 vertexBack2 = vertices[v4];
-
-                        vertexFront1[dim] = halfSize;
-                        vertexBack1[dim] = -halfSize;
-                        vertexFront2[dim] = halfSize;
-                        vertexBack2[dim] = -halfSize;
-
-                        vertices[v1] = vertexFront1;
-                        vertices[v2] = vertexBack1;
-                        vertices[v3] = vertexFront2;
-                        vertices[v4] = vertexBack2;
-                    }
-
-                    vertexIdx += (polygonPositionCount * 4);
-                }
-            }
+            CalculateSizeVertices(value, dim, ref vertices);
 
             geoshapeMesh.SetVertices(vertices);
             geoshapeMesh.RecalculateNormals();
             geoshapeMesh.RecalculateBounds();
         }
+
+        private void CalculateSizeVertices(string value, int dim, ref List<Vector3> newVertices)
+        {
+            // If the value is either longitude or latitude, calculate the vertices based on the longitude/latitude channels
+            if (value == "longitude" || value == "latitude")
+            {
+                if (value == "longitude")
+                {
+                    float longitudeOffset = float.Parse(longitudeChannelEncoding.scale.ApplyScale(centre.Longitude.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+
+                    int vertexIdx = 0;
+                    foreach (List<Vector2> polygonGeoPositions in geoPositions)
+                    {
+                        int polygonPositionCount = polygonGeoPositions.Count;
+
+                        for (int i = 0; i < polygonPositionCount; i++)
+                        {
+                            int v1 = vertexIdx + i;
+                            int v2 = v1 + polygonPositionCount;
+                            int v3 = v2 + polygonPositionCount;
+                            int v4 = v3 + polygonPositionCount;
+
+                            Vector3 vertexFront1 = newVertices[v1];
+                            Vector3 vertexBack1 = newVertices[v2];
+                            Vector3 vertexFront2 = newVertices[v3];
+                            Vector3 vertexBack2 = newVertices[v4];
+
+                            float longitudeValue = float.Parse(longitudeChannelEncoding.scale.ApplyScale(polygonGeoPositions[i].x.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+                            longitudeValue -= longitudeOffset;
+
+                            vertexFront1[dim] = longitudeValue;
+                            vertexBack1[dim] = longitudeValue;
+                            vertexFront2[dim] = longitudeValue;
+                            vertexBack2[dim] = longitudeValue;
+
+                            newVertices[v1] = vertexFront1;
+                            newVertices[v2] = vertexBack1;
+                            newVertices[v3] = vertexFront2;
+                            newVertices[v4] = vertexBack2;
+                        }
+
+                        vertexIdx += (polygonPositionCount * 4);
+                    }
+
+                    // Vector3 localPos = gameObject.transform.localPosition;
+                    // localPos[dim] = longitudeOffset;
+                    // gameObject.transform.localPosition = localPos;
+                }
+                else if (value == "latitude")
+                {
+                    float latitudeOffset = float.Parse(latitudeChannelEncoding.scale.ApplyScale(centre.Latitude.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+
+                    int vertexIdx = 0;
+                    foreach (List<Vector2> polygonGeoPositions in geoPositions)
+                    {
+                        int polygonPositionCount = polygonGeoPositions.Count;
+
+                        for (int i = 0; i < polygonPositionCount; i++)
+                        {
+                            int v1 = vertexIdx + i;
+                            int v2 = v1 + polygonPositionCount;
+                            int v3 = v2 + polygonPositionCount;
+                            int v4 = v3 + polygonPositionCount;
+
+                            Vector3 vertexFront1 = newVertices[v1];
+                            Vector3 vertexBack1 = newVertices[v2];
+                            Vector3 vertexFront2 = newVertices[v3];
+                            Vector3 vertexBack2 = newVertices[v4];
+
+                            float latitudeValue = float.Parse(latitudeChannelEncoding.scale.ApplyScale(polygonGeoPositions[i].y.ToString())) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+                            latitudeValue -= latitudeOffset;
+
+                            vertexFront1[dim] = latitudeValue;
+                            vertexBack1[dim] = latitudeValue;
+                            vertexFront2[dim] = latitudeValue;
+                            vertexBack2[dim] = latitudeValue;
+
+                            newVertices[v1] = vertexFront1;
+                            newVertices[v2] = vertexBack1;
+                            newVertices[v3] = vertexFront2;
+                            newVertices[v4] = vertexBack2;
+                        }
+
+                        vertexIdx += (polygonPositionCount * 4);
+                    }
+                }
+            }
+            else
+            {
+                // Otherwise, calculate the size based on the float given in the value parameter
+                float size = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+                float halfSize = size / 2f;
+
+                if (dim == 0)
+                {
+                    // Split the different polygons into two
+                    int vertexIdx = 0;
+                    foreach (List<Vector2> polygonGeoPositions in geoPositions)
+                    {
+                        int polygonPositionCount = polygonGeoPositions.Count;
+                        int startRange = 0;
+                        int endRange = Mathf.FloorToInt(polygonPositionCount * 0.5f);
+
+                        for (int i = 0; i < polygonPositionCount; i++)
+                        {
+                            int v1 = vertexIdx + i;
+                            int v2 = v1 + polygonPositionCount;
+                            int v3 = v2 + polygonPositionCount;
+                            int v4 = v3 + polygonPositionCount;
+
+                            Vector3 vertexFront1 = newVertices[v1];
+                            Vector3 vertexBack1 = newVertices[v2];
+                            Vector3 vertexFront2 = newVertices[v3];
+                            Vector3 vertexBack2 = newVertices[v4];
+
+                            if (startRange < i && i < endRange)
+                            {
+                                vertexFront1[dim] = halfSize;
+                                vertexBack1[dim] = halfSize;
+                                vertexFront2[dim] = halfSize;
+                                vertexBack2[dim] = halfSize;
+                            }
+                            else
+                            {
+                                vertexFront1[dim] = -halfSize;
+                                vertexBack1[dim] = -halfSize;
+                                vertexFront2[dim] = -halfSize;
+                                vertexBack2[dim] = -halfSize;
+                            }
+
+                            newVertices[v1] = vertexFront1;
+                            newVertices[v2] = vertexBack1;
+                            newVertices[v3] = vertexFront2;
+                            newVertices[v4] = vertexBack2;
+                        }
+
+                        vertexIdx += (polygonPositionCount * 4);
+                    }
+                }
+                else if (dim == 1)
+                {
+                    // Split the different polygons into two
+                    int vertexIdx = 0;
+                    foreach (List<Vector2> polygonGeoPositions in geoPositions)
+                    {
+                        int polygonPositionCount = polygonGeoPositions.Count;
+                        int startRange = Mathf.FloorToInt(polygonPositionCount * 0.25f);
+                        int endRange = Mathf.FloorToInt(polygonPositionCount * 0.75f);
+
+                        for (int i = 0; i < polygonPositionCount; i++)
+                        {
+                            int v1 = vertexIdx + i;
+                            int v2 = v1 + polygonPositionCount;
+                            int v3 = v2 + polygonPositionCount;
+                            int v4 = v3 + polygonPositionCount;
+
+                            Vector3 vertexFront1 = newVertices[v1];
+                            Vector3 vertexBack1 = newVertices[v2];
+                            Vector3 vertexFront2 = newVertices[v3];
+                            Vector3 vertexBack2 = newVertices[v4];
+
+                            if (startRange < i && i < endRange)
+                            {
+                                vertexFront1[dim] = -halfSize;
+                                vertexBack1[dim] = -halfSize;
+                                vertexFront2[dim] = -halfSize;
+                                vertexBack2[dim] = -halfSize;
+                            }
+                            else
+                            {
+                                vertexFront1[dim] = halfSize;
+                                vertexBack1[dim] = halfSize;
+                                vertexFront2[dim] = halfSize;
+                                vertexBack2[dim] = halfSize;
+                            }
+
+                            newVertices[v1] = vertexFront1;
+                            newVertices[v2] = vertexBack1;
+                            newVertices[v3] = vertexFront2;
+                            newVertices[v4] = vertexBack2;
+                        }
+
+                        vertexIdx += (polygonPositionCount * 4);
+                    }
+                }
+                else if (dim == 2)
+                {
+                    int vertexIdx = 0;
+                    foreach (List<Vector2> polygonGeoPositions in geoPositions)
+                    {
+                        int polygonPositionCount = polygonGeoPositions.Count;
+
+                        for (int i = 0; i < polygonPositionCount; i++)
+                        {
+                            int v1 = vertexIdx + i;
+                            int v2 = v1 + polygonPositionCount;
+                            int v3 = v2 + polygonPositionCount;
+                            int v4 = v3 + polygonPositionCount;
+
+                            Vector3 vertexFront1 = newVertices[v1];
+                            Vector3 vertexBack1 = newVertices[v2];
+                            Vector3 vertexFront2 = newVertices[v3];
+                            Vector3 vertexBack2 = newVertices[v4];
+
+                            vertexFront1[dim] = halfSize;
+                            vertexBack1[dim] = -halfSize;
+                            vertexFront2[dim] = halfSize;
+                            vertexBack2[dim] = -halfSize;
+
+                            newVertices[v1] = vertexFront1;
+                            newVertices[v2] = vertexBack1;
+                            newVertices[v3] = vertexFront2;
+                            newVertices[v4] = vertexBack2;
+                        }
+
+                        vertexIdx += (polygonPositionCount * 4);
+                    }
+                }
+            }
+        }
+
+        #endregion ChannelValueFunctions
     }
 }

@@ -89,7 +89,7 @@ namespace DxR.VisMorphs
 
             foreach (Morphable morphable in GameObject.FindObjectsOfType<Morphable>())
             {
-                morphable.Reset(checkForMorphs: true);
+                morphable.Reset(false);
             }
         }
 
@@ -402,7 +402,6 @@ namespace DxR.VisMorphs
             {
                 case "pinch":
                     return Observable.EveryUpdate()
-                        .Where(_ => HandJointUtils.FindHand(handedness) != null)
                         .Select(_ =>
                         {
                             if (HandJointUtils.FindHand(handedness) != null)

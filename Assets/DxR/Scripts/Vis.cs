@@ -67,20 +67,24 @@ namespace DxR
         private bool isReady = false;
         public bool IsReady { get { return isReady; } }
 
-        private int frameCount = 0;
-        public int FrameCount { get { return frameCount; } set { frameCount = value; } }
-
         private BoxCollider boxCollider;
         private Rigidbody rigidbody;
 
-        public bool IsMorphing = false;
         [Serializable]
         public class VisUpdatedEvent : UnityEvent<Vis, JSONNode> { }
         [HideInInspector]
         public VisUpdatedEvent VisUpdated;
-        private JSONNode initialMorphSpecs;
-        private JSONNode finalMorphSpecs;
-        private CompositeDisposable morphSubscriptions;
+
+        /// <summary>
+        /// A dictionary containing the start and end states involved in a transition
+        ///
+        /// Key: The name of the transition being applied
+        /// Value:  Item1: A list of 2-tuples, first element is the initial channel encodings, second element is the final channel encodings
+        ///         Item2: The initial vis specs of the transition
+        ///         Item3: The final vis specs of the transition
+        /// </summary>
+        Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, JSONNode, JSONNode>> activeTransitions = new Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, JSONNode, JSONNode>>();
+
 
         private void Awake()
         {
@@ -132,11 +136,6 @@ namespace DxR
             isReady = true;
         }
 
-        private void Update()
-        {
-            FrameCount++;
-        }
-
         public JSONNode GetVisSpecs()
         {
             return visSpecs;
@@ -177,7 +176,7 @@ namespace DxR
 
             UpdateMarkPrefab();
 
-            InferVisSpecs();
+            InferVisSpecs(visSpecs, out visSpecsInferred);
 
             ConstructVis(visSpecsInferred);
 
@@ -189,7 +188,7 @@ namespace DxR
 
         private void ConstructVis(JSONNode specs)
         {
-            CreateChannelEncodingObjects(specs);
+            CreateChannelEncodingObjects(specs, ref channelEncodings);
 
             // New: Updates existing mark instances, or creates new ones if they do not yet exist
             UpdateMarkInstances();
@@ -207,55 +206,157 @@ namespace DxR
 
         #region Morph specific functions
 
-        /// <summary>
-        /// Update the visualisation based on the given newVisSpecs object and applies a morph (i.e., animated transition)
-        /// using the given tweeningObservable stream. This stream should return a value between 0 and 1.
-        /// </summary>
-        public void ApplyVisMorph(JSONNode newInitialVisSpecs, JSONNode newFinalVisSpecs, IObservable<float> tweeningObservable, bool isReversed = false)
+        public bool ApplyTransition(string transitionName, JSONNode newInitialVisSpecs, JSONNode newFinalVisSpecs, IObservable<float> tweeningObservable, bool isReversed)
         {
-            // TODO: For now, if there is any morph currently being applied, we ignore all further morph requests
-            if (IsMorphing)
-                return;
-
-            IsMorphing = true;
-            initialMorphSpecs = newInitialVisSpecs;
-            finalMorphSpecs = newFinalVisSpecs;
-            visSpecs = !isReversed ? newFinalVisSpecs : newInitialVisSpecs;
-
-            // Required parts of DxR (part of UpdateVis)
-            UpdateVisConfig();
-            UpdateVisData();
-            UpdateMarkPrefab();
-            InferVisSpecs();
-
-            // Required parts of DxR (part of ConstructVis)
-            CreateChannelEncodingObjects(visSpecsInferred);
-            UpdateMarkInstances(false);  // NEW: Reuses existing mark instances rather than creating new ones from scratch each time
-            ApplyMorphingChannelEncodings(tweeningObservable, isReversed);
-            ConstructInteractions(visSpecsInferred);
-            ConstructAxes(visSpecsInferred);
-            ConstructLegends(visSpecsInferred);
-        }
-
-        public void StopVisMorph(bool goToEnd)
-        {
-            foreach (GameObject mark in markInstances)
+            if (activeTransitions.Keys.Contains(transitionName))
             {
-                mark.GetComponent<Mark>().DisableMorphing();
+                throw new Exception(string.Format("Vis Morphs: The transition {0} is currently active, therefore cannot be applied again.", transitionName));
             }
 
-            if (goToEnd)
+            // We need to determine the channel encodings which have changed between the initial and final states. These will be used to apply the transition
+            // only to these specific channel encodings, (hopefully) allowing for simultaneous transitions to be applied
+            List<ChannelEncoding> initialChannelEncodings = new List<ChannelEncoding>();
+            JSONNode newInferredInitialVisSpecs;
+            InferVisSpecs(newInitialVisSpecs, out newInferredInitialVisSpecs);
+            CreateChannelEncodingObjects(newInferredInitialVisSpecs, ref initialChannelEncodings);
+
+            List<ChannelEncoding> finalChannelEncodings = new List<ChannelEncoding>();
+            JSONNode newInferredFinalVisSpecs;
+            InferVisSpecs(newFinalVisSpecs, out newInferredFinalVisSpecs);
+            CreateChannelEncodingObjects(newInferredFinalVisSpecs, ref finalChannelEncodings);
+
+            // For each of the two lists, keep only the channel encodings which have changed between them
+            // We also keep all relevant spatial channels if any one of them has changed (e.g., keep x in xoffset is changed)
+            ChannelEncoding.FilterUnchangedChannelEncodings(ref initialChannelEncodings, ref finalChannelEncodings, true);
+
+            // Now make a list containing pairwise ChannelEncodings in tuples, using nulls wherever a channel encoding exists in one but not the other
+            List<Tuple<ChannelEncoding, ChannelEncoding>> transitionChannelEncodings = new List<Tuple<ChannelEncoding, ChannelEncoding>>();
+            while (initialChannelEncodings.Count > 0)
             {
-                UpdateVisSpecsFromJSONNode(finalMorphSpecs, false);
+                ChannelEncoding ce1 = initialChannelEncodings[0];
+
+                bool found = false;
+                for (int i = 0; i < finalChannelEncodings.Count; i++)
+                {
+                    ChannelEncoding ce2 = finalChannelEncodings[i];
+                    if (ce1.channel == ce2.channel)
+                    {
+                        transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding>(ce1, ce2));
+                        finalChannelEncodings.RemoveAt(i);
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found)
+                    transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding>(ce1, null));
+
+                initialChannelEncodings.RemoveAt(0);
+            }
+
+            while (finalChannelEncodings.Count > 0)
+            {
+                ChannelEncoding ce2 = finalChannelEncodings[0];
+                transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding>(null, ce2));
+                finalChannelEncodings.RemoveAt(0);
+            }
+
+            // Check to see if this transition can be applied. This is only the case when there are no other active transitions which
+            // are affecting the same channel encodings as this new one
+            bool isNewTransitionAllowed = true;
+            List<string> changedChannelsNames = transitionChannelEncodings.Where(tuple => tuple.Item1 != null).Select(tuple => tuple.Item1.channel)
+                                                .Union(transitionChannelEncodings.Where(tuple => tuple.Item2 != null).Select(tuple => tuple.Item2.channel))
+                                                .ToList();
+
+            foreach (var activeTransition in activeTransitions.Values)
+            {
+                // Check if channel names overlap in the either of the two states
+                bool initialStateOverlap = activeTransition.Item1.Where(tuple => tuple.Item1 != null).Select(tuple => tuple.Item1.channel).Any(ce1 => changedChannelsNames.Contains(ce1));
+                bool finalStateOverlap = activeTransition.Item1.Where(tuple => tuple.Item2 != null).Select(tuple => tuple.Item2.channel).Any(ce2 => changedChannelsNames.Contains(ce2));
+
+                if (initialStateOverlap || finalStateOverlap)
+                {
+                    isNewTransitionAllowed = false;
+                    break;
+                }
+            }
+
+            if (isNewTransitionAllowed)
+            {
+                activeTransitions.Add(transitionName, new Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, JSONNode, JSONNode>(transitionChannelEncodings, newInitialVisSpecs, newFinalVisSpecs));
+                ApplyTransitionChannelEncodings(transitionName, transitionChannelEncodings, tweeningObservable, isReversed);
+                return true;
             }
             else
             {
-                UpdateVisSpecsFromJSONNode(initialMorphSpecs, false);
+                Debug.LogWarning("Vis Morphs: A transition has failed to been applied as it affects a channel encoding which is currently undergoing a transition.");
+                return false;
+            }
+        }
+
+        private void ApplyTransitionChannelEncodings(string transitionName, List<Tuple<ChannelEncoding, ChannelEncoding>> transitionChannelEncodings, IObservable<float> tweeningObservable, bool isReversed)
+        {
+            // TODO: We need to do something about the rotation changing, not sure how to fix it
+
+            for (int i = 0; i < markInstances.Count; i++)
+            {
+                markInstances[i].GetComponent<Mark>().InitialiseTransition(transitionName, transitionChannelEncodings, tweeningObservable, i);
+            }
+        }
+
+        public void StopTransition(string transitionName, bool goToEnd = true, bool commitVisSpecChanges = true)
+        {
+            if (!activeTransitions.ContainsKey(transitionName))
+            {
+                throw new Exception(string.Format("Vis Morphs: The transition {0} is not active, and therefore cannot be stopped.", transitionName));
             }
 
-            initialMorphSpecs = null;
-            finalMorphSpecs = null;
-            IsMorphing = false;
+            for (int i = 0; i < markInstances.Count; i++)
+            {
+                markInstances[i].GetComponent<Mark>().StopTransition(transitionName, i, goToEnd);
+            }
+
+            // If true, we update the vis specs to essentially "keep" the changes caused by the transition
+            // This can be set to false in order to have the transition basically be ephemeral
+            if (commitVisSpecChanges)
+            {
+                List<Tuple<ChannelEncoding, ChannelEncoding>> changedChannelEncodings = activeTransitions[transitionName].Item1;
+
+                // Update the vis specs
+                // For each channel encoding change, change the vis specs based on the one stored in the transition tuple
+                JSONNode stateVisSpecs = (goToEnd) ? activeTransitions[transitionName].Item3 : activeTransitions[transitionName].Item2;
+
+                foreach (var tuple in changedChannelEncodings)
+                {
+                    string channelName = (tuple.Item1 != null) ? tuple.Item1.channel : tuple.Item2.channel;
+                    ChannelEncoding ceToCheck = goToEnd ? tuple.Item2 : tuple.Item1;
+
+                    // If the target state has a CE (i.e., it exists), copy it from the stateVisSpecs
+                    if (ceToCheck != null)
+                    {
+                        visSpecs["encoding"][channelName] = stateVisSpecs["encoding"][channelName];
+                    }
+                    // Otherwise, it no longer exists and thus we remove it
+                    else
+                    {
+                        visSpecs["encoding"].Remove(channelName);
+                    }
+                }
+
+                // Make sure that the offsetpcts are at the very end to prevent issues where they get misordered
+                var xoffsetpct = visSpecs["encoding"]["xoffsetpct"];
+                var yoffsetpct = visSpecs["encoding"]["yoffsetpct"];
+                var zoffsetpct = visSpecs["encoding"]["zoffsetpct"];
+                if (xoffsetpct != null) visSpecs["encoding"].Remove("xoffsetpct");
+                if (yoffsetpct != null) visSpecs["encoding"].Remove("yoffsetpct");
+                if (zoffsetpct != null) visSpecs["encoding"].Remove("zoffsetpct");
+                visSpecs = visSpecs.Clone();
+                if (xoffsetpct != null) visSpecs["encoding"].Add("xoffsetpct", xoffsetpct);
+                if (yoffsetpct != null) visSpecs["encoding"].Add("yoffsetpct", yoffsetpct);
+                if (zoffsetpct != null) visSpecs["encoding"].Add("zoffsetpct", zoffsetpct);
+            }
+
+            activeTransitions.Remove(transitionName);
         }
 
         /// <summary>
@@ -329,75 +430,7 @@ namespace DxR
             }
         }
 
-        private void ApplyMorphingChannelEncodings(IObservable<float> tweeningObservable, bool isReversed)
-        {
-            List<Mark> marks = markInstances.Select(go => go.GetComponent<Mark>()).ToList();
-
-            if (!isReversed)
-            {
-                foreach (Mark mark in marks)
-                {
-                // Before any channel encodings are applied, we make a call to the mark to store its starting geometric values
-                    mark.StoreInitialMarkValues();
-                // We then reset its geometric values to default in order to handle cases where channel encodings are removed
-                    mark.ResetToDefault();
-                }
-            }
-            // If the morph is being applied from the reverse direction, then what we consider the initial and final is flipped
-            else
-            {
-                foreach (Mark mark in marks)
-                {
-                    mark.StoreFinalMarkValues();
-                    mark.ResetToDefault();
-                }
-            }
-
-            // Apply channel encoding changes
-            bool isDirectionChanged = false;
-            foreach (ChannelEncoding ch in channelEncodings)
-            {
-                ApplyChannelEncoding(ch, ref markInstances);
-
-                if(ch.channel == "xdirection" || ch.channel == "ydirection" || ch.channel == "zdirection")
-                {
-                    isDirectionChanged = true;
-                }
-            }
-
-            if (isDirectionChanged)
-            {
-                foreach (Mark mark in marks)
-                {
-                    mark.SetRotation();
-                }
-            }
-
-            // Now that all mark values have been set, store the final mark values and reload the initial state values
-            // We will interpolate between the inital and final stored mark values
-            if (!isReversed)
-            {
-                foreach (Mark mark in marks)
-                {
-                    mark.StoreFinalMarkValues();
-                    mark.LoadInitialMarkValues();
-                    // Lastly, we have the marks subscribe to the observable to interpolate between the initial and final mark values
-                    mark.InitialiseMorphing(tweeningObservable);
-                }
-            }
-            // If the morph is being applied from the reverse direction, then what we consider the initial and final is flipped
-            else
-            {
-                foreach (Mark mark in marks)
-                {
-                    mark.StoreInitialMarkValues();
-                    mark.LoadFinalMarkValues();
-                    mark.InitialiseMorphing(tweeningObservable);
-                }
-            }
-        }
-
-        #endregion // Morph specific functions
+        #endregion Morph specific functions
 
         private void ConstructInteractions(JSONNode specs)
         {
@@ -598,52 +631,7 @@ namespace DxR
                     throw new Exception("Mark component not present in mark prefab.");
                 }
 
-                if (channelEncoding.value != DxR.Vis.UNDEFINED)
-                {
-                    markComponent.SetChannelValue(channelEncoding.channel, channelEncoding.value);
-                }
-                else
-                {
-                    // Special condition for offset encodings with linked offsets (for stacked bar charts, etc.)
-                    if (channelEncoding.IsOffset())
-                    {
-                        OffsetChannelEncoding offsetChannelEncoding = (OffsetChannelEncoding)channelEncoding;
-                        if (offsetChannelEncoding.values.Count > 0)
-                        {
-                            string channelValue = offsetChannelEncoding.values[i];
-                            if (offsetChannelEncoding.scale != null)
-                            {
-                                channelValue = offsetChannelEncoding.scale.ApplyScale(offsetChannelEncoding.values[i]);
-                            }
-                            markComponent.SetChannelValue(offsetChannelEncoding.channel, channelValue);
-                        }
-                    }
-                    // Special condition for facet wrap
-                    else if (channelEncoding.IsFacetWrap())
-                    {
-                        FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncoding;
-                        if (facetWrapChannelEncoding.xTranslation.Count > 0)
-                        {
-                            markComponent.SetChannelValue("xoffset", facetWrapChannelEncoding.xTranslation[i]);
-                            markComponent.SetChannelValue("yoffset", facetWrapChannelEncoding.yTranslation[i]);
-                            markComponent.SetChannelValue("zoffset", facetWrapChannelEncoding.zTranslation[i]);
-                        }
-                    }
-                    // Special condition for channel encodings with spatial data types
-                    else if (channelEncoding.fieldDataType.ToLower() == "spatial" &&
-                        (channelEncoding.field.ToLower() == "longitude" ||
-                         channelEncoding.field.ToLower() == "latitude"))
-                    {
-                        // The value that this mark receives will either be longitude or latitude
-                        ((MarkGeoshape)markComponent).SetChannelEncoding(channelEncoding);
-                        markComponent.SetChannelValue(channelEncoding.channel, channelEncoding.field.ToLower());
-                    }
-                    else
-                    {
-                        string channelValue = channelEncoding.scale.ApplyScale(markComponent.datum[channelEncoding.field]);
-                        markComponent.SetChannelValue(channelEncoding.channel, channelValue);
-                    }
-                }
+                markComponent.ApplyChannelEncoding(channelEncoding, i);
             }
         }
 
@@ -691,9 +679,9 @@ namespace DxR
                         parentTransform.rotation, parentTransform);
         }
 
-        private void CreateChannelEncodingObjects(JSONNode specs)
+        private void CreateChannelEncodingObjects(JSONNode specs, ref List<ChannelEncoding> newChannelEncodings)
         {
-            channelEncodings = new List<ChannelEncoding>();
+            newChannelEncodings = new List<ChannelEncoding>();
 
             // Go through each channel and create ChannelEncoding for each one
             foreach (KeyValuePair<string, JSONNode> kvp in specs["encoding"].AsObject)
@@ -863,27 +851,31 @@ namespace DxR
                     CreateScaleObject(scaleSpecs, ref channelEncoding.scale);
                 }
 
-                channelEncodings.Add(channelEncoding);
+                newChannelEncodings.Add(channelEncoding);
             }
 
             // Now that we have created all of the channel encodings, we go back and add additional information to special ones
             // For now we check offsets
-            PopulateOffsetChannelEncodings();
+            PopulateOffsetChannelEncodings(ref newChannelEncodings);
 
             // Then we check translations applied by faceting
-            PopulateFacetEncodings();
+            PopulateFacetEncodings(ref newChannelEncodings);
         }
 
-        private void PopulateOffsetChannelEncodings()
+        private void PopulateOffsetChannelEncodings(ref List<ChannelEncoding> newChannelEncodings)
         {
-            foreach (ChannelEncoding channelEncoding in channelEncodings)
+            foreach (ChannelEncoding channelEncoding in newChannelEncodings)
             {
                 if (channelEncoding.IsOffset())
                 {
                     OffsetChannelEncoding offsetCE = (OffsetChannelEncoding)channelEncoding;
 
+                    // Skip the offset if it doesn't specify a linked channel
+                    if (offsetCE.linkedChannel == null)
+                        return;
+
                     // Get the ChannelEncoding of the categorical channel that this offset relates to (accessed via "channel" property)
-                    ChannelEncoding categoricalCE = channelEncodings.Single(ch => ch.channel == offsetCE.linkedChannel);
+                    ChannelEncoding categoricalCE = newChannelEncodings.Single(ch => ch.channel == offsetCE.linkedChannel);
 
                     // Check to make sure that it is actually categorical
                     if (categoricalCE.fieldDataType != "ordinal" && categoricalCE.fieldDataType != "nominal")
@@ -895,7 +887,7 @@ namespace DxR
                     List<ChannelEncoding> spatialCEs = new List<ChannelEncoding>();
                     foreach (string dimension in new string[] { "x", "y,", "z" })
                     {
-                        ChannelEncoding ce = channelEncodings.SingleOrDefault(x => x.channel == dimension);
+                        ChannelEncoding ce = newChannelEncodings.SingleOrDefault(x => x.channel == dimension);
                         if (ce != null)
                         {
                             if (ce.fieldDataType == "ordinal" || ce.fieldDataType == "nominal")
@@ -909,7 +901,7 @@ namespace DxR
                     List<string> spatialGroupFieldNames = spatialCEs.Select(x => x.field).ToList();
 
                     // If there is a facet wrap also included, we use its field as another grouping
-                    ChannelEncoding facetWrapCE = channelEncodings.SingleOrDefault(ch => ch.channel == "facetwrap");
+                    ChannelEncoding facetWrapCE = newChannelEncodings.SingleOrDefault(ch => ch.channel == "facetwrap");
                     if (facetWrapCE != null)
                     {
                         spatialGroupFieldNames.Add(facetWrapCE.field);
@@ -918,7 +910,7 @@ namespace DxR
                     // Get the ChannelEncoding of the size dimension associated with the offsetting CE direction
                     string spatialChannelName = channelEncoding.channel[0].ToString();
                     string sizeChannelName = (spatialChannelName == "x" ? "width" : (spatialChannelName == "y" ? "height" : "depth"));
-                    ChannelEncoding offsettingSizeCE = channelEncodings.Single(ch => ch.channel == sizeChannelName);
+                    ChannelEncoding offsettingSizeCE = newChannelEncodings.Single(ch => ch.channel == sizeChannelName);
 
                     // Get our data values
                     List<Dictionary<string, string>> dataValues = data.values;
@@ -997,9 +989,9 @@ namespace DxR
             }
         }
 
-        private void PopulateFacetEncodings()
+        private void PopulateFacetEncodings(ref List<ChannelEncoding> newChannelEncodings)
         {
-            var ce = channelEncodings.SingleOrDefault(ch => ch.channel == "facetwrap");
+            var ce = newChannelEncodings.SingleOrDefault(ch => ch.channel == "facetwrap");
             if (ce == null)
                 return;
 
@@ -1024,7 +1016,7 @@ namespace DxR
             List<string> xTranslationValues = new List<string>();
             List<string> yTranslationValues = new List<string>();
             List<string> zTranslationValues = new List<string>();
-            List<List<string>> translationValues = new List<List<string>>() { xTranslationValues, yTranslationValues, zTranslationValues };
+            List<Vector3> translationValues = new List<Vector3>();
 
             // Get the spacing values between each small multiple
             float deltaFirstDir = facetWrapCE.spacing[0];
@@ -1033,10 +1025,6 @@ namespace DxR
             // Get the indices (0, 1, 2) of the spatial directions which are spacing towards
             int firstDir = facetWrapCE.directions[0];
             int secondDir = facetWrapCE.directions[1];
-            List<int> dimensions = new List<int>() { 0, 1, 2 };
-            dimensions.Remove(firstDir);
-            dimensions.Remove(secondDir);
-            int unusedDir = dimensions[0];
 
             for (int i = 0; i < facetingValues.Count; i++)
             {
@@ -1046,15 +1034,21 @@ namespace DxR
                 int idxSecondDir = Mathf.FloorToInt(facetIdx / (float)facetSize);
 
                 // Calculate and store translation values based on the calculated index on the grid and the delta spacing between them
-                translationValues[firstDir].Add((deltaFirstDir * idxFirstDir).ToString());
-                translationValues[secondDir].Add((deltaSecondDir * idxSecondDir).ToString());
-                translationValues[unusedDir].Add("0");
+                Vector3 translation = Vector3.zero;
+                translation[firstDir] = deltaFirstDir * idxFirstDir;
+                translation[secondDir] = deltaSecondDir * idxSecondDir;
+
+                xTranslationValues.Add(translation.x.ToString());
+                yTranslationValues.Add(translation.y.ToString());
+                zTranslationValues.Add(translation.z.ToString());
+                translationValues.Add(translation);
             }
 
             // Store our data structure
-            facetWrapCE.xTranslation = translationValues[0];
-            facetWrapCE.yTranslation = translationValues[1];
-            facetWrapCE.zTranslation = translationValues[2];
+            facetWrapCE.xTranslation = xTranslationValues;
+            facetWrapCE.yTranslation = yTranslationValues;
+            facetWrapCE.zTranslation = zTranslationValues;
+            facetWrapCE.translation = translationValues;
             facetWrapCE.numFacets = facetOrder.Count;
         }
 
@@ -1093,11 +1087,11 @@ namespace DxR
             }
         }
 
-        private void InferVisSpecs()
+        private void InferVisSpecs(JSONNode newVisSpecs, out JSONNode newVisSpecsInferred)
         {
             if (markPrefab != null)
             {
-                markPrefab.GetComponent<Mark>().Infer(data, visSpecs, out visSpecsInferred, visSpecsURL);
+                markPrefab.GetComponent<Mark>().Infer(data, newVisSpecs, out newVisSpecsInferred, visSpecsURL);
 
                 if(enableSpecsExpansion)
                 {

@@ -34,7 +34,8 @@
             "states": ["base", "coloured"],
             "triggers": ["mousedown"],
             "timing": {
-                "control": 1
+                "control": 1,
+                "elapsed": "end"
             },
             "interrupt": {
                 "control": "reset",
@@ -47,11 +48,12 @@
             "states": ["coloured", "base"],
             "triggers": ["mouseup"],
             "timing": {
-                "control": 1
+                "control": 1,
+                "elapsed": "end"
             },
             "interrupt": {
                 "control": "reset",
-                "value": "start"
+                "value": "end"
             },
             "bidirectional": false
         }

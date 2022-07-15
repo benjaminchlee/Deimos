@@ -94,73 +94,27 @@ namespace DxR
             return observable;
         }
 
-        // public static void LoadGeoJSON(string json)
-        // {
-        //     var featureCollection = JsonConvert.DeserializeObject<FeatureCollection>(json);
+        /// <summary>
+        /// From https://answers.unity.com/questions/1134997/string-to-vector3.html
+        /// </summary>
+        public static Vector3 StringToVector3(string sVector)
+        {
+            // Remove the parentheses
+            if (sVector.StartsWith ("(") && sVector.EndsWith (")")) {
+                sVector = sVector.Substring(1, sVector.Length-2);
+            }
 
-        //     foreach (var feature in featureCollection.Features)
-        //     {
-        //         switch (feature.Geometry.Type)
-        //         {
-        //             case GeoJSONObjectType.Polygon:
-        //                 {
-        //                     GameObject go = new GameObject();
-        //                     LineRenderer lr = go.AddComponent<LineRenderer>();
-        //                     List<Vector3> positions = new List<Vector3>();
+            // split the items
+            string[] sArray = sVector.Split(',');
 
-        //                     var polygon = feature.Geometry as Polygon;
-        //                     foreach (LineString lineString in polygon.Coordinates)
-        //                     {
-        //                         foreach (IPosition position in lineString.Coordinates)
-        //                         {
-        //                             positions.Add(new Vector3(((float)position.Longitude), ((float)position.Latitude), 0));
-        //                         }
-        //                     }
+            // store as a Vector3
+            Vector3 result = new Vector3(
+                float.Parse(sArray[0]),
+                float.Parse(sArray[1]),
+                float.Parse(sArray[2]));
 
-        //                     lr.material = new Material(Shader.Find("Standard"));
-        //                     lr.startWidth = 0.2f;
-        //                     lr.endWidth = 0.2f;
-        //                     lr.positionCount = positions.Count;
-        //                     lr.SetPositions(positions.ToArray());
-        //                     break;
-        //                 }
-
-        //             case GeoJSONObjectType.MultiPolygon:
-        //                 {
-        //                     MultiPolygon multiPolygon = feature.Geometry as MultiPolygon;
-        //                     foreach (Polygon polygon in multiPolygon.Coordinates)
-        //                     {
-        //                         GameObject go = new GameObject();
-        //                         LineRenderer lr = go.AddComponent<LineRenderer>();
-        //                         List<Vector3> positions = new List<Vector3>();
-
-        //                         foreach (LineString lineString in polygon.Coordinates)
-        //                         {
-        //                             foreach (IPosition position in lineString.Coordinates)
-        //                             {
-        //                                 positions.Add(new Vector3(((float)position.Longitude), ((float)position.Latitude), 0));
-        //                             }
-        //                         }
-
-        //                         lr.material = new Material(Shader.Find("Standard"));
-        //                         lr.material.color = Color.red;
-        //                         lr.startColor = Color.red;
-        //                         lr.endColor = Color.red;
-        //                         lr.startWidth = 0.2f;
-        //                         lr.endWidth = 0.2f;
-        //                         lr.positionCount = positions.Count;
-        //                         lr.SetPositions(positions.ToArray());
-        //                     }
-        //                     break;
-        //                 }
-        //         }
-
-        //         foreach (var kvp in feature.Properties)
-        //         {
-        //             Debug.Log(kvp.Key + " " + kvp.Value);
-        //         }
-        //     }
-        // }
+            return result;
+        }
     }
 
     public class Triangulator

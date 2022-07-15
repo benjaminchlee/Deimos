@@ -55,6 +55,9 @@
                 "yoffsetpct": {
                     "value": -0.5
                 },
+                "depth": {
+                    "value": 10
+                },
                 "zoffset": null,
                 "color": {
                     "type": "nominal"
@@ -133,8 +136,7 @@
             "states": ["stacked", "staged"],
             "triggers": ["pinching"],
             "timing": {
-                "control": "tweener1",
-                "easing": "inoutcubic"
+                "control": "tweener1"
             },
             "interrupt": {
                 "control": "reset",
@@ -147,8 +149,7 @@
             "states": ["staged", "side by side"],
             "triggers": ["pinching"],
             "timing": {
-                "control": "tweener2",
-                "easing": "inoutcubic"
+                "control": "tweener2"
             },
             "interrupt": {
                 "control": "reset",

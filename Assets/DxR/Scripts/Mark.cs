@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections;
 using System.Collections.Generic;
 using SimpleJSON;
@@ -26,13 +26,29 @@ namespace DxR
         Vector3 curDirection;
 
         protected Renderer myRenderer;
+        protected GeometricValues defaultGeometricValues;
 
-        private IObservable<float> tweeningObservable;
-        private MarkGeometricValues initialGeometricValues;
-        private MarkGeometricValues finalGeometricValues;
-        private CompositeDisposable morphingSubscriptions;
-        private MarkGeometricValues defaultGeometricValues;
-        protected bool isMorphing = false;
+        protected struct GeometricValues
+        {
+            public Vector3 localPosition;
+            public Quaternion localRotation;
+            public Vector3 localScale;
+            public Color colour;
+        }
+
+        /// <summary>
+        /// Key: Name of the transition being applied
+        /// Value:
+        ///     Item1: List of 2-tuples whereby the first item is the start channel encoding, second item is the end channel encoding
+        ///     Item2: A composite disposable which stores subscriptions for the tweening
+        /// </summary>
+        protected Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, CompositeDisposable>> activeTransitions = new Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, CompositeDisposable>>();
+        protected static readonly string[] spatialChannelNames = new string[] { "x", "xoffset", "xoffsetpct", "y", "yoffset", "yoffsetpct", "z", "zoffset", "zoffsetpct", "facetwrap" };
+        protected static readonly string[] idealChannelApplicationOrder = new string[] { "x", "y", "z", "size", "width", "height", "depth", "length",
+                                                                                         "color", "opacity",
+                                                                                         "xrotation", "yrotation", "zrotation", "xdirection", "ydirection", "zdirection",
+                                                                                         "xoffset", "yoffset", "zoffset", "xoffsetpct", "yoffsetpct", "zoffsetpct",
+                                                                                         "facetwrap" };
 
         public Mark()
         {
@@ -43,16 +59,13 @@ namespace DxR
         {
             myRenderer = GetComponent<Renderer>();
 
-            if (defaultGeometricValues == null)
+            defaultGeometricValues = new GeometricValues
             {
-                defaultGeometricValues = new MarkGeometricValues
-                {
-                    localPosition = transform.localPosition,
-                    localEulerAngles = transform.localEulerAngles,
-                    localScale = transform.localScale,
-                    colour = myRenderer.material.color
-                };
-            }
+                localPosition = transform.localPosition,
+                localRotation = transform.localRotation,
+                localScale = transform.localScale,
+                colour = myRenderer.material.color
+            };
         }
 
         public void Start()
@@ -65,112 +78,389 @@ namespace DxR
             return new List<string> { "x", "y", "z", "color", "size", "width", "height", "depth", "opacity", "xrotation", "yrotation", "zrotation", "length", "xdirection", "ydirection", "zdirection" };
         }
 
-        #region Morphing functions
-
-        protected class MarkGeometricValues
-        {
-            public Vector3 localPosition;
-            public Vector3 localEulerAngles;
-            public Vector3 localScale;
-            public Color colour;
-        }
-
-        public virtual void StoreInitialMarkValues()
-        {
-            initialGeometricValues = new MarkGeometricValues
-            {
-                localPosition = transform.localPosition,
-                localEulerAngles = transform.localEulerAngles,
-                localScale = transform.localScale,
-                colour = myRenderer.material.color
-            };
-        }
-
-        public virtual void StoreFinalMarkValues()
-        {
-            finalGeometricValues = new MarkGeometricValues
-            {
-                localPosition = transform.localPosition,
-                localEulerAngles = transform.localEulerAngles,
-                localScale = transform.localScale,
-                colour = myRenderer.material.color
-            };
-        }
-
-        public virtual void LoadInitialMarkValues()
-        {
-            LoadMarkValues(initialGeometricValues);
-        }
-
-        public virtual void LoadFinalMarkValues()
-        {
-            LoadMarkValues(finalGeometricValues);
-        }
-
-        protected virtual void LoadMarkValues(MarkGeometricValues markValues)
-        {
-            transform.localPosition = markValues.localPosition;
-            transform.localEulerAngles = markValues.localEulerAngles;
-            transform.localScale = markValues.localScale;
-            myRenderer.material.color = markValues.colour;
-        }
-
-        public virtual void InitialiseMorphing(IObservable<float> tweeningObservable)
-        {
-            morphingSubscriptions = new CompositeDisposable();
-
-            // TODO: For now, we make a subscription for each geometric value that has actually changed
-            // There probably is a more elegant way of doing this though
-            if (initialGeometricValues.localPosition != finalGeometricValues.localPosition)
-            {
-                tweeningObservable.Subscribe(t =>
-                {
-                    if (isMorphing)
-                        transform.localPosition = Vector3.Lerp(initialGeometricValues.localPosition, finalGeometricValues.localPosition, t);
-                }).AddTo(morphingSubscriptions);
-            }
-            if (initialGeometricValues.localEulerAngles != finalGeometricValues.localEulerAngles)
-            {
-                tweeningObservable.Subscribe(t =>
-                {
-                    if (isMorphing)
-                        transform.localEulerAngles = Vector3.Lerp(initialGeometricValues.localEulerAngles, finalGeometricValues.localEulerAngles, t);
-                }).AddTo(morphingSubscriptions);
-            }
-            if (initialGeometricValues.localScale != finalGeometricValues.localScale)
-            {
-                tweeningObservable.Subscribe(t =>
-                {
-                    if (isMorphing)
-                        transform.localScale = Vector3.Lerp(initialGeometricValues.localScale, finalGeometricValues.localScale, t);
-                }).AddTo(morphingSubscriptions);
-            }
-            if (initialGeometricValues.colour != finalGeometricValues.colour)
-            {
-                tweeningObservable.Subscribe(t =>
-                {
-                    if (isMorphing)
-                        myRenderer.material.color = Color.Lerp(initialGeometricValues.colour, finalGeometricValues.colour, t);
-                }).AddTo(morphingSubscriptions);
-            }
-
-            isMorphing = true;
-        }
-
-        public virtual void DisableMorphing()
-        {
-            // Cleanup subscriptions
-            if (morphingSubscriptions != null)
-                morphingSubscriptions.Dispose();
-
-            isMorphing = false;
-        }
-
-        #endregion // Morphing functions
-
         public virtual void ResetToDefault()
         {
-            LoadMarkValues(defaultGeometricValues);
+            transform.localPosition = defaultGeometricValues.localPosition;
+            transform.localRotation = defaultGeometricValues.localRotation;
+            transform.localScale = defaultGeometricValues.localScale;
+            myRenderer.material.color = defaultGeometricValues.colour;
+        }
+
+        #region Morphing functions
+
+        public void InitialiseTransition(string transitionName, List<Tuple<ChannelEncoding, ChannelEncoding>> transitionChannelEncodings, IObservable<float> tweeningObservable, int markIndex)
+        {
+            if (activeTransitions.ContainsKey(transitionName))
+                throw new Exception(string.Format("Vis Morphs: Mark already contains subscriptions for the transition {0}. This shouldn't happen", transitionName));
+
+            CompositeDisposable transitionDisposable = new CompositeDisposable();
+            activeTransitions.Add(transitionName, new Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, CompositeDisposable>(transitionChannelEncodings, transitionDisposable));
+
+            // First we initialise the transition channels for spatial channels (x, xoffset, xoffsetpct, etc.)
+            // We also always include any faceting channels as these affect all spatial channels
+            InitialiseSpatialTransitions(transitionName, transitionChannelEncodings, tweeningObservable, markIndex, transitionDisposable);
+
+            foreach (var tuple in transitionChannelEncodings)
+            {
+                // Ignore all spatial channels
+                if (!spatialChannelNames.Contains(GetChannelNameFromTuple(tuple)))
+                    InitialiseTransitionChannel(tuple, tweeningObservable, markIndex, transitionDisposable);
+            }
+        }
+
+        public void StopTransition(string transitionName, int markIndex, bool goToEnd = true)
+        {
+            if (!activeTransitions.ContainsKey(transitionName))
+                throw new Exception(string.Format("Vis Morphs: Mark does not contain subscriptions for the transition {0}. This shouldn't happen", transitionName));
+
+            var activeTransition = activeTransitions[transitionName];
+
+            // Dispose all active subscriptions
+            activeTransition.Item2.Dispose();
+
+            // We want to ensure that the encodings are applied in the correct order
+            var transitionChannelEncodings = activeTransition.Item1;
+            transitionChannelEncodings = transitionChannelEncodings.OrderBy(tuple => Array.IndexOf(idealChannelApplicationOrder, GetChannelNameFromTuple(tuple))).ToList();
+
+            // Since the offset channels apply a translation to the mark, we don't want to apply them again UNLESS an x, y, or z channel is present
+            // TODO / NOTE: This might cause more bugs later down the line
+            List<string> channelNames = transitionChannelEncodings.Select(tuple => GetChannelNameFromTuple(tuple)).ToList();
+            List<string> resettedSpatialChannels = new List<string>();
+
+            // For each changed encoding, set the mark's values to either the start or end depending on the goToEnd flag
+            foreach (var tuple in transitionChannelEncodings)
+            {
+                string channel = GetChannelNameFromTuple(tuple);
+                ChannelEncoding ce = goToEnd ? tuple.Item2 : tuple.Item1;
+
+                // If this encoding is an offset, we'll need to check whether or not to initially reset its base spatial dimension first
+                // We only do so if there is no base spatial dimension even defined
+                if (channel.Contains("offset") && !channelNames.Contains(channel.Substring(0, 1)))
+                {
+                    string spatialChannel = channel.Substring(0, 1);
+                    if (!resettedSpatialChannels.Contains(spatialChannel))
+                    {
+                        // Reset base spatial dimension to default value
+                        SetChannelValue(spatialChannel, "0");
+                        resettedSpatialChannels.Add(spatialChannel);
+                    }
+
+                    // If there isn't actually an offset to apply in the target state, skip
+                    if (ce == null)
+                        continue;
+                }
+
+                if (ce != null)
+                {
+                    ApplyChannelEncoding(ce, markIndex);
+                }
+                else
+                {
+                    SetChannelValue(channel, GetDefaultValueForChannel(channel));
+                }
+            }
+
+            activeTransitions.Remove(transitionName);
+        }
+
+        /// <summary>
+        /// It doesn't really make much sense to handle offset channels separately from positional channels. This function handles all of them together
+        ///
+        /// We set the values stored in the initial and final state as: (spatial dimension value) + (offset value) * (offsetpct value)
+        /// The tweener then inperpolates between the two as per normal
+        /// </summary>
+        protected virtual void InitialiseSpatialTransitions(string transitionName, List<Tuple<ChannelEncoding, ChannelEncoding>> transitionChannelEncodings,
+                                                         IObservable<float> tweeningObservable, int markIndex, CompositeDisposable transitionDisposable)
+        {
+            bool xVisited, yVisited, zVisited = xVisited = yVisited = false;
+
+            // Get the facetting channel encodings (doesn't matter if they don't exist)
+            var facetwrapCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "facetwrap");
+
+            foreach (var tuple in transitionChannelEncodings)
+            {
+                string channel = GetChannelNameFromTuple(tuple);
+
+                if (spatialChannelNames.Contains(channel))
+                {
+                    if (channel.StartsWith("x") && !xVisited)
+                    {
+                        xVisited = true;
+
+                        // Find all tuples relating to this spatial dimension
+                        var dimCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "x");
+                        var offsetCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "xoffset");
+                        var offsetpctCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "xoffsetpct");
+                        // We also need the size one so that offsetpct can work properly
+                        var sizeCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "width");
+
+                        InitialiseSpatialTransitionChannel("x", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE, tweeningObservable, markIndex, transitionDisposable);
+                    }
+
+                    if (channel.StartsWith("y") && !yVisited)
+                    {
+                        yVisited = true;
+
+                        // Find all tuples relating to this spatial dimension
+                        var dimCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "y");
+                        var offsetCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "yoffset");
+                        var offsetpctCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "yoffsetpct");
+                        // We also need the size one so that offsetpct can work properly
+                        var sizeCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "height");
+
+                        InitialiseSpatialTransitionChannel("y", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE, tweeningObservable, markIndex, transitionDisposable);
+                    }
+
+                    if (channel.StartsWith("z") && !zVisited)
+                    {
+                        zVisited = true;
+
+                        // Find all tuples relating to this spatial dimension
+                        var dimCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "z");
+                        var offsetCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "zoffset");
+                        var offsetpctCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "zoffsetpct");
+                        // We also need the size one so that offsetpct can work properly
+                        var sizeCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "depth");
+
+                        InitialiseSpatialTransitionChannel("z", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE, tweeningObservable, markIndex, transitionDisposable);
+                    }
+                }
+            }
+        }
+
+        protected virtual void InitialiseTransitionChannel(Tuple<ChannelEncoding, ChannelEncoding> transitionChannelEncoding, IObservable<float> tweeningObservable,
+                                                      int markIndex, CompositeDisposable transitionDisposable)
+        {
+            ChannelEncoding initialCE = transitionChannelEncoding.Item1;
+            ChannelEncoding finalCE = transitionChannelEncoding.Item2;
+            string channel = GetChannelNameFromTuple(transitionChannelEncoding);
+
+            // Get the value associated with the initial and final values
+            // Iniitalise default starting values first, depending on the data type expected for that given channel
+            string initialValue, finalValue = initialValue = GetDefaultValueForChannel(channel);
+
+            // Fill in the values with the actual ones
+            if (initialCE != null)
+            {
+                initialValue = GetValueForChannelEncoding(initialCE, markIndex);
+            }
+            if (finalCE != null)
+            {
+                finalValue = GetValueForChannelEncoding(finalCE, markIndex);
+            }
+
+            InitialiseTweeners(channel, initialValue, finalValue, tweeningObservable, transitionDisposable);
+        }
+
+        protected virtual void InitialiseSpatialTransitionChannel(string channel, Tuple<ChannelEncoding, ChannelEncoding> baseCE,
+                                                             Tuple<ChannelEncoding, ChannelEncoding> offsetCE, Tuple<ChannelEncoding, ChannelEncoding> offsetpctCE,
+                                                             Tuple<ChannelEncoding, ChannelEncoding> facetwrapCE, Tuple<ChannelEncoding, ChannelEncoding> sizeCE,
+                                                             IObservable<float> tweeningObservable, int markIndex, CompositeDisposable transitionDisposable)
+        {
+            // Create the start and end values for the tweening
+            float initialValue = 0;
+            float finalValue = 0;
+            int dim = channel == "x" ? 0 : channel == "y" ? 1 : 2;
+
+            // Get the base value
+            if (baseCE != null)
+            {
+                if (baseCE.Item1 != null)
+                    initialValue = float.Parse(GetValueForChannelEncoding(baseCE.Item1, markIndex));
+                if (baseCE.Item2 != null)
+                    finalValue = float.Parse(GetValueForChannelEncoding(baseCE.Item2, markIndex));
+            }
+
+            // Now add onto this the offset value
+            if (offsetCE != null)
+            {
+                if (offsetCE.Item1 != null)
+                    initialValue += float.Parse(GetValueForChannelEncoding(offsetCE.Item1, markIndex));
+                if (offsetCE.Item2 != null)
+                    finalValue += float.Parse(GetValueForChannelEncoding(offsetCE.Item2, markIndex));
+            }
+
+            // Now calculate and add the offsetpct. This is based on the size of the mark
+            if (offsetpctCE != null)
+            {
+                GetComponent<MeshFilter>().mesh.RecalculateBounds();
+                if (offsetpctCE.Item1 != null)
+                {
+                    float size;
+                    if (sizeCE != null && sizeCE.Item1 != null)
+                        size = float.Parse(GetValueForChannelEncoding(sizeCE.Item1, markIndex));
+                    else
+                        size = GetComponent<MeshFilter>().mesh.bounds.size[dim] * gameObject.transform.localScale[dim] / DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+
+                    initialValue += (float.Parse(GetValueForChannelEncoding(offsetpctCE.Item1, markIndex)) * Mathf.Abs(size));
+                }
+                if (offsetpctCE.Item2 != null)
+                {
+                    float size;
+                    if (sizeCE != null && sizeCE.Item2 != null)
+                        size = float.Parse(GetValueForChannelEncoding(sizeCE.Item2, markIndex));
+                    else
+                        size = GetComponent<MeshFilter>().mesh.bounds.size[dim] * gameObject.transform.localScale[dim] / DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+
+                    finalValue += (float.Parse(GetValueForChannelEncoding(offsetpctCE.Item2, markIndex)) * Mathf.Abs(size));
+                }
+            }
+
+            // Now add the facet
+            if (facetwrapCE != null)
+            {
+                if (facetwrapCE.Item1 != null)
+                {
+                    Vector3 facetOffset = Utils.StringToVector3(GetValueForChannelEncoding(facetwrapCE.Item1, markIndex));
+                    initialValue += facetOffset[dim];
+                }
+                if (facetwrapCE.Item2 != null)
+                {
+                    Vector3 facetOffset = Utils.StringToVector3(GetValueForChannelEncoding(facetwrapCE.Item2, markIndex));
+                    finalValue += facetOffset[dim];
+                }
+            }
+
+            InitialiseTweeners(channel, initialValue.ToString(), finalValue.ToString(), tweeningObservable, transitionDisposable);
+        }
+
+        protected virtual void InitialiseTweeners(string channel, string initialValue, string finalValue, IObservable<float> tweeningObservable, CompositeDisposable transitionDisposable)
+        {
+            tweeningObservable.Subscribe(t => {
+                // Interpolate between the two values
+                string interpolatedValue = "";
+
+                // We need to do this properly depending on the data type that we expect for the given channel
+                switch (channel)
+                {
+                    // Floats
+                    case "x": case "y": case "z":
+                    case "width": case "height": case "length": case "depth":
+                    case "xoffset": case "yoffset": case "zoffset":
+                    case "xoffsetpct": case "yoffsetpct": case "zoffsetpct":
+                    case "opacity": case "size":
+                    case "xrotation": case "yrotation": case "zrotation":
+                    case "xdirection": case "ydirection": case "zdirection":
+                        {
+                            float start = float.Parse(initialValue);
+                            float end = float.Parse(finalValue);
+                            interpolatedValue = Mathf.Lerp(start, end, t).ToString();
+                            break;
+                        }
+
+                    // Colour
+                    case "color":
+                        {
+                            Color start, end;
+                            ColorUtility.TryParseHtmlString(initialValue, out start);
+                            ColorUtility.TryParseHtmlString(finalValue, out end);
+                            interpolatedValue = "#" + ColorUtility.ToHtmlStringRGB(Color.Lerp(start, end, t));
+                            break;
+                        }
+
+                    // N/A
+                    case "offsets":
+                    case "facetwrap":
+                        {
+                            Debug.Log(initialValue);
+                            throw new Exception(string.Format("Vis Morphs: Channel {0} cannot be interpolated in a transition independently. These must be done as part of an x, y, or z channel.", channel));
+                        }
+                }
+
+                SetChannelValue(channel, interpolatedValue);
+            }).AddTo(transitionDisposable);
+        }
+
+        protected string GetChannelNameFromTuple(Tuple<ChannelEncoding, ChannelEncoding> tuple)
+        {
+            return (tuple.Item1 != null) ? tuple.Item1.channel : tuple.Item2.channel;
+        }
+
+        protected string GetDefaultValueForChannel(string channel)
+        {
+            switch (channel)
+            {
+                // Floats
+                case "x": case "y": case "z":
+                case "width": case "height": case "length": case "depth":
+                case "xoffset": case "yoffset": case "zoffset":
+                case "xoffsetpct": case "yoffsetpct": case "zoffsetpct":
+                case "opacity": case "size":
+                case "xrotation": case "yrotation": case "zrotation":
+                case "xdirection": case "ydirection": case "zdirection":
+                    {
+                        return "0";
+                    }
+
+                // Colour
+                case "color":
+                    {
+                        return "#" + ColorUtility.ToHtmlStringRGB(Color.white);
+                    }
+
+                // Vector3
+                case "offsets":
+                case "facetwrap":
+                    {
+                        return Vector3.zero.ToString("F3");
+                    }
+
+                default:
+                    return "";
+            }
+        }
+
+        #endregion Morphing functions
+
+        #region Channel value functions
+
+        /// <summary>
+        /// This is now moved to the marks themselves in order to give further control over how they are used to the Mark script
+        /// </summary>
+        public virtual void ApplyChannelEncoding(ChannelEncoding channelEncoding, int markIndex)
+        {
+            string value = GetValueForChannelEncoding(channelEncoding, markIndex);
+            SetChannelValue(channelEncoding.channel, value);
+        }
+
+        protected virtual string GetValueForChannelEncoding(ChannelEncoding channelEncoding, int markIndex)
+        {
+            if (channelEncoding.value != DxR.Vis.UNDEFINED)
+            {
+                return channelEncoding.value;
+            }
+
+            // Special condition for offset encodings with linked offsets (for stacked bar charts, etc.)
+            if (channelEncoding.IsOffset() && ((OffsetChannelEncoding)channelEncoding).linkedChannel != null)
+            {
+                OffsetChannelEncoding offsetChannelEncoding = (OffsetChannelEncoding)channelEncoding;
+                if (offsetChannelEncoding.values.Count > 0)
+                {
+                    string channelValue = offsetChannelEncoding.values[markIndex];
+                    if (offsetChannelEncoding.scale != null)
+                    {
+                        channelValue = offsetChannelEncoding.scale.ApplyScale(offsetChannelEncoding.values[markIndex]);
+                    }
+
+                    return channelValue;
+                }
+            }
+            // Special condition for facet wrap
+            else if (channelEncoding.IsFacetWrap())
+            {
+                FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncoding;
+                if (facetWrapChannelEncoding.translation.Count > 0)
+                {
+                    return (facetWrapChannelEncoding.translation[markIndex]).ToString("F3");
+                }
+            }
+            else
+            {
+                string channelValue = channelEncoding.scale.ApplyScale(datum[channelEncoding.field]);
+                return channelValue;
+            }
+
+            throw new Exception("???");
         }
 
         public virtual void SetChannelValue(string channel, string value)
@@ -206,6 +496,10 @@ namespace DxR
                     break;
                 case "zoffset":
                     SetOffset(value, 2);
+                    break;
+                case "offsets":
+                case "facetwrap":
+                    SetOffsets(value);
                     break;
                 case "xoffsetpct":
                     SetOffsetPct(value, 0);
@@ -263,6 +557,183 @@ namespace DxR
 
             return 2;
         }
+
+        private void SetLocalPos(string value, int dim)
+        {
+            // TODO: Do this more robustly.
+            float pos = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+
+            Vector3 localPos = gameObject.transform.localPosition;
+            localPos[dim] = pos;
+            gameObject.transform.localPosition = localPos;
+        }
+
+        private void SetSize(string value, int dim)
+        {
+            float size = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+
+            Vector3 initPos = transform.localPosition;
+
+            Vector3 curScale = transform.localScale;
+
+            GetComponent<MeshFilter>().mesh.RecalculateBounds();
+            Vector3 origMeshSize = GetComponent<MeshFilter>().mesh.bounds.size;
+            curScale[dim] = size / (origMeshSize[dim]);
+            transform.localScale = curScale;
+
+            transform.localPosition = initPos;  // This handles models that get translated with scaling.
+        }
+
+        private void SetOffset(string value, int dim)
+        {
+            float offset = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+            Vector3 translateBy = transform.localPosition;
+            translateBy[dim] = offset + translateBy[dim];
+            transform.localPosition = translateBy;
+        }
+
+        private void SetOffsets(string value)
+        {
+            if (!(value.StartsWith ("(") && value.EndsWith (")")))
+                return;
+
+            // Remove the parentheses
+            value = value.Substring(1, value.Length-2);
+
+            // Split the items
+            string[] sArray = value.Split(',');
+
+            SetOffset(sArray[0], 0);
+            SetOffset(sArray[1], 1);
+            SetOffset(sArray[2], 2);
+        }
+
+        private void SetOffsetPct(string value, int dim)
+        {
+            GetComponent<MeshFilter>().mesh.RecalculateBounds();
+            float offset = float.Parse(value) * GetComponent<MeshFilter>().mesh.bounds.size[dim] *
+                gameObject.transform.localScale[dim];
+            Vector3 translateBy = transform.localPosition;
+            translateBy[dim] = offset + translateBy[dim];
+            transform.localPosition = translateBy;
+        }
+
+        private void SetRotation(string value, int dim)
+        {
+            Vector3 rot = transform.localEulerAngles;
+            rot[dim] = float.Parse(value);
+            transform.localEulerAngles = rot;
+        }
+
+        public void SetMaxSize(string value)
+        {
+            float size = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+
+            Vector3 renderSize = myRenderer.bounds.size;
+            Vector3 localScale = gameObject.transform.localScale;
+
+            int maxIndex = 0;
+            float maxSize = renderSize[maxIndex];
+            for(int i = 1; i < 3; i++)
+            {
+                if(maxSize < renderSize[i])
+                {
+                    maxSize = renderSize[i];
+                    maxIndex = i;
+                }
+            }
+
+            float origMaxSize = renderSize[maxIndex] / localScale[maxIndex];
+            float newLocalScale = (size / origMaxSize);
+
+            gameObject.transform.localScale = new Vector3(newLocalScale,
+                newLocalScale, newLocalScale);
+        }
+
+        private void ScaleToMaxDim(string value, int maxDim)
+        {
+            float size = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+
+            Vector3 renderSize = gameObject.transform.GetComponent<Renderer>().bounds.size;
+            Vector3 localScale = gameObject.transform.localScale;
+
+            float origMaxSize = renderSize[maxDim] / localScale[maxDim];
+            float newLocalScale = (size / origMaxSize);
+
+            gameObject.transform.localScale = new Vector3(newLocalScale,
+                newLocalScale, newLocalScale);
+        }
+
+        private void SetColor(string value)
+        {
+            Color color;
+            bool colorParsed = ColorUtility.TryParseHtmlString(value, out color);
+            if (!colorParsed) return;
+
+            if(myRenderer != null)
+            {
+                myRenderer.material.color = color;
+            } else
+            {
+                Debug.Log("Cannot set color of mark without renderer object.");
+            }
+        }
+
+        private void SetOpacity(string value)
+        {
+            if (myRenderer != null)
+            {
+                SetRenderModeToTransparent(myRenderer.material);
+                Color color = myRenderer.material.color;
+                color.a = float.Parse(value);
+                myRenderer.material.color = color;
+            }
+            else
+            {
+                Debug.Log("Cannot set opacity of mark without renderer object.");
+            }
+        }
+
+        private void SetRenderModeToTransparent(Material m)
+        {
+            m.SetFloat("_Mode", 2);
+            m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+            m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+            m.SetInt("_ZWrite", 0);
+            m.DisableKeyword("_ALPHATEST_ON");
+            m.EnableKeyword("_ALPHABLEND_ON");
+            m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+            m.renderQueue = 3000;
+        }
+
+        public void SetRotation()
+        {
+            Quaternion rotation = Quaternion.FromToRotation(forwardDirection, curDirection);
+            transform.rotation = rotation;
+
+        }
+
+        /// <summary>
+        /// vectorIndex = 0 for x, 1 for y, 2 for z
+        /// </summary>
+        private void SetDirectionVector(string value, int vectorIndex)
+        {
+            // Set target direction dim to normalized size.
+            Vector3 targetOrient = Vector3.zero;
+            targetOrient[vectorIndex] = float.Parse(value);
+            //targetOrient.Normalize();
+
+            // Copy coordinate to current orientation and normalize.
+            curDirection[vectorIndex] = targetOrient[vectorIndex];
+            //curDirection.Normalize();
+
+            // Quaternion rotation = Quaternion.FromToRotation(forwardDirection, curDirection);
+            // transform.rotation = rotation;
+        }
+
+        #endregion Channel value functions
+
+        #region Inference functions
 
         public void Infer(Data data, JSONNode specsOrig, out JSONNode specs, string specsFilename)
         {
@@ -1113,6 +1584,10 @@ namespace DxR
             System.IO.File.WriteAllText(outputName, str);
         }
 
+        #endregion Inference functions
+
+        #region Interaction functions
+
         public void InitTooltip(ref GameObject tooltipObject)
         {
             if (myRenderer != null)
@@ -1125,160 +1600,6 @@ namespace DxR
         public void SetTooltipField(string dataField)
         {
             //tooltipDataField = dataField;
-        }
-
-        private void SetLocalPos(string value, int dim)
-        {
-            // TODO: Do this more robustly.
-            float pos = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-
-            Vector3 localPos = gameObject.transform.localPosition;
-            localPos[dim] = pos;
-            gameObject.transform.localPosition = localPos;
-        }
-
-        private void SetSize(string value, int dim)
-        {
-            float size = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-
-            Vector3 initPos = transform.localPosition;
-
-            Vector3 curScale = transform.localScale;
-
-            GetComponent<MeshFilter>().mesh.RecalculateBounds();
-            Vector3 origMeshSize = GetComponent<MeshFilter>().mesh.bounds.size;
-            curScale[dim] = size / (origMeshSize[dim]);
-            transform.localScale = curScale;
-
-            transform.localPosition = initPos;  // This handles models that get translated with scaling.
-        }
-
-        private void SetOffset(string value, int dim)
-        {
-            float offset = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-            Vector3 translateBy = transform.localPosition;
-            translateBy[dim] = offset + translateBy[dim];
-            transform.localPosition = translateBy;
-        }
-
-        private void SetOffsetPct(string value, int dim)
-        {
-            GetComponent<MeshFilter>().mesh.RecalculateBounds();
-            float offset = float.Parse(value) * GetComponent<MeshFilter>().mesh.bounds.size[dim] *
-                gameObject.transform.localScale[dim];
-            Vector3 translateBy = transform.localPosition;
-            translateBy[dim] = offset + translateBy[dim];
-            transform.localPosition = translateBy;
-        }
-
-        private void SetRotation(string value, int dim)
-        {
-            Vector3 rot = transform.localEulerAngles;
-            rot[dim] = float.Parse(value);
-            transform.localEulerAngles = rot;
-        }
-
-        public void SetMaxSize(string value)
-        {
-            float size = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-
-            Vector3 renderSize = myRenderer.bounds.size;
-            Vector3 localScale = gameObject.transform.localScale;
-
-            int maxIndex = 0;
-            float maxSize = renderSize[maxIndex];
-            for(int i = 1; i < 3; i++)
-            {
-                if(maxSize < renderSize[i])
-                {
-                    maxSize = renderSize[i];
-                    maxIndex = i;
-                }
-            }
-
-            float origMaxSize = renderSize[maxIndex] / localScale[maxIndex];
-            float newLocalScale = (size / origMaxSize);
-
-            gameObject.transform.localScale = new Vector3(newLocalScale,
-                newLocalScale, newLocalScale);
-        }
-
-        private void ScaleToMaxDim(string value, int maxDim)
-        {
-            float size = float.Parse(value) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
-
-            Vector3 renderSize = gameObject.transform.GetComponent<Renderer>().bounds.size;
-            Vector3 localScale = gameObject.transform.localScale;
-
-            float origMaxSize = renderSize[maxDim] / localScale[maxDim];
-            float newLocalScale = (size / origMaxSize);
-
-            gameObject.transform.localScale = new Vector3(newLocalScale,
-                newLocalScale, newLocalScale);
-        }
-
-        private void SetColor(string value)
-        {
-            Color color;
-            bool colorParsed = ColorUtility.TryParseHtmlString(value, out color);
-            if (!colorParsed) return;
-
-            if(myRenderer != null)
-            {
-                myRenderer.material.color = color;
-            } else
-            {
-                Debug.Log("Cannot set color of mark without renderer object.");
-            }
-        }
-
-        private void SetOpacity(string value)
-        {
-            if (myRenderer != null)
-            {
-                SetRenderModeToTransparent(myRenderer.material);
-                Color color = myRenderer.material.color;
-                color.a = float.Parse(value);
-                myRenderer.material.color = color;
-            }
-            else
-            {
-                Debug.Log("Cannot set opacity of mark without renderer object.");
-            }
-        }
-
-        private void SetRenderModeToTransparent(Material m)
-        {
-            m.SetFloat("_Mode", 2);
-            m.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
-            m.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
-            m.SetInt("_ZWrite", 0);
-            m.DisableKeyword("_ALPHATEST_ON");
-            m.EnableKeyword("_ALPHABLEND_ON");
-            m.DisableKeyword("_ALPHAPREMULTIPLY_ON");
-            m.renderQueue = 3000;
-        }
-
-        public void SetRotation()
-        {
-            Quaternion rotation = Quaternion.FromToRotation(forwardDirection, curDirection);
-            transform.rotation = rotation;
-
-        }
-        // vectorIndex = 0 for x, 1 for y, 2 for z
-        private void SetDirectionVector(string value, int vectorIndex)
-        {
-            // Set target direction dim to normalized size.
-            Vector3 targetOrient = Vector3.zero;
-            targetOrient[vectorIndex] = float.Parse(value);
-            //targetOrient.Normalize();
-
-            // Copy coordinate to current orientation and normalize.
-            curDirection[vectorIndex] = targetOrient[vectorIndex];
-            //curDirection.Normalize();
-
-//            Quaternion rotation = Quaternion.FromToRotation(forwardDirection, curDirection);
-//            transform.rotation = rotation;
         }
 
         public void OnFocusEnter()
@@ -1319,5 +1640,7 @@ namespace DxR
                 tooltip.SetActive(false);
             }
         }
+
+        #endregion Interaction functions
     }
 }

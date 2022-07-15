@@ -32,6 +32,9 @@
         "yoffsetpct": {
             "value": -0.5
         },
+        "depth": {
+            "value": 10
+        },
         "color": {
             "field": "Class",
             "type": "nominal"
