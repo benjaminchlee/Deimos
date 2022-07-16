@@ -1,0 +1,135 @@
+{
+    "signals": [{
+            "name": "headPosition",
+            "source": {
+                "type": "head",
+                "select": "transform.position"
+            }
+        }, {
+            "name": "visPosition",
+            "source": {
+                "type": "vis",
+                "select": "transform.position"
+            }
+        }, {
+            "name": "headVisDistance",
+            "expression": "distance(headPosition, visPosition)"
+        }, {
+            "name": "isClose",
+            "expression": "headVisDistance < 1"
+        }, {
+            "name": "headDirection",
+            "source": {
+                "type": "head",
+                "select": "transform.forward"
+            }
+        }, {
+            "name": "visDirection",
+            "source": {
+                "type": "vis",
+                "select": "transform.forward"
+            }
+        }, {
+            "name": "headVisAngle",
+            "expression": "angle(headDirection, visDirection)"
+        }, {
+            "name": "isLookingFront",
+            "expression": "headVisAngle < 20 || 160 < headVisAngle"
+        }, {
+            "name": "isLookingSide",
+            "expression": "70 < headVisAngle && headVisAngle < 110"
+        }
+    ],
+
+    "states": [
+        {
+            "name": "unflattened",
+            "width": 500,
+            "depth": 500,
+            "encoding": {
+                "x": "*",
+                "y": "*",
+                "z": "*"
+            }
+        },
+        {
+            "name": "flattenedX",
+            "width": 10,
+            "depth": 500,
+            "encoding": {
+                "x": "*",
+                "y": "*",
+                "z": "*"
+            }
+        },
+        {
+            "name": "flattenedZ",
+            "width": 500,
+            "depth": 10,
+            "encoding": {
+                "x": "*",
+                "y": "*",
+                "z": "*"
+            }
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "flatteningX",
+            "states": ["unflattened", "flattenedX"],
+            "triggers": ["isLookingSide", "isClose"],
+            "timing": {
+                "control": 0.5,
+                "elapsed": "end"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": false
+        },
+        {
+            "name": "unflatteningX",
+            "states": ["flattenedX", "unflattened"],
+            "triggers": ["!isLookingSide", "!isClose"],
+            "timing": {
+                "control": 0.5,
+                "elapsed": "end"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "end"
+            },
+            "bidirectional": false
+        },
+        {
+            "name": "flatteningZ",
+            "states": ["unflattened", "flattenedZ"],
+            "triggers": ["isLookingFront", "isClose"],
+            "timing": {
+                "control": 0.5,
+                "elapsed": "end"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": false
+        },
+        {
+            "name": "unflatteningZ",
+            "states": ["flattenedZ", "unflattened"],
+            "triggers": ["!isLookingFront", "!isClose"],
+            "timing": {
+                "control": 0.5,
+                "elapsed": "end"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "end"
+            },
+            "bidirectional": false
+        }
+    ]
+}

@@ -277,6 +277,11 @@ namespace DxR.VisMorphs
                             return CreateObservableFromHandSpec(reference, selector);
                         }
 
+                    case "head":
+                        {
+                            return CreateObservableFromHeadSpec(reference, selector);
+                        }
+
                     case "gameobject":
                         {
                             return CreateObservableFromGameObjectSpec(reference, selector);
@@ -433,6 +438,22 @@ namespace DxR.VisMorphs
 
                 default:
                     throw new Exception(string.Format("Vis Morphs: Hand event of selector {0} does not exist.", selector));
+            }
+        }
+
+        private static IObservable<dynamic> CreateObservableFromHeadSpec(string reference, string selector)
+        {
+            if (selector == "")
+                throw new Exception("Vis Morphs: Signal of type head requires a select expression.");
+
+            switch (selector)
+            {
+                default:
+                    {
+                        return Camera.main.transform.gameObject
+                            .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector))
+                            .DistinctUntilChanged();
+                    }
             }
         }
 

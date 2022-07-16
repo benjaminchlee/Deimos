@@ -16,9 +16,6 @@
             "name": "tilt",
             "expression": "angle(vector3(0, 1, 0), upVector)"
         }, {
-            "name": "tiltMapTrigger",
-            "expression": "true"
-        }, {
             "name": "c2pTween",
             "expression": "normalise(tilt, 20, 45)"
         }, {
@@ -119,7 +116,7 @@
         {
             "name": "c2p",
             "states": ["choropleth", "prism"],
-            "triggers": ["tiltMapTrigger"],
+            "triggers": null,
             "timing": {
                 "control": "c2pTween",
                 "easing": "inoutcubic"
@@ -133,7 +130,7 @@
         {
             "name": "p2b",
             "states": ["prism", "bar"],
-            "triggers": ["tiltMapTrigger"],
+            "triggers": null,
             "timing": {
                 "control": "p2bTween",
                 "easing": "inoutcubic"

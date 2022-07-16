@@ -14,9 +14,6 @@
                 "ref": "surface",
                 "select": "collisionpoint"
             }
-        }, {
-            "name": "notIntersectingSurface",
-            "expression": "!intersectingSurface"
         }
     ],
 
@@ -104,7 +101,7 @@
         {
             "name": "faceted2stacked",
             "states": ["faceted", "stacked"],
-            "triggers": ["notIntersectingSurface"],
+            "triggers": ["!intersectingSurface"],
             "timing": {
                 "control": 0.5
             },

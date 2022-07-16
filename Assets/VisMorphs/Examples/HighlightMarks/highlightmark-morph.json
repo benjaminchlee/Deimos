@@ -5,9 +5,6 @@
                 "type": "mouse",
                 "select": "leftmousedown"
             }
-        }, {
-            "name": "mouseup",
-            "expression": "!mousedown"
         }
     ],
 
@@ -46,7 +43,7 @@
         {
             "name": "coloured2base",
             "states": ["coloured", "base"],
-            "triggers": ["mouseup"],
+            "triggers": ["!mousedown"],
             "timing": {
                 "control": 1,
                 "elapsed": "end"

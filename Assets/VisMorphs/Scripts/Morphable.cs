@@ -337,13 +337,24 @@ namespace DxR.VisMorphs
                             int index = boolList.Count;
                             boolList.Add(false);
 
+                            // Get the name of the trigger. If it has an ! in front of it, we inverse its value
+                            string triggerName = triggerNames[k];
+                            bool triggerInversed = triggerName.StartsWith("!");
+                            if (triggerInversed) triggerName = triggerName.Remove(0, 1);      // Remove the ! from the name now
+
                             // Get the corresponding Signal observable by using its name, casting it to a boolean
-                            var observable = candidateMorph.GetLocalSignal(triggerNames[k]);
-                            if (observable == null) observable = MorphManager.Instance.GetGlobalSignal(triggerNames[k]);
+                            var observable = candidateMorph.GetLocalSignal(triggerName);
+                            if (observable == null) observable = MorphManager.Instance.GetGlobalSignal(triggerName);
 
                             if (observable != null)
                             {
-                                IObservable<bool> triggerObservable = observable.Select(x => (bool)x);
+                                IObservable<bool> triggerObservable;
+
+                                // Inverse if necessary
+                                if (!triggerInversed)
+                                    triggerObservable = observable.Select(x => (bool)x);
+                                else
+                                    triggerObservable = observable.Select(x => (bool)!x);
 
                                 triggerObservable.DelayFrameSubscription(0, FrameCountType.EndOfFrame).Subscribe(b =>
                                 {
@@ -602,6 +613,10 @@ namespace DxR.VisMorphs
 
             foreach (var encoding in ((JObject)_finalStateSpecs["encoding"]).Properties())
             {
+                // Ignore any encodings marked as a wildcard (*)
+                if (encoding.Value.ToString() == "*")
+                    continue;
+
                 // Ignore any encodings that are defined as null, as these were already handled in Step 1
                 if (IsJTokenNullOrUndefined(encoding.Value))
                     continue;
@@ -673,7 +688,8 @@ namespace DxR.VisMorphs
                     if (!IsJTokenNullOrUndefined(_finalStateSpecs[property.Name]))
                     {
                         // Take the value from the final state
-                        _newVisSpecs[property.Name].Parent.Remove();
+                        if (_newVisSpecs[property.Name] != null)
+                            _newVisSpecs[property.Name].Parent.Remove();
                         _newVisSpecs.Add(property.Name, _finalStateSpecs[property.Name]);
                     }
                 }
@@ -764,7 +780,7 @@ namespace DxR.VisMorphs
             // HACKY WORKAROUND: We need some way to cancel this timer early in case it gets interrupted. For now we just find the composite
             // disposable tied to the transition and the subscription to it. Ideally this should be done alongside with all of the other signals
             cancellationObservable.Subscribe(_ => DeactivateTransition(candidateMorph, transitionSpec, transitionSpec["name"], goToEnd))
-                .AddTo(candidateMorph.CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"]).Item2);
+                .AddTo(candidateMorph.CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"] == transitionSpec["name"]).Item2);
 
             return timerObservable;
         }
