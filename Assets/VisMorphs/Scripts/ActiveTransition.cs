@@ -12,6 +12,8 @@ namespace DxR.VisMorphs
         public List<Tuple<ChannelEncoding, ChannelEncoding, string>> ChangedChannelEncodings;
         public JSONNode InitialVisSpecs;
         public JSONNode FinalVisSpecs;
+        public JSONNode InitialInferredVisSpecs;
+        public JSONNode FinalInferredVisSpecs;
         public IObservable<float> TweeningObservable;
         public bool IsReversed;
     }

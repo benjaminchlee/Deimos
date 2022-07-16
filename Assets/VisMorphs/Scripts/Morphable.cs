@@ -142,6 +142,14 @@ namespace DxR.VisMorphs
 
                     CandidateMorphs.Clear();
                 }
+
+                // Update debug inspector variables
+                if (ShowValuesInInspector)
+                {
+                    CandidateMorphNames.Clear();
+                    CandidateStateNames.Clear();
+                    CandidateTransitionNames.Clear();
+                }
             }
         }
 
@@ -569,6 +577,7 @@ namespace DxR.VisMorphs
             visSpecs.Remove("data");
             JObject _newVisSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
 
+
             /// There are three different types of encoding changes that are possible here, one of which has two sub-conditions:
             /// A) undefined -> defined (i.e., encoding is added)
             /// B) defined -> undefined (i.e., encoding is removed)
@@ -627,6 +636,46 @@ namespace DxR.VisMorphs
                             MergeArrayHandling = MergeArrayHandling.Replace,
                             MergeNullValueHandling = MergeNullValueHandling.Merge
                         });
+                }
+            }
+
+            // We now also apply the same logic as above, except this time to the view-level properties
+            foreach (var property in ((JObject)_initialStateSpecs).Properties())
+            {
+                if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" || property.Name == "name" || property.Name == "title")
+                    continue;
+
+                // Step 1: Check which encodings to remove
+                if (IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][property.Name]))
+                {
+                    _newVisSpecs[property.Name]?.Parent.Remove();
+                }
+            }
+
+            foreach (var property in ((JObject)_finalStateSpecs).Properties())
+            {
+                if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" || property.Name == "name" || property.Name == "title")
+                    continue;
+
+                // Ignore any properties that are defined as null, as these were already handled in Step 1
+                if (IsJTokenNullOrUndefined(property.Value))
+                    continue;
+
+                // Step 2a: Add any properties to the vis state
+                if (IsJTokenNullOrUndefined(_initialStateSpecs[property.Name]))
+                {
+                    _newVisSpecs[property.Name]?.Parent.Remove();
+                    ((JObject)_newVisSpecs).Add(property);
+                }
+                // Step 2b: Modify any properties that are defined in both
+                else
+                {
+                    if (!IsJTokenNullOrUndefined(_finalStateSpecs[property.Name]))
+                    {
+                        // Take the value from the final state
+                        _newVisSpecs[property.Name].Parent.Remove();
+                        _newVisSpecs.Add(property.Name, _finalStateSpecs[property.Name]);
+                    }
                 }
             }
 

@@ -81,17 +81,6 @@ namespace DxR
 
         Dictionary<string, ActiveTransition> activeTransitions = new Dictionary<string, ActiveTransition>();
 
-        /// <summary>
-        /// A dictionary containing the start and end states involved in a transition
-        ///
-        /// Key: The name of the transition being applied
-        /// Value:  Item1: A list of 2-tuples, first element is the initial channel encodings, second element is the final channel encodings
-        ///         Item2: The initial vis specs of the transition
-        ///         Item3: The final vis specs of the transition
-        /// </summary>
-        // Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, JSONNode, JSONNode>> activeTransitions = new Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, JSONNode, JSONNode>>();
-
-
         private void Awake()
         {
             if (VisUpdated == null)
@@ -303,23 +292,15 @@ namespace DxR
                     ChangedChannelEncodings = transitionChannelEncodings,
                     InitialVisSpecs = newInitialVisSpecs,
                     FinalVisSpecs = newFinalVisSpecs,
+                    InitialInferredVisSpecs = newInferredInitialVisSpecs,
+                    FinalInferredVisSpecs = newInferredFinalVisSpecs,
                     TweeningObservable = tweeningObservable,
                     IsReversed = isReversed
                 };
                 activeTransitions.Add(transitionName, newActiveTransition);
 
-                ActiveTransition newInferredActiveTransition = new ActiveTransition()
-                {
-                    Name = transitionName,
-                    ChangedChannelEncodings = transitionChannelEncodings,
-                    InitialVisSpecs = newInferredInitialVisSpecs,
-                    FinalVisSpecs = newInferredFinalVisSpecs,
-                    TweeningObservable = tweeningObservable,
-                    IsReversed = isReversed
-                };
-
                 ApplyTransitionChannelEncodings(newActiveTransition);
-                ApplyTransitionAxes(newInferredActiveTransition);
+                ApplyTransitionAxes(newActiveTransition);
 
                 return true;
             }
@@ -400,6 +381,23 @@ namespace DxR
                 if (xoffsetpct != null) visSpecs["encoding"].Add("xoffsetpct", xoffsetpct);
                 if (yoffsetpct != null) visSpecs["encoding"].Add("yoffsetpct", yoffsetpct);
                 if (zoffsetpct != null) visSpecs["encoding"].Add("zoffsetpct", zoffsetpct);
+
+                // Copy over view-level properties
+                // TODO: For now we just blindly copy over all view-level properties. There should be a better way to do this though
+                foreach (var property in stateVisSpecs)
+                {
+                    if (property.Key == "data" || property.Key == "mark" || property.Key == "encoding" || property.Key == "name" || property.Key == "title")
+                        continue;
+
+                    if (visSpecs[property.Key] == null)
+                    {
+                        visSpecs.Add(property.Key,property.Value);
+                    }
+                    else
+                    {
+                        visSpecs[property.Key] = property.Value;
+                    }
+                }
             }
         }
 
@@ -419,8 +417,8 @@ namespace DxR
                     continue;
 
                 // Get the associated axis specs and scales for both the start and end states
-                JSONNode initialAxisSpecs = activeTransition.InitialVisSpecs["encoding"][channel]["axis"];
-                JSONNode finalAxisSpecs = activeTransition.FinalVisSpecs["encoding"][channel]["axis"];
+                JSONNode initialAxisSpecs = activeTransition.InitialInferredVisSpecs["encoding"][channel]["axis"];
+                JSONNode finalAxisSpecs = activeTransition.FinalInferredVisSpecs["encoding"][channel]["axis"];
                 Scale initialScale = encodingChange.Item1 != null ? encodingChange.Item1.scale : null;
                 Scale finalScale = encodingChange.Item2 != null ? encodingChange.Item2.scale : null;
 
