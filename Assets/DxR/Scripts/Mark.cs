@@ -103,7 +103,7 @@ namespace DxR
         public void InitialiseTransition(ActiveTransition newActiveTransition, int markIndex)
         {
             if (activeMarkTransitions.ContainsKey(newActiveTransition.Name))
-                throw new Exception(string.Format("Vis Morphs: Mark already contains subscriptions for the transition {0}. This shouldn't happen", newActiveTransition.Name));
+                throw new Exception(string.Format("Vis Morphs: Mark already contains subscriptions for the transition {0}. This error shouldn't happen", newActiveTransition.Name));
 
             // Create the disposable which will be used to store and quickly unsubscribe from our tweens
             CompositeDisposable transitionDisposable = new CompositeDisposable();

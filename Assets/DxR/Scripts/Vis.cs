@@ -199,7 +199,7 @@ namespace DxR
             CreateChannelEncodingObjects(specs, ref channelEncodings);
 
             // New: Updates existing mark instances, or creates new ones if they do not yet exist
-            UpdateMarkInstances();
+            ConstructAndUpdateMarkInstances();
 
             ApplyChannelEncodings();
 
@@ -207,7 +207,7 @@ namespace DxR
             ConstructInteractions(specs);
 
             // New: Updates existing axes instances, or creates new ones if they do not yet exist
-            UpdateAxes(specs, ref channelEncodings);
+            ConstructAndUpdateAxes(specs, ref channelEncodings);
 
             ConstructLegends(specs);
         }
@@ -295,6 +295,8 @@ namespace DxR
             // If the new transition has passed our checks, we can finally pass this onto the marks/axes/etc.
             if (isNewTransitionAllowed)
             {
+                // Annoyingly enough the mark transition functions don't work when the *inferred* specs are passed in
+                // Therefore we make two versions, one with the inferred specs and one without
                 ActiveTransition newActiveTransition = new ActiveTransition()
                 {
                     Name = transitionName,
@@ -306,7 +308,19 @@ namespace DxR
                 };
                 activeTransitions.Add(transitionName, newActiveTransition);
 
+                ActiveTransition newInferredActiveTransition = new ActiveTransition()
+                {
+                    Name = transitionName,
+                    ChangedChannelEncodings = transitionChannelEncodings,
+                    InitialVisSpecs = newInferredInitialVisSpecs,
+                    FinalVisSpecs = newInferredFinalVisSpecs,
+                    TweeningObservable = tweeningObservable,
+                    IsReversed = isReversed
+                };
+
                 ApplyTransitionChannelEncodings(newActiveTransition);
+                ApplyTransitionAxes(newInferredActiveTransition);
+
                 return true;
             }
             else
@@ -324,6 +338,7 @@ namespace DxR
             }
 
             StopTransitionChannelEncodings(transitionName, goToEnd, commitVisSpecChanges);
+            StopTransitionAxes(transitionName, goToEnd);
 
             activeTransitions.Remove(transitionName);
         }
@@ -374,6 +389,7 @@ namespace DxR
                 }
 
                 // Make sure that the offsetpcts are at the very end to prevent issues where they get misordered
+                // This code is kinda messy but oh well, can't figure out how else to do it with SimpleJSON
                 var xoffsetpct = visSpecs["encoding"]["xoffsetpct"];
                 var yoffsetpct = visSpecs["encoding"]["yoffsetpct"];
                 var zoffsetpct = visSpecs["encoding"]["zoffsetpct"];
@@ -399,14 +415,160 @@ namespace DxR
                 string channel = encodingChange.Item3;
 
                 // Only certain channel encodings can have axes. Skip this encoding if it is not one of these
-                if ((channel != "x" && channel != "y" && channel != "z"))
+                if (channel != "x" && channel != "y" && channel != "z")
                     continue;
 
-                // Get the associated axis specs for both the start and end states
+                // Get the associated axis specs and scales for both the start and end states
                 JSONNode initialAxisSpecs = activeTransition.InitialVisSpecs["encoding"][channel]["axis"];
                 JSONNode finalAxisSpecs = activeTransition.FinalVisSpecs["encoding"][channel]["axis"];
+                Scale initialScale = encodingChange.Item1 != null ? encodingChange.Item1.scale : null;
+                Scale finalScale = encodingChange.Item2 != null ? encodingChange.Item2.scale : null;
 
-                // We need at least one of these to be defined so that we
+                // We need at least one of these to be defined so that we can activate the transition
+                if (initialAxisSpecs != null || finalAxisSpecs != null)
+                {
+                    // Get the axis for this object. We will need to pass it a channel encoding object but the values will get overridden later on anyway
+                    Axis axis = null;
+                    ChannelEncoding dummyCE = encodingChange.Item1 != null ? encodingChange.Item1 : encodingChange.Item2;
+                    JSONNode dummyAxisSpec = initialAxisSpecs != null ? initialAxisSpecs : finalAxisSpecs;
+                    ConstructAndUpdateAxisObject(channel, dummyAxisSpec, ref dummyCE, out axis);
+
+                    // Call to initialise transition on this single axis
+                    axis.InitialiseTransition(activeTransition, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale);
+
+                    // Now check for facetwrap
+                    if (facetWrapEncodingChange != null)
+                    {
+                        // We need to calculate the translations twice for both the initial and final states
+                        FacetWrapChannelEncoding initialFacetWrapCE = null;
+                        int initialnumFacets = 0;
+                        int initialFacetSize = 1;
+                        float initialDeltaFirstDir = 0;
+                        float initialDeltaSecondDir = 0;
+                        if (facetWrapEncodingChange.Item1 != null)
+                        {
+                            initialFacetWrapCE = (FacetWrapChannelEncoding)facetWrapEncodingChange.Item1;
+                            initialnumFacets = initialFacetWrapCE.numFacets;
+                            initialFacetSize = initialFacetWrapCE.size;
+                            initialDeltaFirstDir = initialFacetWrapCE.spacing[0];
+                            initialDeltaSecondDir = initialFacetWrapCE.spacing[1];
+                        }
+
+                        FacetWrapChannelEncoding finalFacetWrapCE = null;
+                        int finalNumFacets = 0;
+                        int finalFacetSize = 1;
+                        float finalDeltaFirstDir = 0;
+                        float finalDeltaSecondDir = 0;
+                        if (facetWrapEncodingChange.Item2 != null)
+                        {
+                            finalFacetWrapCE = (FacetWrapChannelEncoding)facetWrapEncodingChange.Item2;
+                            finalNumFacets = finalFacetWrapCE.numFacets;
+                            finalFacetSize = finalFacetWrapCE.size;
+                            finalDeltaFirstDir = finalFacetWrapCE.spacing[0];
+                            finalDeltaSecondDir = finalFacetWrapCE.spacing[1];
+                        }
+
+                        // Create the axes for our facet
+                        List<Axis> facetedAxes = new List<Axis>();
+                        ConstructAndUpdateFacetedAxisObjects(channel, dummyAxisSpec, ref dummyCE, ref facetedAxes,
+                                                             Mathf.Max(initialnumFacets, finalNumFacets) - 1);    // We need to minus 1 as we don't include the original axes themselves
+
+                        List<Vector3> initialTranslations = Enumerable.Repeat(Vector3.zero, facetedAxes.Count).ToList();
+                        List<Vector3> finalTranslations = Enumerable.Repeat(Vector3.zero, facetedAxes.Count).ToList();
+
+                        // Calculate translations for initial
+                        for (int facetIdx = 0; facetIdx < initialnumFacets - 1; facetIdx++)
+                        {
+                            Axis facetAxis = facetedAxes[facetIdx];
+
+                            // Apply translation to these axes
+                            int firstDir = initialFacetWrapCE.directions[0];
+                            int secondDir = initialFacetWrapCE.directions[1];
+
+                            int idxFirstDir = (facetIdx + 1) % initialFacetSize;
+                            int idxSecondDir = Mathf.FloorToInt((facetIdx + 1) / (float)initialFacetSize);
+
+                            Vector3 translation = initialTranslations[facetIdx];
+                            translation[firstDir] = initialDeltaFirstDir * idxFirstDir;
+                            translation[secondDir] = initialDeltaSecondDir * idxSecondDir;
+                            initialTranslations[facetIdx] = translation;
+                        }
+
+                        // Calculate translations for final
+                        for (int facetIdx = 0; facetIdx < finalNumFacets - 1; facetIdx++)
+                        {
+                            Axis facetAxis = facetedAxes[facetIdx];
+
+                            // Apply translation to these axes
+                            int firstDir = finalFacetWrapCE.directions[0];
+                            int secondDir = finalFacetWrapCE.directions[1];
+
+                            int idxFirstDir = (facetIdx + 1) % finalFacetSize;
+                            int idxSecondDir = Mathf.FloorToInt((facetIdx + 1) / (float)finalFacetSize);
+
+                            Vector3 translation = finalTranslations[facetIdx];
+                            translation[firstDir] = finalDeltaFirstDir * idxFirstDir;
+                            translation[secondDir] = finalDeltaSecondDir * idxSecondDir;
+                            finalTranslations[facetIdx] = translation;
+                        }
+
+                        // Apply the transition
+                        for (int i = 0; i < facetedAxes.Count; i++)
+                        {
+                            facetedAxes[i].InitialiseTransition(activeTransition, initialAxisSpecs, finalAxisSpecs,
+                                                                initialScale, finalScale,
+                                                                initialTranslations[i], finalTranslations[i]);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void StopTransitionAxes(string transitionName, bool goToEnd)
+        {
+            List<string> channelsToRemove = new List<string>();
+            foreach (var kvp in axisInstances)
+            {
+                bool isDeleting = kvp.Value.StopTransition(transitionName, goToEnd);
+                if (isDeleting)
+                    channelsToRemove.Add(kvp.Key);
+            }
+
+            List<string> facetChannelsToRemove = new List<string>();
+            List<Axis> facetAxesToRemove = new List<Axis>();
+            foreach (var kvp in facetedAxisInstances)
+            {
+                foreach (Axis facetAxes in kvp.Value)
+                {
+                    bool isDeleting = facetAxes.StopTransition(transitionName, goToEnd);
+                    if (isDeleting)
+                    {
+                        if (!facetChannelsToRemove.Contains(kvp.Key))
+                            facetChannelsToRemove.Add(kvp.Key);
+
+                        facetAxesToRemove.Add(facetAxes);
+                    }
+                }
+            }
+
+            foreach (string channel in channelsToRemove)
+            {
+                axisInstances.Remove(channel);
+            }
+
+            foreach (string channel in facetChannelsToRemove)
+            {
+                List<Axis> facetAxes = facetedAxisInstances[channel];
+
+                foreach (Axis facetAxisToRemove in facetAxesToRemove)
+                {
+                    facetAxes.Remove(facetAxisToRemove);
+                }
+
+                if (facetAxes.Count == 0)
+                {
+                    facetedAxisInstances.Remove(channel);
+                }
             }
         }
 
@@ -1335,7 +1497,7 @@ namespace DxR
         ///
         /// This essentially supercedes ConstructMarkInstances and all related functions
         /// </summary>
-        private void UpdateMarkInstances(bool resetMarkValues = true)
+        private void ConstructAndUpdateMarkInstances(bool resetMarkValues = true)
         {
             if (markInstances == null) markInstances = new List<GameObject>();
 
@@ -1535,7 +1697,7 @@ namespace DxR
         ///
         /// This essentially supercedes ConstructAxes and all related functions
         /// </summary>
-        private void UpdateAxes(JSONNode specs, ref List<ChannelEncoding> channelEncodings)
+        private void ConstructAndUpdateAxes(JSONNode specs, ref List<ChannelEncoding> channelEncodings)
         {
             // Create a list that will keep track of the axes that we will want to keep
             // The ones which we haven't visited we will destroy at the end of this function
@@ -1565,7 +1727,7 @@ namespace DxR
 
                 if (verbose) Debug.Log("Constructing axis for channel " + channelEncoding.channel);
 
-                UpdateAxisObject(channel, axisSpecs, ref channelEncoding);
+                ConstructAndUpdateAxisObject(channel, axisSpecs, ref channelEncoding, out Axis a);
 
                 visitedAxisChannels.Add(channel);
 
@@ -1574,16 +1736,17 @@ namespace DxR
                 {
                     if (verbose) Debug.Log("Constructing faceted axes for channel " + channelEncoding.channel);
 
+                    int numFacets = facetWrapChannelEncoding.numFacets;
                     int facetSize = facetWrapChannelEncoding.size;
                     float deltaFirstDir = facetWrapChannelEncoding.spacing[0];
                     float deltaSecondDir = facetWrapChannelEncoding.spacing[1];
 
                     // Create the axes for our facet
                     List<Axis> facetedAxes = new List<Axis>();
-                    UpdateFacetedAxisObjects(channel, axisSpecs, ref channelEncoding, ref facetedAxes, facetSize);
+                    ConstructAndUpdateFacetedAxisObjects(channel, axisSpecs, ref channelEncoding, ref facetedAxes, numFacets - 1);
 
                     // Arrange the facets
-                    for (int facetIdx = 1; facetIdx <= facetSize; facetIdx++)
+                    for (int facetIdx = 0; facetIdx < facetedAxes.Count; facetIdx++)
                     {
                         Axis axis = facetedAxes[facetIdx];
 
@@ -1591,8 +1754,8 @@ namespace DxR
                         int firstDir = facetWrapChannelEncoding.directions[0];
                         int secondDir = facetWrapChannelEncoding.directions[1];
 
-                        int idxFirstDir = facetIdx % facetSize;
-                        int idxSecondDir = Mathf.FloorToInt(facetIdx / (float)facetSize);
+                        int idxFirstDir = (facetIdx + 1) % facetSize;
+                        int idxSecondDir = Mathf.FloorToInt((facetIdx + 1) / (float)facetSize);
 
                         axis.SetTranslation(deltaFirstDir * idxFirstDir, firstDir);
                         axis.SetTranslation(deltaSecondDir * idxSecondDir, secondDir);
@@ -1630,10 +1793,9 @@ namespace DxR
             }
         }
 
-        private void UpdateAxisObject(string channel, JSONNode axisSpecs, ref ChannelEncoding channelEncoding)
+        private void ConstructAndUpdateAxisObject(string channel, JSONNode axisSpecs, ref ChannelEncoding channelEncoding, out Axis axis)
         {
             // Get the axis object
-            Axis axis;
             if (!axisInstances.TryGetValue(channel, out axis))
             {
                 GameObject axisGameObject = Instantiate(Resources.Load("Axis/Axis", typeof(GameObject)), guidesParentObject.transform) as GameObject;
@@ -1645,7 +1807,7 @@ namespace DxR
             axis.UpdateSpecs(axisSpecs, channelEncoding.scale);
         }
 
-        private void UpdateFacetedAxisObjects(string channel, JSONNode axisSpecs, ref ChannelEncoding channelEncoding, ref List<Axis> axisList, int count)
+        private void ConstructAndUpdateFacetedAxisObjects(string channel, JSONNode axisSpecs, ref ChannelEncoding channelEncoding, ref List<Axis> axisList, int count)
         {
             // Get the axis list
             if (!facetedAxisInstances.TryGetValue(channel, out axisList))
@@ -1664,7 +1826,7 @@ namespace DxR
                 }
                 else
                 {
-                    GameObject axisGameObject = Instantiate(Resources.Load("Axis/Axis"), guidesParentObject.transform) as GameObject;
+                    GameObject axisGameObject = Instantiate(Resources.Load("Axis/Axis", typeof(GameObject)), guidesParentObject.transform) as GameObject;
                     axis = axisGameObject.GetComponent<Axis>();
                     axisList.Add(axis);
                 }
