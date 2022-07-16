@@ -30,8 +30,8 @@ namespace DxR.VisMorphs
         private JSONNode currentVisSpec;
         private bool isInitialised;
 
-        private Dictionary<string, Action> queuedTransitionActivations = new Dictionary<string, Action>();
-        private Dictionary<string, Action> queuedTransitionDeactivations = new Dictionary<string, Action>();
+        private Dictionary<string, Tuple<Action, int>> queuedTransitionActivations = new Dictionary<string, Tuple<Action, int>>();
+        private Dictionary<string, Tuple<Action, int>> queuedTransitionDeactivations = new Dictionary<string, Tuple<Action, int>>();
 
         private void Start()
         {
@@ -43,10 +43,9 @@ namespace DxR.VisMorphs
             // Resolve all deactivations first
             if (queuedTransitionDeactivations.Count > 0)
             {
-                while (queuedTransitionDeactivations.Count > 0)
+                foreach (var kvp in queuedTransitionDeactivations.OrderByDescending(kvp => kvp.Value.Item2).ToList())
                 {
-                    var kvp = queuedTransitionDeactivations.First();
-                    Action Deactivation = kvp.Value;
+                    Action Deactivation = kvp.Value.Item1;
                     queuedTransitionDeactivations.Remove(kvp.Key);
                     Deactivation();
                 }
@@ -57,10 +56,9 @@ namespace DxR.VisMorphs
             // Then resolve all activations
             if (queuedTransitionActivations.Count > 0)
             {
-                while (queuedTransitionActivations.Count > 0)
+                foreach (var kvp in queuedTransitionActivations.OrderByDescending(kvp => kvp.Value.Item2).ToList())
                 {
-                    var kvp = queuedTransitionActivations.First();
-                    Action Activation = kvp.Value;
+                    Action Activation = kvp.Value.Item1;
                     queuedTransitionActivations.Remove(kvp.Key);
                     Activation();
                 }
@@ -275,6 +273,7 @@ namespace DxR.VisMorphs
                     Tuple<JSONNode, bool> candidateTransition = candidateMorph.CandidateTransitions[j];
                     JSONNode transitionSpec = candidateTransition.Item1;
                     string transitionName = transitionSpec["name"];
+                    int transitionPriority = transitionSpec["priority"] != null ? transitionSpec["priority"].AsInt : 0;
 
                     // If this candidate transition already has a version with subscriptions, skip it (caused by an old transition being transferred)
                     if (candidateMorph.CandidateTransitionsWithSubscriptions.Select(cts => (string)cts.Item1["name"]).Contains(transitionName))
@@ -309,7 +308,7 @@ namespace DxR.VisMorphs
                                     // AND this morph is not currently active, we can then formally activate the Transition
                                     if (!ActiveTransitionNames.Contains(transitionName) && !queuedTransitionActivations.ContainsKey(transitionName))
                                     {
-                                        queuedTransitionActivations.Add(transitionName, () => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed));
+                                        queuedTransitionActivations.Add(transitionName, new Tuple<Action, int>(() => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed), transitionPriority));
                                     }
                                 }
                                 else
@@ -320,7 +319,7 @@ namespace DxR.VisMorphs
                                         // If the tweening value is 1 or more, the Vis should rest at the final state
                                         bool goToEnd = f >= 1;
 
-                                        queuedTransitionDeactivations.Add(transitionName, () => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd));
+                                        queuedTransitionDeactivations.Add(transitionName, new Tuple<Action, int>(() => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd), transitionPriority));
                                     }
                                 }
                             }).AddTo(disposables);
@@ -366,7 +365,7 @@ namespace DxR.VisMorphs
                                         // AND this morph is not currently active, we can then formally activate the Transition
                                         if (!ActiveTransitionNames.Contains(transitionName) && !queuedTransitionActivations.ContainsKey(transitionName))
                                         {
-                                            queuedTransitionActivations.Add(transitionName, () => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed));
+                                            queuedTransitionActivations.Add(transitionName, new Tuple<Action, int>(() => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed), transitionPriority));
                                         }
                                     }
                                     else
@@ -382,7 +381,7 @@ namespace DxR.VisMorphs
                                                 goToEnd = transitionSpec["interrupt"]["value"] == "end";
                                             }
 
-                                            queuedTransitionDeactivations.Add(transitionName,() => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd));
+                                            queuedTransitionDeactivations.Add(transitionName, new Tuple<Action, int>(() => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd), transitionPriority));
                                         }
                                     }
                                 }).AddTo(disposables);

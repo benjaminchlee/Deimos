@@ -1,4 +1,37 @@
 {
+    "states": [
+        {
+            "name": "unflattened",
+            "width": 500,
+            "depth": 500,
+            "encoding": {
+                "x": "*",
+                "y": "*",
+                "z": "*"
+            }
+        },
+        {
+            "name": "flattenedX",
+            "width": 10,
+            "depth": 500,
+            "encoding": {
+                "x": "*",
+                "y": "*",
+                "z": "*"
+            }
+        },
+        {
+            "name": "flattenedZ",
+            "width": 500,
+            "depth": 10,
+            "encoding": {
+                "x": "*",
+                "y": "*",
+                "z": "*"
+            }
+        }
+    ],
+
     "signals": [{
             "name": "headPosition",
             "source": {
@@ -41,39 +74,6 @@
         }
     ],
 
-    "states": [
-        {
-            "name": "unflattened",
-            "width": 500,
-            "depth": 500,
-            "encoding": {
-                "x": "*",
-                "y": "*",
-                "z": "*"
-            }
-        },
-        {
-            "name": "flattenedX",
-            "width": 10,
-            "depth": 500,
-            "encoding": {
-                "x": "*",
-                "y": "*",
-                "z": "*"
-            }
-        },
-        {
-            "name": "flattenedZ",
-            "width": 500,
-            "depth": 10,
-            "encoding": {
-                "x": "*",
-                "y": "*",
-                "z": "*"
-            }
-        }
-    ],
-
     "transitions": [
         {
             "name": "flatteningX",
@@ -92,7 +92,7 @@
         {
             "name": "unflatteningX",
             "states": ["flattenedX", "unflattened"],
-            "triggers": ["!isLookingSide", "!isClose"],
+            "triggers": ["!isClose"],
             "timing": {
                 "control": 0.5,
                 "elapsed": "end"
@@ -120,7 +120,7 @@
         {
             "name": "unflatteningZ",
             "states": ["flattenedZ", "unflattened"],
-            "triggers": ["!isLookingFront", "!isClose"],
+            "triggers": ["!isClose"],
             "timing": {
                 "control": 0.5,
                 "elapsed": "end"

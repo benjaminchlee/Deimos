@@ -1,0 +1,123 @@
+{
+    "states": [
+        {
+            "name": "3d barchart",
+            "encoding": {
+                "x": {
+                    "field": "Survived",
+                    "type": "nominal"
+                },
+                "width": {
+                    "value": 130
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "z": {
+                    "field": "Class",
+                    "type": "nominal"
+                }
+            }
+        },
+        {
+            "name": "stacked 2d barchart",
+            "encoding": {
+                "x": null,
+                "width": {
+                    "value": 10
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "z": {
+                    "field": "Class",
+                    "type": "nominal"
+                },
+                "color": {
+                    "field": "Survived",
+                    "type": "nominal"
+                },
+                "yoffset": {
+                    "channel": "color"
+                }
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "intersectingSurface",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "intersecting"
+            }
+        },{
+            "name": "surfaceNormal",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "transform.forward"
+            }
+        }, {
+            "name": "visDirection",
+            "source": {
+                "type": "vis",
+                "select": "transform.forward"
+            }
+        }, {
+            "name": "intersectionAngle",
+            "expression": "angle(surfaceNormal, visDirection)"
+        }, {
+            "name": "isIntersectingForwards",
+            "expression": "intersectionAngle < 20 || 160 < intersectionAngle"
+        }, {
+            "name": "isIntersectingSideways",
+            "expression": "70 < intersectionAngle && intersectionAngle < 110"
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "stacking",
+            "states": ["3d barchart", "stacked 2d barchart"],
+            "triggers": ["intersectingSurface", "isIntersectingSideways"],
+            "timing": {
+                "control": 0.5,
+                "elapsed": "end"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": false,
+            "prority": 1
+        },
+        {
+            "name": "unstacking",
+            "states": ["stacked 2d barchart", "3d barchart"],
+            "triggers": ["!intersectingSurface"],
+            "timing": {
+                "control": 0.5,
+                "elapsed": "end"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "end"
+            },
+            "bidirectional": false,
+            "prority": 1
+        }
+    ]
+}

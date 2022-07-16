@@ -1,20 +1,4 @@
 {
-    "signals": [{
-            "name": "sliderX",
-            "source": {
-                "type": "gameobject",
-                "ref": "GeoScatterSliderHandle",
-                "select": "transform.localPosition.x"
-            }
-        }, {
-            "name": "sliderStage1",
-            "expression": "normalise(sliderX, 0, 0.5)"
-        }, {
-            "name": "sliderStage2",
-            "expression":"normalise(sliderX, 0.5, 1)"
-        }
-    ],
-
     "states": [
         {
             "name": "scatterplot",
@@ -89,6 +73,22 @@
                     "type": "spatial"
                 }
             }
+        }
+    ],
+
+    "signals": [{
+            "name": "sliderX",
+            "source": {
+                "type": "gameobject",
+                "ref": "GeoScatterSliderHandle",
+                "select": "transform.localPosition.x"
+            }
+        }, {
+            "name": "sliderStage1",
+            "expression": "normalise(sliderX, 0, 0.5)"
+        }, {
+            "name": "sliderStage2",
+            "expression":"normalise(sliderX, 0.5, 1)"
         }
     ],
 

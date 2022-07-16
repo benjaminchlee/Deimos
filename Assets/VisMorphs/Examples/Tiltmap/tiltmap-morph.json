@@ -1,29 +1,4 @@
 {
-    "signals": [
-        {
-            "name": "rotationX",
-            "source": {
-                "type": "vis",
-                "select": "transform.localRotation.eulerAngles.x"
-            }
-        }, {
-            "name": "upVector",
-            "source": {
-                "type": "vis",
-                "select": "transform.up"
-            }
-        }, {
-            "name": "tilt",
-            "expression": "angle(vector3(0, 1, 0), upVector)"
-        }, {
-            "name": "c2pTween",
-            "expression": "normalise(tilt, 20, 45)"
-        }, {
-            "name": "p2bTween",
-            "expression":"normalise(tilt, 75, 90)"
-        }
-    ],
-
     "states": [
         {
             "name": "choropleth",
@@ -109,6 +84,31 @@
                     "value": 0.01
                 }
             }
+        }
+    ],
+
+    "signals": [
+        {
+            "name": "rotationX",
+            "source": {
+                "type": "vis",
+                "select": "transform.localRotation.eulerAngles.x"
+            }
+        }, {
+            "name": "upVector",
+            "source": {
+                "type": "vis",
+                "select": "transform.up"
+            }
+        }, {
+            "name": "tilt",
+            "expression": "angle(vector3(0, 1, 0), upVector)"
+        }, {
+            "name": "c2pTween",
+            "expression": "normalise(tilt, 20, 45)"
+        }, {
+            "name": "p2bTween",
+            "expression":"normalise(tilt, 75, 90)"
         }
     ],
 

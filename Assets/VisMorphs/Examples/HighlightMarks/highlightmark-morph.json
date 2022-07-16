@@ -1,13 +1,4 @@
 {
-    "signals": [{
-            "name": "mousedown",
-            "source": {
-                "type": "mouse",
-                "select": "leftmousedown"
-            }
-        }
-    ],
-
     "states": [
         {
             "name": "base",
@@ -21,6 +12,15 @@
                 "color": {
                     "value": "red"
                 }
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "mousedown",
+            "source": {
+                "type": "mouse",
+                "select": "leftmousedown"
             }
         }
     ],

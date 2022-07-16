@@ -489,7 +489,7 @@ namespace DxR.VisMorphs
                                     var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center),
                                                                               (boxCollider.size / 2f) + (Vector3.one * 0.05f),
                                                                               morphable.transform.rotation)
-                                        .Where(c => c.gameObject.tag == "Surface");
+                                                                  .Where(c => c.gameObject.tag == "Surface");
                                     return (dynamic)surfaceColliders.Count() > 0;
                                 })
                                 .DistinctUntilChanged();
@@ -502,7 +502,10 @@ namespace DxR.VisMorphs
                             return Observable.EveryUpdate()
                                 .Select(_ =>
                                 {
-                                    var surfaceColliders = Physics.OverlapBox(boxCollider.center, boxCollider.size / 2f, morphable.transform.rotation).Where(c => c.gameObject.tag == "Surface");
+                                    var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center),
+                                                                              (boxCollider.size / 2f) + (Vector3.one * 0.05f),
+                                                                              morphable.transform.rotation)
+                                                                  .Where(c => c.gameObject.tag == "Surface");
                                     if (surfaceColliders.Count() > 0)
                                     {
                                         Collider largestTouchingSurface = surfaceColliders.OrderByDescending(c => c.gameObject.transform.localScale.x * c.gameObject.transform.localScale.y * c.gameObject.transform.localScale.z).First();
@@ -519,7 +522,6 @@ namespace DxR.VisMorphs
                                         return null;
                                     }
                                 })
-                                // .StartWith(Vector3.positiveInfinity)
                                 .Where(_ => _ != null)
                                 .DistinctUntilChanged();
                         }
@@ -531,7 +533,10 @@ namespace DxR.VisMorphs
                             return Observable.EveryUpdate()
                                 .Select(_ =>
                                 {
-                                    var surfaceColliders = Physics.OverlapBox(boxCollider.center, boxCollider.size / 2f, morphable.transform.rotation).Where(c => c.gameObject.tag == "Surface");
+                                    var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center),
+                                                                              (boxCollider.size / 2f) + (Vector3.one * 0.05f),
+                                                                              morphable.transform.rotation)
+                                                                  .Where(c => c.gameObject.tag == "Surface");
                                     if (surfaceColliders.Count() > 0)
                                     {
                                         Collider largestTouchingSurface = surfaceColliders.OrderByDescending(c => c.gameObject.transform.localScale.x * c.gameObject.transform.localScale.y * c.gameObject.transform.localScale.z).First();
@@ -542,7 +547,6 @@ namespace DxR.VisMorphs
                                         return null;
                                     }
                                 })
-                                // .StartWith(Vector3.positiveInfinity)
                                 .Where(_ => _ != null)
                                 .DistinctUntilChanged();
                         }
@@ -555,6 +559,7 @@ namespace DxR.VisMorphs
             // Use the Vis itself and emit values whenever the selected property has changed
             return morphable.gameObject
                 .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector))
+                .StartWith(morphable.gameObject.GetPropValue(selector))
                 .DistinctUntilChanged();
         }
 
@@ -622,8 +627,18 @@ namespace DxR.VisMorphs
                 }
 
                 return expressionObservable.Select(_ => {
-                    return interpreter.Eval(expression);
-                }).DistinctUntilChanged();
+                    try
+                    {
+                        return interpreter.Eval(expression);
+                    }
+                    // Sometimes a signal upstream would not have sent a value yet before the expression is evaluated. This try-catch prevents that
+                    catch (DynamicExpresso.Exceptions.UnknownIdentifierException e)
+                    {
+                        Debug.LogWarning(e.ToString());
+                        return null;
+                    }
+                }).Where(_ => _ != null)
+                  .DistinctUntilChanged();
             }
             else
             {

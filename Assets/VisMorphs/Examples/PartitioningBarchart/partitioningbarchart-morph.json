@@ -1,22 +1,5 @@
 
 {
-    "signals": [{
-            "name": "intersectingSurface",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "intersecting"
-            }
-        }, {
-            "name": "collisionPoint",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "collisionpoint"
-            }
-        }
-    ],
-
     "states": [
         {
             "name": "stacked",
@@ -39,12 +22,6 @@
                 },
                 "depth": {
                     "value": 130
-                },
-                "color": {
-                    "type": "nominal"
-                },
-                "yoffset": {
-                    "channel": "color"
                 }
             }
         },
@@ -67,12 +44,6 @@
                 "depth": {
                     "value": 10
                 },
-                "color": {
-                    "type": "nominal"
-                },
-                "yoffset": {
-                    "channel": "color"
-                },
                 "facetwrap": {
                     "field": "Class",
                     "type": "nominal",
@@ -80,6 +51,23 @@
                     "spacing": [400, -500],
                     "size": 2
                 }
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "intersectingSurface",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "intersecting"
+            }
+        }, {
+            "name": "collisionPoint",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "collisionpoint"
             }
         }
     ],
