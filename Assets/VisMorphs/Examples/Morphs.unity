@@ -27573,7 +27573,6 @@ GameObject:
   - component: {fileID: 7963412402780614708}
   - component: {fileID: 8376424649337003738}
   - component: {fileID: 8377772318367503393}
-  - component: {fileID: 5903765571785439855}
   m_Layer: 0
   m_Name: Floor
   m_TagString: Untagged
@@ -27660,20 +27659,6 @@ PrefabInstance:
       objectReference: {fileID: 0}
     m_RemovedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 0c84d482f2f1f1548b72b0c5906abdc6, type: 3}
---- !u!64 &5903765571785439855
-MeshCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 1090179349770739074}
-  m_Material: {fileID: 0}
-  m_IsTrigger: 0
-  m_Enabled: 1
-  serializedVersion: 4
-  m_Convex: 0
-  m_CookingOptions: 30
-  m_Mesh: {fileID: 10209, guid: 0000000000000000e000000000000000, type: 0}
 --- !u!4 &7963412402780614708
 Transform:
   m_ObjectHideFlags: 0

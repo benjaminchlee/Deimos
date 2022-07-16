@@ -11,6 +11,7 @@ using GeoJSON.Net.Geometry;
 using Newtonsoft.Json;
 using GeoJSON.Net.Feature;
 using GeoJSON.Net;
+using DxR.VisMorphs;
 
 namespace DxR
 {
@@ -75,6 +76,8 @@ namespace DxR
         [HideInInspector]
         public VisUpdatedEvent VisUpdated;
 
+        Dictionary<string, ActiveTransition> activeTransitions = new Dictionary<string, ActiveTransition>();
+
         /// <summary>
         /// A dictionary containing the start and end states involved in a transition
         ///
@@ -83,7 +86,7 @@ namespace DxR
         ///         Item2: The initial vis specs of the transition
         ///         Item3: The final vis specs of the transition
         /// </summary>
-        Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, JSONNode, JSONNode>> activeTransitions = new Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, JSONNode, JSONNode>>();
+        // Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, JSONNode, JSONNode>> activeTransitions = new Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, JSONNode, JSONNode>>();
 
 
         private void Awake()
@@ -229,10 +232,12 @@ namespace DxR
             ChannelEncoding.FilterUnchangedChannelEncodings(ref initialChannelEncodings, ref finalChannelEncodings, true);
 
             // Now make a list containing pairwise ChannelEncodings in tuples, using nulls wherever a channel encoding exists in one but not the other
-            List<Tuple<ChannelEncoding, ChannelEncoding>> transitionChannelEncodings = new List<Tuple<ChannelEncoding, ChannelEncoding>>();
+            // The third item in the tupple is the name of the channel (non-null)
+            List<Tuple<ChannelEncoding, ChannelEncoding, string>> transitionChannelEncodings = new List<Tuple<ChannelEncoding, ChannelEncoding,string>>();
             while (initialChannelEncodings.Count > 0)
             {
                 ChannelEncoding ce1 = initialChannelEncodings[0];
+                string channelName = ce1.channel;
 
                 bool found = false;
                 for (int i = 0; i < finalChannelEncodings.Count; i++)
@@ -240,7 +245,7 @@ namespace DxR
                     ChannelEncoding ce2 = finalChannelEncodings[i];
                     if (ce1.channel == ce2.channel)
                     {
-                        transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding>(ce1, ce2));
+                        transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding, string>(ce1, ce2, channelName));
                         finalChannelEncodings.RemoveAt(i);
                         found = true;
                         break;
@@ -248,7 +253,7 @@ namespace DxR
                 }
 
                 if (!found)
-                    transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding>(ce1, null));
+                    transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding, string>(ce1, null, channelName));
 
                 initialChannelEncodings.RemoveAt(0);
             }
@@ -256,7 +261,8 @@ namespace DxR
             while (finalChannelEncodings.Count > 0)
             {
                 ChannelEncoding ce2 = finalChannelEncodings[0];
-                transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding>(null, ce2));
+                string channelName = ce2.channel;
+                transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding, string>(null, ce2, channelName));
                 finalChannelEncodings.RemoveAt(0);
             }
 
@@ -270,8 +276,8 @@ namespace DxR
             foreach (var activeTransition in activeTransitions.Values)
             {
                 // Check if channel names overlap in the either of the two states
-                bool initialStateOverlap = activeTransition.Item1.Where(tuple => tuple.Item1 != null).Select(tuple => tuple.Item1.channel).Any(ce1 => changedChannelsNames.Contains(ce1));
-                bool finalStateOverlap = activeTransition.Item1.Where(tuple => tuple.Item2 != null).Select(tuple => tuple.Item2.channel).Any(ce2 => changedChannelsNames.Contains(ce2));
+                bool initialStateOverlap = activeTransition.ChangedChannelEncodings.Where(tuple => tuple.Item1 != null).Select(tuple => tuple.Item1.channel).Any(ce1 => changedChannelsNames.Contains(ce1));
+                bool finalStateOverlap = activeTransition.ChangedChannelEncodings.Where(tuple => tuple.Item2 != null).Select(tuple => tuple.Item2.channel).Any(ce2 => changedChannelsNames.Contains(ce2));
 
                 if (initialStateOverlap || finalStateOverlap)
                 {
@@ -280,10 +286,21 @@ namespace DxR
                 }
             }
 
+            // If the new transition has passed our checks, we can finally pass this onto the marks/axes/etc.
             if (isNewTransitionAllowed)
             {
-                activeTransitions.Add(transitionName, new Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, JSONNode, JSONNode>(transitionChannelEncodings, newInitialVisSpecs, newFinalVisSpecs));
-                ApplyTransitionChannelEncodings(transitionName, transitionChannelEncodings, tweeningObservable, isReversed);
+                ActiveTransition newActiveTransition = new ActiveTransition()
+                {
+                    Name = transitionName,
+                    ChangedChannelEncodings = transitionChannelEncodings,
+                    InitialVisSpecs = newInitialVisSpecs,
+                    FinalVisSpecs = newFinalVisSpecs,
+                    TweeningObservable = tweeningObservable,
+                    IsReversed = isReversed
+                };
+                activeTransitions.Add(transitionName, newActiveTransition);
+
+                ApplyTransitionChannelEncodings(newActiveTransition);
                 return true;
             }
             else
@@ -300,20 +317,38 @@ namespace DxR
                 throw new Exception(string.Format("Vis Morphs: The transition {0} is not active, and therefore cannot be stopped.", transitionName));
             }
 
+            StopTransitionChannelEncodings(transitionName, goToEnd, commitVisSpecChanges);
+
+            activeTransitions.Remove(transitionName);
+        }
+
+        private void ApplyTransitionChannelEncodings(ActiveTransition activeTransition)
+        {
+            // TODO: We need to do something about the rotation changing, not sure how to fix it
             for (int i = 0; i < markInstances.Count; i++)
             {
-                markInstances[i].GetComponent<Mark>().StopTransition(transitionName, i, goToEnd);
+                markInstances[i].GetComponent<Mark>().InitialiseTransition(activeTransition, i);
             }
+        }
+
+        private void StopTransitionChannelEncodings(string transitionName, bool goToEnd, bool commitVisSpecChanges)
+        {
+            for (int i = 0; i < markInstances.Count; i++)
+            {
+                markInstances[i].GetComponent<Mark>().StopTransition(transitionName, goToEnd);
+            }
+
+            ActiveTransition stoppingTransition = activeTransitions[transitionName];
 
             // If true, we update the vis specs to essentially "keep" the changes caused by the transition
             // This can be set to false in order to have the transition basically be ephemeral
             if (commitVisSpecChanges)
             {
-                List<Tuple<ChannelEncoding, ChannelEncoding>> changedChannelEncodings = activeTransitions[transitionName].Item1;
+                List<Tuple<ChannelEncoding, ChannelEncoding, string>> changedChannelEncodings = stoppingTransition.ChangedChannelEncodings;
 
                 // Update the vis specs
                 // For each channel encoding change, change the vis specs based on the one stored in the transition tuple
-                JSONNode stateVisSpecs = (goToEnd) ? activeTransitions[transitionName].Item3 : activeTransitions[transitionName].Item2;
+                JSONNode stateVisSpecs = (goToEnd) ? stoppingTransition.FinalVisSpecs : stoppingTransition.InitialVisSpecs;
 
                 foreach (var tuple in changedChannelEncodings)
                 {
@@ -343,17 +378,6 @@ namespace DxR
                 if (xoffsetpct != null) visSpecs["encoding"].Add("xoffsetpct", xoffsetpct);
                 if (yoffsetpct != null) visSpecs["encoding"].Add("yoffsetpct", yoffsetpct);
                 if (zoffsetpct != null) visSpecs["encoding"].Add("zoffsetpct", zoffsetpct);
-            }
-
-            activeTransitions.Remove(transitionName);
-        }
-
-        private void ApplyTransitionChannelEncodings(string transitionName, List<Tuple<ChannelEncoding, ChannelEncoding>> transitionChannelEncodings, IObservable<float> tweeningObservable, bool isReversed)
-        {
-            // TODO: We need to do something about the rotation changing, not sure how to fix it
-            for (int i = 0; i < markInstances.Count; i++)
-            {
-                markInstances[i].GetComponent<Mark>().InitialiseTransition(transitionName, transitionChannelEncodings, tweeningObservable, i);
             }
         }
 

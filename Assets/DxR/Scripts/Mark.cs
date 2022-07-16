@@ -1,12 +1,13 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 using SimpleJSON;
 using UnityEngine;
 using UnityEngine.UI;
-using System.IO;
 using UniRx;
-using System.Linq;
+using DxR.VisMorphs;
 
 namespace DxR
 {
@@ -36,13 +37,25 @@ namespace DxR
             public Color colour;
         }
 
-        /// <summary>
-        /// Key: Name of the transition being applied
-        /// Value:
-        ///     Item1: List of 2-tuples whereby the first item is the start channel encoding, second item is the end channel encoding
-        ///     Item2: A composite disposable which stores subscriptions for the tweening
-        /// </summary>
-        protected Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, CompositeDisposable>> activeTransitions = new Dictionary<string, Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, CompositeDisposable>>();
+        protected class ActiveMarkTransition : ActiveTransition
+        {
+            public CompositeDisposable Disposable;
+            public int MarkIndex;
+
+            public ActiveMarkTransition(ActiveTransition activeTransition, CompositeDisposable disposable, int markIndex)
+            {
+                this.Name = activeTransition.Name;
+                this.ChangedChannelEncodings = activeTransition.ChangedChannelEncodings;
+                this.InitialVisSpecs = activeTransition.InitialVisSpecs;
+                this.FinalVisSpecs = activeTransition.FinalVisSpecs;
+                this.TweeningObservable = activeTransition.TweeningObservable;
+                this.IsReversed = activeTransition.IsReversed;
+                this.Disposable = disposable;
+                this.MarkIndex = markIndex;
+            }
+        }
+
+        protected Dictionary<string, ActiveMarkTransition> activeMarkTransitions = new Dictionary<string, ActiveMarkTransition>();
         protected static readonly string[] spatialChannelNames = new string[] { "x", "xoffset", "xoffsetpct", "y", "yoffset", "yoffsetpct", "z", "zoffset", "zoffsetpct", "facetwrap" };
         protected static readonly string[] idealChannelApplicationOrder = new string[] { "x", "y", "z", "size", "width", "height", "depth", "length",
                                                                                          "color", "opacity",
@@ -52,7 +65,6 @@ namespace DxR
 
         public Mark()
         {
-
         }
 
         public void Awake()
@@ -88,49 +100,53 @@ namespace DxR
 
         #region Morphing functions
 
-        public void InitialiseTransition(string transitionName, List<Tuple<ChannelEncoding, ChannelEncoding>> transitionChannelEncodings, IObservable<float> tweeningObservable, int markIndex)
+        public void InitialiseTransition(ActiveTransition newActiveTransition, int markIndex)
         {
-            if (activeTransitions.ContainsKey(transitionName))
-                throw new Exception(string.Format("Vis Morphs: Mark already contains subscriptions for the transition {0}. This shouldn't happen", transitionName));
+            if (activeMarkTransitions.ContainsKey(newActiveTransition.Name))
+                throw new Exception(string.Format("Vis Morphs: Mark already contains subscriptions for the transition {0}. This shouldn't happen", newActiveTransition.Name));
 
+            // Create the disposable which will be used to store and quickly unsubscribe from our tweens
             CompositeDisposable transitionDisposable = new CompositeDisposable();
-            activeTransitions.Add(transitionName, new Tuple<List<Tuple<ChannelEncoding, ChannelEncoding>>, CompositeDisposable>(transitionChannelEncodings, transitionDisposable));
+
+            // Create our own new mark-specific version of the transition object to make our life a bit easier
+            ActiveMarkTransition activeMarkTransition = new ActiveMarkTransition(newActiveTransition, transitionDisposable, markIndex);
+            activeMarkTransitions.Add(newActiveTransition.Name, activeMarkTransition);
 
             // First we initialise the transition channels for spatial channels (x, xoffset, xoffsetpct, etc.)
             // We also always include any faceting channels as these affect all spatial channels
-            InitialiseSpatialTransitions(transitionName, transitionChannelEncodings, tweeningObservable, markIndex, transitionDisposable);
+            InitialiseSpatialTransitions(activeMarkTransition);
 
-            foreach (var tuple in transitionChannelEncodings)
+            foreach (var tuple in activeMarkTransition.ChangedChannelEncodings)
             {
                 // Ignore all spatial channels
-                if (!spatialChannelNames.Contains(GetChannelNameFromTuple(tuple)))
-                    InitialiseTransitionChannel(tuple, tweeningObservable, markIndex, transitionDisposable);
+                if (!spatialChannelNames.Contains(tuple.Item3))
+                    InitialiseTransitionChannel(activeMarkTransition, tuple);
             }
         }
 
-        public void StopTransition(string transitionName, int markIndex, bool goToEnd = true)
+        public void StopTransition(string transitionName, bool goToEnd = true)
         {
-            if (!activeTransitions.ContainsKey(transitionName))
+            if (!activeMarkTransitions.ContainsKey(transitionName))
                 throw new Exception(string.Format("Vis Morphs: Mark does not contain subscriptions for the transition {0}. This shouldn't happen", transitionName));
 
-            var activeTransition = activeTransitions[transitionName];
+            var stoppingMarkTransition = activeMarkTransitions[transitionName];
 
             // Dispose all active subscriptions
-            activeTransition.Item2.Dispose();
+            stoppingMarkTransition.Disposable.Dispose();
 
             // We want to ensure that the encodings are applied in the correct order
-            var transitionChannelEncodings = activeTransition.Item1;
-            transitionChannelEncodings = transitionChannelEncodings.OrderBy(tuple => Array.IndexOf(idealChannelApplicationOrder, GetChannelNameFromTuple(tuple))).ToList();
+            var transitionChannelEncodings = stoppingMarkTransition.ChangedChannelEncodings;
+            transitionChannelEncodings = transitionChannelEncodings.OrderBy(tuple => Array.IndexOf(idealChannelApplicationOrder, tuple.Item3)).ToList();
 
             // Since the offset channels apply a translation to the mark, we don't want to apply them again UNLESS an x, y, or z channel is present
             // TODO / NOTE: This might cause more bugs later down the line
-            List<string> channelNames = transitionChannelEncodings.Select(tuple => GetChannelNameFromTuple(tuple)).ToList();
+            List<string> channelNames = transitionChannelEncodings.Select(tuple => tuple.Item3).ToList();
             List<string> resettedSpatialChannels = new List<string>();
 
             // For each changed encoding, set the mark's values to either the start or end depending on the goToEnd flag
             foreach (var tuple in transitionChannelEncodings)
             {
-                string channel = GetChannelNameFromTuple(tuple);
+                string channel = tuple.Item3;
                 ChannelEncoding ce = goToEnd ? tuple.Item2 : tuple.Item1;
 
                 // If this encoding is an offset, we'll need to check whether or not to initially reset its base spatial dimension first
@@ -152,7 +168,7 @@ namespace DxR
 
                 if (ce != null)
                 {
-                    ApplyChannelEncoding(ce, markIndex);
+                    ApplyChannelEncoding(ce, stoppingMarkTransition.MarkIndex);
                 }
                 else
                 {
@@ -160,7 +176,7 @@ namespace DxR
                 }
             }
 
-            activeTransitions.Remove(transitionName);
+            activeMarkTransitions.Remove(transitionName);
         }
 
         /// <summary>
@@ -169,17 +185,16 @@ namespace DxR
         /// We set the values stored in the initial and final state as: (spatial dimension value) + (offset value) * (offsetpct value)
         /// The tweener then inperpolates between the two as per normal
         /// </summary>
-        protected virtual void InitialiseSpatialTransitions(string transitionName, List<Tuple<ChannelEncoding, ChannelEncoding>> transitionChannelEncodings,
-                                                         IObservable<float> tweeningObservable, int markIndex, CompositeDisposable transitionDisposable)
+        protected virtual void InitialiseSpatialTransitions(ActiveMarkTransition activeMarkTransition)
         {
             bool xVisited, yVisited, zVisited = xVisited = yVisited = false;
 
             // Get the facetting channel encodings (doesn't matter if they don't exist)
-            var facetwrapCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "facetwrap");
+            var facetwrapCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "facetwrap");
 
-            foreach (var tuple in transitionChannelEncodings)
+            foreach (var tuple in activeMarkTransition.ChangedChannelEncodings)
             {
-                string channel = GetChannelNameFromTuple(tuple);
+                string channel = tuple.Item3;
 
                 if (spatialChannelNames.Contains(channel))
                 {
@@ -188,13 +203,13 @@ namespace DxR
                         xVisited = true;
 
                         // Find all tuples relating to this spatial dimension
-                        var dimCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "x");
-                        var offsetCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "xoffset");
-                        var offsetpctCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "xoffsetpct");
+                        var dimCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "x");
+                        var offsetCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "xoffset");
+                        var offsetpctCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "xoffsetpct");
                         // We also need the size one so that offsetpct can work properly
-                        var sizeCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "width");
+                        var sizeCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "width");
 
-                        InitialiseSpatialTransitionChannel("x", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE, tweeningObservable, markIndex, transitionDisposable);
+                        InitialiseSpatialTransitionChannel(activeMarkTransition, "x", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE);
                     }
 
                     if (channel.StartsWith("y") && !yVisited)
@@ -202,13 +217,13 @@ namespace DxR
                         yVisited = true;
 
                         // Find all tuples relating to this spatial dimension
-                        var dimCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "y");
-                        var offsetCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "yoffset");
-                        var offsetpctCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "yoffsetpct");
+                        var dimCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "y");
+                        var offsetCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "yoffset");
+                        var offsetpctCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "yoffsetpct");
                         // We also need the size one so that offsetpct can work properly
-                        var sizeCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "height");
+                        var sizeCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "height");
 
-                        InitialiseSpatialTransitionChannel("y", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE, tweeningObservable, markIndex, transitionDisposable);
+                        InitialiseSpatialTransitionChannel(activeMarkTransition, "y", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE);
                     }
 
                     if (channel.StartsWith("z") && !zVisited)
@@ -216,51 +231,27 @@ namespace DxR
                         zVisited = true;
 
                         // Find all tuples relating to this spatial dimension
-                        var dimCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "z");
-                        var offsetCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "zoffset");
-                        var offsetpctCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "zoffsetpct");
+                        var dimCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "z");
+                        var offsetCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "zoffset");
+                        var offsetpctCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "zoffsetpct");
                         // We also need the size one so that offsetpct can work properly
-                        var sizeCE = transitionChannelEncodings.SingleOrDefault(tuple => GetChannelNameFromTuple(tuple) == "depth");
+                        var sizeCE = activeMarkTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "depth");
 
-                        InitialiseSpatialTransitionChannel("z", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE, tweeningObservable, markIndex, transitionDisposable);
+                        InitialiseSpatialTransitionChannel(activeMarkTransition, "z", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE);
                     }
                 }
             }
         }
 
-        protected virtual void InitialiseTransitionChannel(Tuple<ChannelEncoding, ChannelEncoding> transitionChannelEncoding, IObservable<float> tweeningObservable,
-                                                      int markIndex, CompositeDisposable transitionDisposable)
-        {
-            ChannelEncoding initialCE = transitionChannelEncoding.Item1;
-            ChannelEncoding finalCE = transitionChannelEncoding.Item2;
-            string channel = GetChannelNameFromTuple(transitionChannelEncoding);
-
-            // Get the value associated with the initial and final values
-            // Iniitalise default starting values first, depending on the data type expected for that given channel
-            string initialValue, finalValue = initialValue = GetDefaultValueForChannel(channel);
-
-            // Fill in the values with the actual ones
-            if (initialCE != null)
-            {
-                initialValue = GetValueForChannelEncoding(initialCE, markIndex);
-            }
-            if (finalCE != null)
-            {
-                finalValue = GetValueForChannelEncoding(finalCE, markIndex);
-            }
-
-            InitialiseTweeners(channel, initialValue, finalValue, tweeningObservable, transitionDisposable);
-        }
-
-        protected virtual void InitialiseSpatialTransitionChannel(string channel, Tuple<ChannelEncoding, ChannelEncoding> baseCE,
-                                                             Tuple<ChannelEncoding, ChannelEncoding> offsetCE, Tuple<ChannelEncoding, ChannelEncoding> offsetpctCE,
-                                                             Tuple<ChannelEncoding, ChannelEncoding> facetwrapCE, Tuple<ChannelEncoding, ChannelEncoding> sizeCE,
-                                                             IObservable<float> tweeningObservable, int markIndex, CompositeDisposable transitionDisposable)
+        protected virtual void InitialiseSpatialTransitionChannel(ActiveMarkTransition activeMarkTransition, string channel, Tuple<ChannelEncoding, ChannelEncoding, string> baseCE,
+                                                             Tuple<ChannelEncoding, ChannelEncoding, string> offsetCE, Tuple<ChannelEncoding, ChannelEncoding, string> offsetpctCE,
+                                                             Tuple<ChannelEncoding, ChannelEncoding, string> facetwrapCE, Tuple<ChannelEncoding, ChannelEncoding, string> sizeCE)
         {
             // Create the start and end values for the tweening
             float initialValue = 0;
             float finalValue = 0;
             int dim = channel == "x" ? 0 : channel == "y" ? 1 : 2;
+            int markIndex = activeMarkTransition.MarkIndex;
 
             // Get the base value
             if (baseCE != null)
@@ -321,12 +312,35 @@ namespace DxR
                 }
             }
 
-            InitialiseTweeners(channel, initialValue.ToString(), finalValue.ToString(), tweeningObservable, transitionDisposable);
+            InitialiseTweeners(activeMarkTransition, channel, initialValue.ToString(), finalValue.ToString());
         }
 
-        protected virtual void InitialiseTweeners(string channel, string initialValue, string finalValue, IObservable<float> tweeningObservable, CompositeDisposable transitionDisposable)
+        protected virtual void InitialiseTransitionChannel(ActiveMarkTransition activeMarkTransition, Tuple<ChannelEncoding, ChannelEncoding, string> transitionChannelEncoding)
         {
-            tweeningObservable.Subscribe(t => {
+            ChannelEncoding initialCE = transitionChannelEncoding.Item1;
+            ChannelEncoding finalCE = transitionChannelEncoding.Item2;
+            string channel = transitionChannelEncoding.Item3;
+
+            // Get the value associated with the initial and final values
+            // Iniitalise default starting values first, depending on the data type expected for that given channel
+            string initialValue, finalValue = initialValue = GetDefaultValueForChannel(channel);
+
+            // Fill in the values with the actual ones
+            if (initialCE != null)
+            {
+                initialValue = GetValueForChannelEncoding(initialCE, activeMarkTransition.MarkIndex);
+            }
+            if (finalCE != null)
+            {
+                finalValue = GetValueForChannelEncoding(finalCE, activeMarkTransition.MarkIndex);
+            }
+
+            InitialiseTweeners(activeMarkTransition, channel, initialValue, finalValue);
+        }
+
+        protected virtual void InitialiseTweeners(ActiveMarkTransition activeMarkTransition, string channel, string initialValue, string finalValue)
+        {
+            activeMarkTransition.TweeningObservable.Subscribe(t => {
                 // Interpolate between the two values
                 string interpolatedValue = "";
 
@@ -368,12 +382,7 @@ namespace DxR
                 }
 
                 SetChannelValue(channel, interpolatedValue);
-            }).AddTo(transitionDisposable);
-        }
-
-        protected string GetChannelNameFromTuple(Tuple<ChannelEncoding, ChannelEncoding> tuple)
-        {
-            return (tuple.Item1 != null) ? tuple.Item1.channel : tuple.Item2.channel;
+            }).AddTo(activeMarkTransition.Disposable);
         }
 
         protected string GetDefaultValueForChannel(string channel)

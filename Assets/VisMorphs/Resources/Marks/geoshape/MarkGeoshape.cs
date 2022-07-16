@@ -73,7 +73,7 @@ namespace DxR
             return base.GetValueForChannelEncoding(channelEncoding, markIndex);
         }
 
-        protected override void InitialiseTweeners(string channel, string initialValue, string finalValue, IObservable<float> tweeningObservable, CompositeDisposable transitionDisposable)
+        protected override void InitialiseTweeners(ActiveMarkTransition activeMarkTransition, string channel, string initialValue, string finalValue)
         {
             // We initialise the tweener differently if it is affecting a size channel (width, height, depth), as these channels
             // operate by manipulating an array, rather than just a singular value
@@ -91,7 +91,7 @@ namespace DxR
                 CalculateSizeVertices(finalValue, dim, ref tmpVertices);
                 finalVertexPositions = tmpVertices.Select(v => v[dim]).ToList();
 
-                tweeningObservable.Subscribe(t =>
+                activeMarkTransition.TweeningObservable.Subscribe(t =>
                 {
                     for (int i = 0; i < vertices.Count; i++)
                     {
@@ -103,11 +103,11 @@ namespace DxR
                     geoshapeMesh.SetVertices(vertices);
                     geoshapeMesh.RecalculateNormals();
                     geoshapeMesh.RecalculateBounds();
-                }).AddTo(transitionDisposable);
+                }).AddTo(activeMarkTransition.Disposable);
             }
             else
             {
-                base.InitialiseTweeners(channel, initialValue, finalValue, tweeningObservable, transitionDisposable);
+                base.InitialiseTweeners(activeMarkTransition, channel, initialValue, finalValue);
             }
         }
 
