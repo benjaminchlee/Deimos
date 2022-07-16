@@ -71,6 +71,9 @@ namespace DxR
         private BoxCollider boxCollider;
         private Rigidbody rigidbody;
 
+        public Dictionary<string, Axis> axisInstances = new Dictionary<string, Axis>();
+        public Dictionary<string, List<Axis>> facetedAxisInstances = new Dictionary<string, List<Axis>>();
+
         [Serializable]
         public class VisUpdatedEvent : UnityEvent<Vis, JSONNode> { }
         [HideInInspector]
@@ -171,7 +174,9 @@ namespace DxR
         /// </summary>
         private void UpdateVis(bool callUpdateEvent = true)
         {
-            DeleteAllButMarks();
+            // We no longer need to delete marks and axes
+            DeleteInteractions();
+            DeleteLegends();
 
             UpdateVisConfig();
 
@@ -201,7 +206,8 @@ namespace DxR
             // Interactions need to be constructed before axes and legends
             ConstructInteractions(specs);
 
-            ConstructAxes(specs);
+            // New: Updates existing axes instances, or creates new ones if they do not yet exist
+            UpdateAxes(specs, ref channelEncodings);
 
             ConstructLegends(specs);
         }
@@ -378,6 +384,29 @@ namespace DxR
                 if (xoffsetpct != null) visSpecs["encoding"].Add("xoffsetpct", xoffsetpct);
                 if (yoffsetpct != null) visSpecs["encoding"].Add("yoffsetpct", yoffsetpct);
                 if (zoffsetpct != null) visSpecs["encoding"].Add("zoffsetpct", zoffsetpct);
+            }
+        }
+
+        private void ApplyTransitionAxes(ActiveTransition activeTransition)
+        {
+            // If there is a facetwrap channel, we will actually need to create more axes
+            // This value will be null if there is no facetwrap channel
+            var facetWrapEncodingChange = activeTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "facetwrap");
+
+            // For each changed channel encoding, go through and update its axis (if applicable)
+            foreach (var encodingChange in activeTransition.ChangedChannelEncodings)
+            {
+                string channel = encodingChange.Item3;
+
+                // Only certain channel encodings can have axes. Skip this encoding if it is not one of these
+                if ((channel != "x" && channel != "y" && channel != "z"))
+                    continue;
+
+                // Get the associated axis specs for both the start and end states
+                JSONNode initialAxisSpecs = activeTransition.InitialVisSpecs["encoding"][channel]["axis"];
+                JSONNode finalAxisSpecs = activeTransition.FinalVisSpecs["encoding"][channel]["axis"];
+
+                // We need at least one of these to be defined so that we
             }
         }
 
@@ -1302,8 +1331,9 @@ namespace DxR
         }
 
         /// <summary>
-        /// Updates mark instances with new values if they already exist, or creates new ones if they
-        /// either don't exist or do not match mark names
+        /// Updates mark instances with new values if they already exist, or creates new ones if they either don't exist or do not match mark names
+        ///
+        /// This essentially supercedes ConstructMarkInstances and all related functions
         /// </summary>
         private void UpdateMarkInstances(bool resetMarkValues = true)
         {
@@ -1497,6 +1527,158 @@ namespace DxR
             else
             {
                 throw new Exception("Cannot find axis prefab.");
+            }
+        }
+
+        /// <summary>
+        /// Updates axis instances with new values if they already exist, or creates new ones if they don't exist
+        ///
+        /// This essentially supercedes ConstructAxes and all related functions
+        /// </summary>
+        private void UpdateAxes(JSONNode specs, ref List<ChannelEncoding> channelEncodings)
+        {
+            // Create a list that will keep track of the axes that we will want to keep
+            // The ones which we haven't visited we will destroy at the end of this function
+            List<string> visitedAxisChannels = new List<string>();
+            // Also, create an equivalent list for faceting
+            List<string> visitedFacetingAxisChannels = new List<string>();
+
+            // If there is a facet wrap channel, we will actually need to create more axes
+            FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncodings.SingleOrDefault(ce => ce.IsFacetWrap());
+
+            // Go through each channel and create axis for each spatial / position channel:
+            for (int channelIndex = 0; channelIndex < channelEncodings.Count; channelIndex++)
+            {
+                ChannelEncoding channelEncoding = channelEncodings[channelIndex];
+                string channel = channelEncoding.channel;
+
+                // Only certain channel encodings can have axes. Skip this encoding if it is not one of these
+                if (channel != "x" && channel != "y" && channel != "z")
+                    continue;
+
+                // Get the specs for this axis
+                JSONNode axisSpecs = specs["encoding"][channel]["axis"];
+
+                // If no specs were defined for this axis, skip it
+                if (!(axisSpecs != null && axisSpecs.Value != "none"))
+                    continue;
+
+                if (verbose) Debug.Log("Constructing axis for channel " + channelEncoding.channel);
+
+                UpdateAxisObject(channel, axisSpecs, ref channelEncoding);
+
+                visitedAxisChannels.Add(channel);
+
+                // If there is a facetwrap channel, we need to add more axes
+                if (facetWrapChannelEncoding != null)
+                {
+                    if (verbose) Debug.Log("Constructing faceted axes for channel " + channelEncoding.channel);
+
+                    int facetSize = facetWrapChannelEncoding.size;
+                    float deltaFirstDir = facetWrapChannelEncoding.spacing[0];
+                    float deltaSecondDir = facetWrapChannelEncoding.spacing[1];
+
+                    // Create the axes for our facet
+                    List<Axis> facetedAxes = new List<Axis>();
+                    UpdateFacetedAxisObjects(channel, axisSpecs, ref channelEncoding, ref facetedAxes, facetSize);
+
+                    // Arrange the facets
+                    for (int facetIdx = 1; facetIdx <= facetSize; facetIdx++)
+                    {
+                        Axis axis = facetedAxes[facetIdx];
+
+                        // Apply translation to these axes
+                        int firstDir = facetWrapChannelEncoding.directions[0];
+                        int secondDir = facetWrapChannelEncoding.directions[1];
+
+                        int idxFirstDir = facetIdx % facetSize;
+                        int idxSecondDir = Mathf.FloorToInt(facetIdx / (float)facetSize);
+
+                        axis.SetTranslation(deltaFirstDir * idxFirstDir, firstDir);
+                        axis.SetTranslation(deltaSecondDir * idxSecondDir, secondDir);
+                    }
+
+                    visitedFacetingAxisChannels.Add(channel);
+                }
+            }
+
+            // Go through and delete the axes for the channels which we did not visit
+            foreach (var kvp in axisInstances)
+            {
+                if (!visitedAxisChannels.Contains(kvp.Key))
+                    Destroy(kvp.Value.gameObject);
+            }
+            foreach (var kvp in facetedAxisInstances)
+            {
+                if (!visitedFacetingAxisChannels.Contains(kvp.Key))
+                {
+                    foreach (Axis axis in kvp.Value)
+                        Destroy(axis.gameObject);
+                }
+            }
+
+            // Clear dictionary references
+            foreach (string key in axisInstances.Keys.ToList())
+            {
+                if (!visitedAxisChannels.Contains(key))
+                    axisInstances.Remove(key);
+            }
+            foreach (string key in facetedAxisInstances.Keys.ToList())
+            {
+                if (!visitedFacetingAxisChannels.Contains(key))
+                    facetedAxisInstances.Remove(key);
+            }
+        }
+
+        private void UpdateAxisObject(string channel, JSONNode axisSpecs, ref ChannelEncoding channelEncoding)
+        {
+            // Get the axis object
+            Axis axis;
+            if (!axisInstances.TryGetValue(channel, out axis))
+            {
+                GameObject axisGameObject = Instantiate(Resources.Load("Axis/Axis", typeof(GameObject)), guidesParentObject.transform) as GameObject;
+                axis = axisGameObject.GetComponent<Axis>();
+                axisInstances.Add(channel, axis);
+            }
+
+            axis.Init(interactionsParentObject.GetComponent<Interactions>(), channelEncoding.field);
+            axis.UpdateSpecs(axisSpecs, channelEncoding.scale);
+        }
+
+        private void UpdateFacetedAxisObjects(string channel, JSONNode axisSpecs, ref ChannelEncoding channelEncoding, ref List<Axis> axisList, int count)
+        {
+            // Get the axis list
+            if (!facetedAxisInstances.TryGetValue(channel, out axisList))
+            {
+                axisList = new List<Axis>();
+                facetedAxisInstances.Add(channel, axisList);
+            }
+
+            // Get the axis object from the list if it already exists, or create a new one
+            Axis axis;
+            for (int i = 0; i < count; i++)
+            {
+                if (i < axisList.Count)
+                {
+                    axis = axisList[i];
+                }
+                else
+                {
+                    GameObject axisGameObject = Instantiate(Resources.Load("Axis/Axis"), guidesParentObject.transform) as GameObject;
+                    axis = axisGameObject.GetComponent<Axis>();
+                    axisList.Add(axis);
+                }
+
+                axis.Init(interactionsParentObject.GetComponent<Interactions>(), channelEncoding.field);
+                axis.UpdateSpecs(axisSpecs, channelEncoding.scale);
+            }
+
+            // Delete all leftover axes
+            while (count < axisList.Count)
+            {
+                axis = axisList[axisList.Count - 1];
+                Destroy(axis.gameObject);
+                axisList.RemoveAt(axisList.Count - 1);
             }
         }
 
@@ -1860,45 +2042,51 @@ namespace DxR
 
         private void DeleteAll()
         {
-            foreach (Transform child in guidesParentObject.transform)
-            {
-                child.gameObject.SetActive(false);      // Set these as inactive so that UpdateColliders ignores these
-                GameObject.Destroy(child.gameObject);
-            }
-
-            foreach (Transform child in marksParentObject.transform)
-            {
-                child.gameObject.SetActive(false);
-                GameObject.Destroy(child.gameObject);
-            }
-
-            // TODO: Do not delete, but only update:
-            foreach (Transform child in interactionsParentObject.transform)
-            {
-                child.gameObject.SetActive(false);
-                GameObject.Destroy(child.gameObject);
-            }
-        }
-
-        private void DeleteAllButMarks()
-        {
-            foreach (Transform child in guidesParentObject.transform)
-            {
-                child.gameObject.SetActive(false);
-                GameObject.Destroy(child.gameObject);
-            }
-
-            // TODO: Do not delete, but only update:
-            foreach (Transform child in interactionsParentObject.transform)
-            {
-                child.gameObject.SetActive(false);
-                GameObject.Destroy(child.gameObject);
-            }
+            DeleteMarks();
+            DeleteAxes();
+            DeleteLegends();
+            DeleteInteractions();
         }
 
         private void DeleteMarks()
         {
             foreach (Transform child in marksParentObject.transform)
+            {
+                child.gameObject.SetActive(false);
+                GameObject.Destroy(child.gameObject);
+            }
+        }
+
+        private void DeleteLegends()
+        {
+            foreach (Transform child in guidesParentObject.transform)
+            {
+                if (child.gameObject.GetComponent<Legend>() != null)
+                {
+                    child.gameObject.SetActive(false);
+                    GameObject.Destroy(child.gameObject);
+                }
+            }
+        }
+
+        private void DeleteAxes()
+        {
+            foreach (Transform child in guidesParentObject.transform)
+            {
+                if (child.gameObject.GetComponent<Axis>() != null)
+                {
+                    child.gameObject.SetActive(false);
+                    GameObject.Destroy(child.gameObject);
+                }
+            }
+            axisInstances.Clear();
+            facetedAxisInstances.Clear();
+        }
+
+        private void DeleteInteractions()
+        {
+            // TODO: Do not delete, but only update:
+            foreach (Transform child in interactionsParentObject.transform)
             {
                 child.gameObject.SetActive(false);
                 GameObject.Destroy(child.gameObject);
