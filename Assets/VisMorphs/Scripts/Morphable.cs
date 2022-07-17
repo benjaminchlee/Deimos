@@ -628,7 +628,7 @@ namespace DxR.VisMorphs
                     _initialState["data"].Remove("values");
                 if (_finalState["data"]["values"] != null)
                     _finalState["data"].Remove("values");
-                Debug.Log(string.Format("Vis Morphs: Initial state specification for transition \"{0}\":\n{1}", transitionName, initialState.ToString()));
+                Debug.Log(string.Format("Vis Morphs: Initial state specification for transition \"{0}\":\n{1}", transitionName, _initialState.ToString()));
                 Debug.Log(string.Format("Vis Morphs: Final state specification for transition \"{0}\":\n{1}", transitionName, _finalState.ToString()));
             }
 
