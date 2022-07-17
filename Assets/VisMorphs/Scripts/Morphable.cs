@@ -48,8 +48,6 @@ namespace DxR.VisMorphs
                     queuedTransitionDeactivations.Remove(kvp.Key);
                     Deactivation();
                 }
-
-                queuedTransitionDeactivations.Clear();
             }
 
             // Then resolve all activations
@@ -61,8 +59,6 @@ namespace DxR.VisMorphs
                     queuedTransitionActivations.Remove(kvp.Key);
                     Activation();
                 }
-
-                queuedTransitionActivations.Clear();
             }
         }
 
@@ -587,6 +583,65 @@ namespace DxR.VisMorphs
             }
         }
 
+        /// <summary>
+        /// Stops the specified transition if there is any. Meant to be called by signal tweeners.
+        ///
+        /// Only actually activates the transition at the end of the frame. This is to ensure all Signals have emitted their values before making any changes to the Vis.
+        /// This function should be called by adding an anonymous lambda to queuedTransitionActivations in the form () => ActivateTransition(...)
+        /// </summary>
+        private void DeactivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, string transitionName, bool goToEnd = true)
+        {
+            if (DebugTransitionCalls)
+            {
+                Debug.Log(string.Format("Vis Morphs: Transition \"{0}\" called Deactivate function.", transitionName));
+            }
+
+            if (!ActiveTransitionNames.Contains(transitionName))
+            {
+                Debug.LogError(string.Format("Vis Morphs: Transition \"{0}\" tried to deactivate, but it is not active in the first place", transitionName));
+                return;
+            }
+
+            parentVis.StopTransition(transitionName, goToEnd);
+
+            // Unsubscribe to this transition's signals
+            candidateMorph.DisposeTransitionSubscriptions(transitionName);
+
+            ActiveTransitionNames.Remove(transitionName);
+
+            // Check for morphs again so that they can seamlessly progress
+            CheckForMorphs();
+        }
+
+        /// <summary>
+        /// Does a complete reset.
+        ///
+        /// Stops all active transitions if there are any, and resets the Morphable back to a neutral state.
+        /// </summary>
+        public void Reset(bool goToEnd = false)
+        {
+            // Dispose of all subscriptions
+            foreach (CandidateMorph candidateMorph in CandidateMorphs)
+            {
+                candidateMorph.ClearLocalSignals();
+            }
+
+            // If there were transitions in progress, stop all of them
+            foreach (string activeMorph in ActiveTransitionNames)
+            {
+                parentVis.StopTransition(activeMorph, goToEnd);
+            }
+            ActiveTransitionNames.Clear();
+
+            // Reset variables
+            CandidateMorphs.Clear();
+            CandidateMorphNames.Clear();
+            CandidateStateNames.Clear();
+            CandidateTransitionNames.Clear();
+
+            // Check for morphs again to allow for further morphing without needing to update the vis
+            CheckForMorphs();
+        }
 
         private JSONNode GenerateVisSpecKeyframeFromState(JSONNode visSpecs, JSONNode initialStateSpecs, JSONNode finalStateSpecs)
         {
@@ -795,66 +850,6 @@ namespace DxR.VisMorphs
                 .AddTo(candidateMorph.CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"] == transitionSpec["name"]).Item2);
 
             return timerObservable;
-        }
-
-        /// <summary>
-        /// Stops the specified transition if there is any. Meant to be called by signal tweeners.
-        ///
-        /// Only actually activates the transition at the end of the frame. This is to ensure all Signals have emitted their values before making any changes to the Vis.
-        /// This function should be called by adding an anonymous lambda to queuedTransitionActivations in the form () => ActivateTransition(...)
-        /// </summary>
-        private void DeactivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, string transitionName, bool goToEnd = true)
-        {
-            if (DebugTransitionCalls)
-            {
-                Debug.Log(string.Format("Vis Morphs: Transition \"{0}\" called Deactivate function.", transitionName));
-            }
-
-            if (!ActiveTransitionNames.Contains(transitionName))
-            {
-                Debug.LogError(string.Format("Vis Morphs: Transition \"{0}\" tried to deactivate, but it is not active in the first place", transitionName));
-                return;
-            }
-
-            parentVis.StopTransition(transitionName, goToEnd);
-
-            // Unsubscribe to this transition's signals
-            candidateMorph.DisposeTransitionSubscriptions(transitionName);
-
-            ActiveTransitionNames.Remove(transitionName);
-
-            // Check for morphs again so that they can seamlessly progress
-            CheckForMorphs();
-        }
-
-        /// <summary>
-        /// Does a complete reset.
-        ///
-        /// Stops all active transitions if there are any, and resets the Morphable back to a neutral state.
-        /// </summary>
-        public void Reset(bool goToEnd = false)
-        {
-            // Dispose of all subscriptions
-            foreach (CandidateMorph candidateMorph in CandidateMorphs)
-            {
-                candidateMorph.ClearLocalSignals();
-            }
-
-            // If there were transitions in progress, stop all of them
-            foreach (string activeMorph in ActiveTransitionNames)
-            {
-                parentVis.StopTransition(activeMorph, goToEnd);
-            }
-            ActiveTransitionNames.Clear();
-
-            // Reset variables
-            CandidateMorphs.Clear();
-            CandidateMorphNames.Clear();
-            CandidateStateNames.Clear();
-            CandidateTransitionNames.Clear();
-
-            // Check for morphs again to allow for further morphing without needing to update the vis
-            CheckForMorphs();
         }
 
         private void OnDestroy()
