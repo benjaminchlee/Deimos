@@ -173,6 +173,7 @@ namespace DxR.VisMorphs
 
             // Set types
             interpreter = interpreter.Reference(typeof(Vector3));
+            interpreter = interpreter.Reference(typeof(Quaternion));
             interpreter = interpreter.Reference(typeof(Collider));
 
             // Set functions
@@ -190,6 +191,14 @@ namespace DxR.VisMorphs
             // Vector
             Func<double, double, double, Vector3> vector3 = (x, y, z) => new Vector3((float)x, (float)y, (float)z);
             interpreter.SetFunction("vector3", vector3);
+
+            // Quaternion
+            Func<double, double, double, double, Quaternion> quaternion = (x, y, z, w) => new Quaternion((float)x, (float)y, (float)z, (float)w);
+            interpreter.SetFunction("quaternion", quaternion);
+
+            // Vector
+            Func<double, double, double, Quaternion> euler = (x, y, z) => Quaternion.Euler((float)x, (float)y, (float)z);
+            interpreter.SetFunction("euler", euler);
 
             // Angle
             Func<Vector3, Vector3, Vector3, float> signedAngle = (from, to, axis) => Vector3.SignedAngle(from, to, axis);

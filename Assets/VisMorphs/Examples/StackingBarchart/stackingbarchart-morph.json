@@ -4,8 +4,8 @@
             "name": "3d barchart",
             "encoding": {
                 "x": {
-                    "field": "Survived",
-                    "type": "nominal"
+                    "field": "other.encoding.color.field",
+                    "type": "other.encoding.color.type"
                 },
                 "width": {
                     "value": 130
@@ -46,12 +46,18 @@
                     "type": "nominal"
                 },
                 "color": {
-                    "field": "Survived",
-                    "type": "nominal"
+                    "field": "other.encoding.x.field",
+                    "type": "other.encoding.x.type"
                 },
                 "yoffset": {
                     "channel": "color"
                 }
+            },
+            "position": {
+                "value": "collisionPoint"
+            },
+            "rotation": {
+                "value": "surfaceRotationSideways"
             }
         }
     ],
@@ -63,12 +69,26 @@
                 "ref": "surface",
                 "select": "intersecting"
             }
+        }, {
+            "name": "collisionPoint",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "collisionpoint"
+            }
         },{
             "name": "surfaceNormal",
             "source": {
                 "type": "vis",
                 "ref": "surface",
                 "select": "transform.forward"
+            }
+        }, {
+            "name": "surfaceRotation",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "transform.rotation"
             }
         }, {
             "name": "visDirection",
@@ -85,6 +105,9 @@
         }, {
             "name": "isIntersectingSideways",
             "expression": "70 < intersectionAngle && intersectionAngle < 110"
+        }, {
+            "name": "surfaceRotationSideways",
+            "expression": "surfaceRotation * euler(0, 90, 0)"
         }
     ],
 
@@ -102,7 +125,7 @@
                 "value": "start"
             },
             "bidirectional": false,
-            "prority": 1
+            "priority": 1
         },
         {
             "name": "unstacking",
@@ -117,7 +140,7 @@
                 "value": "end"
             },
             "bidirectional": false,
-            "prority": 1
+            "priority": 1
         }
     ]
 }

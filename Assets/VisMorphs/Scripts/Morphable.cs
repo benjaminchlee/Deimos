@@ -286,8 +286,7 @@ namespace DxR.VisMorphs
                     {
                         // Get the observable associated with the tweener signal. Check both the global and local signals for it
                         string tweenerName = transitionSpec["timing"]["control"];
-                        var observable = candidateMorph.GetLocalSignal(tweenerName);
-                        if (observable == null) observable = MorphManager.Instance.GetGlobalSignal(tweenerName);
+                        var observable = GetLocalOrGlobalSignal(tweenerName, candidateMorph);
 
                         if (observable != null)
                         {
@@ -337,8 +336,7 @@ namespace DxR.VisMorphs
                             if (triggerInversed) triggerName = triggerName.Remove(0, 1);      // Remove the ! from the name now
 
                             // Get the corresponding Signal observable by using its name, casting it to a boolean
-                            var observable = candidateMorph.GetLocalSignal(triggerName);
-                            if (observable == null) observable = MorphManager.Instance.GetGlobalSignal(triggerName);
+                            var observable = GetLocalOrGlobalSignal(triggerName, candidateMorph);
 
                             if (observable != null)
                             {
@@ -398,6 +396,14 @@ namespace DxR.VisMorphs
             }
         }
 
+        private IObservable<dynamic> GetLocalOrGlobalSignal(string name, CandidateMorph candidateMorph)
+        {
+            IObservable<dynamic> observable = candidateMorph.GetLocalSignal(name);
+            if (observable == null)
+                observable = MorphManager.Instance.GetGlobalSignal(name);
+            return observable;
+        }
+
         private bool CheckSpecsMatch(JSONNode visSpec, JSONNode stateSpec)
         {
             return CheckViewLevelSpecsMatching(visSpec, stateSpec) && CheckEncodingSpecsMatching(visSpec["encoding"], stateSpec["encoding"]);
@@ -409,6 +415,10 @@ namespace DxR.VisMorphs
             {
                 // Ignore the name and encoding properties
                 if (property.Key == "name" || property.Key == "encoding")
+                    continue;
+
+                // We also ignore position and rotation properties
+                if (property.Key == "position" || property.Key == "rotation")
                     continue;
 
                 // We also ignore the data property for now
@@ -462,8 +472,8 @@ namespace DxR.VisMorphs
 
                 JSONNode visEncodingValue = visEncodingSpecs[stateEncodingKey];
 
-                // If the value of this encoding is null, it means that our vis specs should NOT have it
-                // e.g., "x": null
+                /// If the value of this encoding is null, it means that our vis specs should NOT have it
+                /// e.g., "x": null
                 if (stateEncodingValue.IsNull)
                 {
                     // If the vis specs does actually have this encoding with a properly defined value, then it fails the check
@@ -480,31 +490,39 @@ namespace DxR.VisMorphs
                         JSONNode stateEncodingPropertyValue = stateEncodingProperty.Value;
                         JSONNode visEncodingPropertyValue = visEncodingValue[stateEncodingProperty.Key];
 
-                        // Condition 1: the value of this state property is defined, but as null
-                        // e.g.,: "x": {
-                        //          "field": null
-                        //         }
+                        /// The value of this property in the state is defined, but as null
+                        /// e.g.,: "x": {
+                        ///          "field": null
+                        ///         }
                         if (stateEncodingProperty.Value.IsNull)
                         {
+                            // The vis should not have a value for this property. If it does, it fails the check
                             if (visEncodingPropertyValue != null && !visEncodingPropertyValue.IsNull)
                                 return false;
                         }
-                        // Condition 2: the value of this property is defined as a wildcard ("*")
-                        // e.g.,: "x": {
-                        //          "field": "*"
-                        //         }
-                        else if (stateEncodingProperty.Value.ToString() == "\"*\"")
+
+                        /// The value of this property in the state is defined as a wildcard ("*") or is prefixed with "this." or "other."
+                        /// e.g.,: "x": {
+                        ///          "field": "*"
+                        ///          "type": "this.encoding.y.type"
+                        ///         }
+                        else if (stateEncodingPropertyValue == "*" ||
+                                ((string)stateEncodingPropertyValue).StartsWith("this.") ||
+                                ((string)stateEncodingPropertyValue).StartsWith("other."))
                         {
+                            // The vis should have a value for this property. If it doesn't, it fails the check
                             if (visEncodingPropertyValue == null ||
                                 (visEncodingPropertyValue != null && visEncodingPropertyValue.IsNull))
                                 return false;
                         }
-                        // Condition 3: the value of this property is some specific value
-                        // e.g.,: "x": {
-                        //          "field": "Miles_Per_Gallon"
-                        //         }
+
+                        /// The value of this property is some specific value that is not null, not a wildcard or a path selector
+                        /// e.g.,: "x": {
+                        ///          "field": "Miles_Per_Gallon"
+                        ///         }
                         else
                         {
+                            // The value in the vis should match the value in the state. If it doesn't it fails the check
                             if (visEncodingPropertyValue == null ||
                                 (visEncodingPropertyValue != null && visEncodingPropertyValue.ToString() != stateEncodingPropertyValue.ToString()))
                                 return false;
@@ -514,6 +532,56 @@ namespace DxR.VisMorphs
             }
 
             return true;
+        }
+
+        private IObservable<float> CreateTweeningObservable(CandidateMorph candidateMorph, JSONNode transitionSpec)
+        {
+            JSONNode timingSpecs = transitionSpec["timing"];
+
+            // If no timing specs are given, we just use a generic timer
+            if (timingSpecs == null)
+            {
+                return CreateTimerObservable(candidateMorph, transitionSpec, 1);
+            }
+            else
+            {
+                // Otherwise, if the name of the control corresponds with a parameter, use that instead
+                string timerName = timingSpecs["control"];
+                var observable = MorphManager.Instance.GetGlobalSignal(timerName);
+                if (observable == null) observable = candidateMorph.GetLocalSignal(timerName);
+
+                if (timerName != null && observable != null)
+                {
+                    return observable.Select(_ => (float)_);
+                }
+                // Otherwise, use the time provided in the specification
+                else
+                {
+                    return CreateTimerObservable(candidateMorph, transitionSpec, timingSpecs["control"]);
+                }
+            }
+        }
+
+        private IObservable<float> CreateTimerObservable(CandidateMorph candidateMorph, JSONNode transitionSpec, float duration)
+        {
+            float startTime = Time.time;
+
+            var cancellationObservable = Observable.Timer(TimeSpan.FromSeconds(duration));
+            var timerObservable = Observable.EveryUpdate().Select(_ =>
+            {
+                float timer = Time.time - startTime;
+                return Mathf.Clamp(timer / duration, 0, 1);
+            })
+                .TakeUntil(cancellationObservable);
+
+            bool goToEnd = transitionSpec["timing"]["elapsed"] != null ? transitionSpec["timing"]["elapsed"] == "end" : true;
+
+            // HACKY WORKAROUND: We need some way to cancel this timer early in case it gets interrupted. For now we just find the composite
+            // disposable tied to the transition and the subscription to it. Ideally this should be done alongside with all of the other signals
+            cancellationObservable.Subscribe(_ => DeactivateTransition(candidateMorph, transitionSpec, transitionSpec["name"], goToEnd))
+                .AddTo(candidateMorph.CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"] == transitionSpec["name"]).Item2);
+
+            return timerObservable;
         }
 
         /// <summary>
@@ -543,22 +611,13 @@ namespace DxR.VisMorphs
 
             // Generate the initial and final vis states
             JSONNode initialState, finalState;
-            if (!isReversed)
-            {
-                initialState = currentVisSpec;
-                finalState = GenerateVisSpecKeyframeFromState(initialState,
-                    candidateMorph.Morph.GetStateFromName(transitionSpec["states"][0]),
-                    candidateMorph.Morph.GetStateFromName(transitionSpec["states"][1]));
-            }
-            else
-            {
-                // If the transition is being called in the reversed direction, the candidate vis actually starts from the *final* state,
-                // in order to not mess with the tweening value. Note this does mean that it doesn't really work with time-based tweens
-                finalState = currentVisSpec;
-                initialState = GenerateVisSpecKeyframeFromState(finalState,
-                    candidateMorph.Morph.GetStateFromName(transitionSpec["states"][1]),
-                    candidateMorph.Morph.GetStateFromName(transitionSpec["states"][0]));
-            }
+            GenerateVisSpecKeyframes(currentVisSpec,
+                                     candidateMorph.Morph.GetStateFromName(transitionSpec["states"][0]),
+                                     candidateMorph.Morph.GetStateFromName(transitionSpec["states"][1]),
+                                     candidateMorph,
+                                     isReversed,
+                                     out initialState,
+                                     out finalState);
 
             if (DebugStates)
             {
@@ -643,30 +702,68 @@ namespace DxR.VisMorphs
             CheckForMorphs();
         }
 
-        private JSONNode GenerateVisSpecKeyframeFromState(JSONNode visSpecs, JSONNode initialStateSpecs, JSONNode finalStateSpecs)
+        /// <summary>
+        /// Calculates the initial and final keyframes of a given transition. This function handles everything using JSON.NET due to its
+        /// increased functionality for manipulating JSON objects. This returns SimpleJSON objects however to be used in the transition itself.
+        /// </summary>
+        private void GenerateVisSpecKeyframes(JSONNode originalVisSpec, JSONNode initialStateSpec, JSONNode finalStateSpec,
+                                                      CandidateMorph candidateMorph, bool isReversed,
+                                                      out JSONNode initialVisSpec, out JSONNode finalVisSpec)
         {
-            // SimpleJSON doesn't really work well with editing JSON objects, so we just use JSON.NET instead
-            JObject _initialStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(initialStateSpecs.ToString());
-            JObject _finalStateSpecs = Newtonsoft.Json.Linq.JObject.Parse(finalStateSpecs.ToString());
+            // SimpleJSON doesn't really work well with editing JSON objects, so we just use JSON.NET instead until we finish calculating the keyframes
+            // Remove the data property on the original vis spec, as it is very computationally expensive to parse into JSON.NET and back again
+            JSONNode originalDataSpecs = originalVisSpec["data"];
+            originalVisSpec.Remove("data");
 
-            // Create another vis specs object which will be the one which we are actually modifying
-            // But first, we should remove the data property from the vis spec in order to not have to serialise and parse it twice
-            JSONNode dataSpecs = visSpecs["data"];
-            visSpecs.Remove("data");
-            JObject _newVisSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
+            // Create JSON.NET equivalents of all of these specs
+            JObject _originalVisSpec = Newtonsoft.Json.Linq.JObject.Parse(originalVisSpec.ToString());
+            JObject _initialStateSpec = Newtonsoft.Json.Linq.JObject.Parse(initialStateSpec.ToString());
+            JObject _finalStateSpec = Newtonsoft.Json.Linq.JObject.Parse(finalStateSpec.ToString());
 
-            /// There are three different types of encoding changes that are possible here, one of which has two sub-conditions:
-            /// A) undefined -> defined (i.e., encoding is added)
-            /// B) defined -> undefined (i.e., encoding is removed)
-            /// C) defined -> defined (i.e., encoding is changed)
-            ///
-            /// We simplify this down to the following psudocode:
-            /// 1. For each encoding defined in the initial state, if it is not defined in the final state, it will be removed from the vis state (REMOVED)
-            /// 2. For each encoding defined in the final state:
-            ///     a. If it was not defined in the initial state, we add it to the vis state (ADDED)
-            ///     b. If it was defined in the initial state, we modify the vis state depending on the following rules: (CHANGED)
-            ///         i. If the final state defines a field or value, remove any pre-exisiting field or value in the vis state before adding the one from the final state
-            ///         ii. If the final state specifies NULLs anywhere, these are removed from the vis state. Everything else is left unchanged (for now)
+            // Generate the initial and final vis specs based on the provided state specs
+            JObject _initialVisSpec, _finalVisSpec;
+
+            if (!isReversed)
+            {
+                _initialVisSpec = _originalVisSpec;
+                _finalVisSpec = GenerateVisSpecFromStateSpecs(_initialVisSpec, _initialStateSpec, _finalStateSpec, candidateMorph);
+                ReplaceLeafValuesInVisSpec(ref _finalVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
+            }
+            else
+            {
+                _finalVisSpec = _originalVisSpec;
+                _initialVisSpec = GenerateVisSpecFromStateSpecs(_finalVisSpec, _finalStateSpec, _initialStateSpec, candidateMorph);
+                ReplaceLeafValuesInVisSpec(ref _initialVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
+            }
+
+            // Convert back to SimpleJSON
+            initialVisSpec = JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_initialVisSpec));
+            finalVisSpec = JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_finalVisSpec));
+
+            // Add the data specs back in
+            initialVisSpec.Add("data", originalDataSpecs);
+            finalVisSpec.Add("data", originalDataSpecs);
+        }
+
+        /// <summary>
+        /// Generates a vis spec based on two given state specs.
+        ///
+        /// There are three different types of encoding changes that are possible here, one of which has two sub-conditions:
+        /// A) undefined -> defined (i.e., encoding is added)
+        /// B) defined -> undefined (i.e., encoding is removed)
+        /// C) defined -> defined (i.e., encoding is changed)
+        ///
+        /// We simplify this down to the following psudocode:
+        /// 1. For each encoding defined in the initial state, if it is not defined in the final state, it will be removed from the vis state (REMOVED)
+        /// 2. For each encoding defined in the final state:
+        ///     a. If it was not defined in the initial state, we add it to the vis state (ADDED)
+        ///     b. If it was defined in the initial state, we modify the vis state depending on the following rules: (CHANGED)
+        ///         i. If the final state defines a field or value, remove any pre-exisiting field or value in the vis state before adding the one from the final state
+        ///         ii. If the final state specifies NULLs anywhere, these are removed from the vis state. Everything else is left unchanged (for now)
+        /// </summary>
+        private JObject GenerateVisSpecFromStateSpecs(JObject _visSpecs, JObject _initialStateSpecs, JObject _finalStateSpecs, CandidateMorph candidateMorph)
+        {
+            JObject _newVisSpecs = _visSpecs.DeepClone() as JObject;
 
             // Check encodings
             foreach (var encoding in ((JObject)_initialStateSpecs["encoding"]).Properties())
@@ -763,14 +860,9 @@ namespace DxR.VisMorphs
             }
 
             // Clean up any nulls in the vis specs
-            RemoveNullProperties(ref _newVisSpecs);
+            RemoveNullPropertiesInVisSpec(ref _newVisSpecs);
 
-            // Add the data specs back in
-            JSONNode __newVisSpecs = JSONObject.Parse(Newtonsoft.Json.JsonConvert.SerializeObject(_newVisSpecs));
-            visSpecs.Add("data", dataSpecs);
-            __newVisSpecs.Add("data", dataSpecs);
-
-            return __newVisSpecs;
+            return _newVisSpecs;
         }
 
         private bool IsJTokenNullOrUndefined(JToken jObject)
@@ -781,7 +873,7 @@ namespace DxR.VisMorphs
         /// <summary>
         /// Removes all properties with a value of null in a JSON.NET object
         /// </summary>
-        private void RemoveNullProperties(ref JObject specs)
+        private void RemoveNullPropertiesInVisSpec(ref JObject specs)
         {
             var descendants = specs.Descendants()
                 .Where(x => !x.HasValues);
@@ -802,54 +894,113 @@ namespace DxR.VisMorphs
             }
         }
 
-        private IObservable<float> CreateTweeningObservable(CandidateMorph candidateMorph, JSONNode transitionSpec)
+        /// <summary>
+        /// This function does two things:
+        /// 1. Replaces all leaf values that are names of signals with said signal's values, in JToken form
+        /// 2. Copies JTokens from one property/encoding to the other using JSON.NET's path format, prefixed with "this." or ".other"
+        /// </summary>
+        private void ReplaceLeafValuesInVisSpec(ref JObject visSpec, JObject initialVisSpec, JObject finalVisSpec, CandidateMorph candidateMorph)
         {
-            JSONNode timingSpecs = transitionSpec["timing"];
+            // Get all leaf nodes in the vis specs
+            var descendants = visSpec.Descendants().Where(descendant => !descendant.HasValues);
 
-            // If no timing specs are given, we just use a generic timer
-            if (timingSpecs == null)
+            // Loop through and find all nodes that reference signals, and calculate their JToken representation
+            List<Tuple<string, JToken>> descendantsToUpdate = new List<Tuple<string, JToken>>();
+            foreach (var descendant in descendants)
             {
-                return CreateTimerObservable(candidateMorph, transitionSpec, 1);
-            }
-            else
-            {
-                // Otherwise, if the name of the control corresponds with a parameter, use that instead
-                string timerName = timingSpecs["control"];
-                var observable = MorphManager.Instance.GetGlobalSignal(timerName);
-                if (observable == null) observable = candidateMorph.GetLocalSignal(timerName);
+                string leafValue = descendant.ToString();
 
-                if (timerName != null && observable != null)
+                // Function 1: Replace signal names with their values
+                if (!(leafValue.StartsWith("this.") || leafValue.StartsWith("other.")))
                 {
-                    return observable.Select(_ => (float)_);
+                    JToken value = GetJTokenFromSignalName(leafValue, candidateMorph);
+                    if (value != null)
+                    {
+                        // Store the path and JToken for us to update after this foreach loop
+                        descendantsToUpdate.Add(new Tuple<string, JToken>(descendant.Path, value));
+                    }
                 }
-                // Otherwise, use the time provided in the specification
+                // Function 2: Replace values with full stops with respective value from a different property/encoding
                 else
                 {
-                    return CreateTimerObservable(candidateMorph, transitionSpec, timingSpecs["control"]);
+                    // We get the value from either the initial or final vis spec depending on the prefix
+                    JObject specToCheck = null;
+                    string sourcePath = "";
+                    if (leafValue.StartsWith("this."))
+                    {
+                        specToCheck = initialVisSpec;
+                        sourcePath = leafValue.Replace("this.", "");
+                    }
+                    else if (leafValue.StartsWith("other."))
+                    {
+                        specToCheck = initialVisSpec;
+                        sourcePath = leafValue.Replace("other.", "");
+                    }
+
+                    JToken sourceValue = specToCheck.SelectToken(sourcePath);
+                    if (sourceValue != null)
+                    {
+                        descendantsToUpdate.Add(new Tuple<string, JToken>(descendant.Path, sourceValue));
+                    }
+                    else
+                    {
+                        throw new Exception(sourcePath);
+                    }
                 }
+            }
+
+            // Update the descendants
+            foreach (var tuple in descendantsToUpdate)
+            {
+                var descendant = visSpec.SelectToken(tuple.Item1).Parent as JProperty;
+                descendant.Value = tuple.Item2;
             }
         }
 
-        private IObservable<float> CreateTimerObservable(CandidateMorph candidateMorph, JSONNode transitionSpec, float duration)
+        private JToken GetJTokenFromSignalName(string signalName, CandidateMorph candidateMorph)
         {
-            float startTime = Time.time;
+            var observable = GetLocalOrGlobalSignal(signalName, candidateMorph);
 
-            var cancellationObservable = Observable.Timer(TimeSpan.FromSeconds(duration));
-            var timerObservable = Observable.EveryUpdate().Select(_ =>
+            if (observable != null)
             {
-                float timer = Time.time - startTime;
-                return Mathf.Clamp(timer / duration, 0, 1);
-            })
-                .TakeUntil(cancellationObservable);
+                dynamic value = GetLastValueFromObservable(observable);
+                return ConvertObservableValueToJToken(value);
+            }
 
-            bool goToEnd = transitionSpec["timing"]["elapsed"] != null ? transitionSpec["timing"]["elapsed"] == "end" : true;
+            return null;
+        }
 
-            // HACKY WORKAROUND: We need some way to cancel this timer early in case it gets interrupted. For now we just find the composite
-            // disposable tied to the transition and the subscription to it. Ideally this should be done alongside with all of the other signals
-            cancellationObservable.Subscribe(_ => DeactivateTransition(candidateMorph, transitionSpec, transitionSpec["name"], goToEnd))
-                .AddTo(candidateMorph.CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"] == transitionSpec["name"]).Item2);
+        private dynamic GetLastValueFromObservable(IObservable<dynamic> observable)
+        {
+            dynamic value = null;
+            IDisposable disposable = observable.Subscribe(_ => {
+                value = _;
+            });
+            disposable.Dispose();
+            return value;
+        }
 
-            return timerObservable;
+        private JToken ConvertObservableValueToJToken(dynamic value)
+        {
+            switch (value.GetType().ToString())
+            {
+                case "UnityEngine.Vector3":
+                    {
+                        Vector3 vector3 = (Vector3)value;
+                        return new JArray(vector3.x, vector3.y, vector3.z);
+                    }
+
+                case "UnityEngine.Quaternion":
+                    {
+                        Quaternion quaternion = (Quaternion)value;
+                        return new JArray(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
+                    }
+
+                default:
+                    {
+                        return null;
+                    }
+            }
         }
 
         private void OnDestroy()

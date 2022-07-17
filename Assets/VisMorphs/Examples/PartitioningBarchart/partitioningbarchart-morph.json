@@ -17,7 +17,7 @@
                     "value": -0.5
                 },
                 "z": {
-                    "field": "Class",
+                    "field": "other.encoding.facetwrap.field",
                     "type": "nominal"
                 },
                 "depth": {
@@ -45,12 +45,18 @@
                     "value": 10
                 },
                 "facetwrap": {
-                    "field": "Class",
+                    "field": "other.encoding.z.field",
                     "type": "nominal",
                     "directions": ["x", "y"],
                     "spacing": [400, -500],
                     "size": 2
                 }
+            },
+            "position": {
+                "value": "collisionPoint"
+            },
+            "rotation": {
+                "value": "surfaceRotation"
             }
         }
     ],
@@ -68,6 +74,13 @@
                 "type": "vis",
                 "ref": "surface",
                 "select": "collisionpoint"
+            }
+        }, {
+            "name": "surfaceRotation",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "transform.rotation"
             }
         }
     ],

@@ -67,6 +67,10 @@ namespace DxR
         private Dictionary<string, Axis> axisInstances = new Dictionary<string, Axis>();
         private Dictionary<string, List<Axis>> facetedAxisInstances = new Dictionary<string, List<Axis>>();
         private Dictionary<string, ActiveTransition> activeTransitions = new Dictionary<string, ActiveTransition>();
+        private Tuple<string, Vector3, Vector3> posePositionChanges;
+        private Tuple<string, Quaternion, Quaternion> poseRotationChanges;
+        private IDisposable posePositionDisposable;
+        private IDisposable poseRotationDisposable;
 
         [Serializable]
         public class VisUpdatedEvent : UnityEvent<Vis, JSONNode> { }
@@ -175,6 +179,8 @@ namespace DxR
             if (callUpdateEvent)
                 VisUpdated.Invoke(this, GetVisSpecs());
 
+            UpdateVisPose(visSpecsInferred);
+
             UpdateCollider();
         }
 
@@ -276,6 +282,23 @@ namespace DxR
                 }
             }
 
+            // We also need to check whether this new visualisation updates the visualisation's pose. If there is another
+            // transition which is already updating the pose, then this new transition cannot continue
+            // Position and rotation changes can coexist, but a single transition may affect both at the same time
+            if (isNewTransitionAllowed)
+            {
+                if (posePositionDisposable != null)
+                {
+                    if (newInferredInitialVisSpecs["position"] != null || newInferredFinalVisSpecs["position"] != null)
+                        isNewTransitionAllowed = false;
+                }
+                if (poseRotationDisposable != null)
+                {
+                    if (newInferredInitialVisSpecs["rotation"] != null || newInferredFinalVisSpecs["rotation"] != null)
+                        isNewTransitionAllowed = false;
+                }
+            }
+
             // If the new transition has passed our checks, we can finally pass this onto the marks/axes/etc.
             if (isNewTransitionAllowed)
             {
@@ -296,12 +319,13 @@ namespace DxR
 
                 ApplyTransitionChannelEncodings(newActiveTransition);
                 ApplyTransitionAxes(newActiveTransition);
+                ApplyTransitionPose(newActiveTransition);
 
                 return true;
             }
             else
             {
-                Debug.LogWarning("Vis Morphs: A transition has failed to been applied as it affects a channel encoding which is currently undergoing a transition.");
+                Debug.LogWarning("Vis Morphs: A transition has failed to been applied as it affects a visualisation property which is currently undergoing a transition.");
                 return false;
             }
         }
@@ -315,6 +339,9 @@ namespace DxR
 
             StopTransitionChannelEncodings(transitionName, goToEnd, commitVisSpecChanges);
             StopTransitionAxes(transitionName, goToEnd);
+            StopTransitionPose(transitionName, goToEnd);
+
+            UpdateCollider();
 
             activeTransitions.Remove(transitionName);
         }
@@ -378,10 +405,13 @@ namespace DxR
                 if (zoffsetpct != null) visSpecs["encoding"].Add("zoffsetpct", zoffsetpct);
 
                 // Copy over view-level properties
-                // TODO: For now we just blindly copy over all view-level properties. There should be a better way to do this though
+                // We skip over certain properties. Position and rotation are skipped because the Unity transform is technically the ground truth
+                // TODO: For now we just blindly copy over the view-level properties. There should be a better way to do this though
                 foreach (var property in stateVisSpecs)
                 {
-                    if (property.Key == "data" || property.Key == "mark" || property.Key == "encoding" || property.Key == "name" || property.Key == "title")
+                    if (property.Key == "data" || property.Key == "mark" || property.Key == "encoding"||
+                        property.Key == "name" || property.Key == "title" ||
+                        property.Key == "position" || property.Key == "rotation")
                         continue;
 
                     if (visSpecs[property.Key] == null)
@@ -562,6 +592,183 @@ namespace DxR
                 {
                     facetedAxisInstances.Remove(channel);
                 }
+            }
+        }
+
+        private void ApplyTransitionPose(ActiveTransition newActiveTransition)
+        {
+            // Get the initial and final values for the pose
+            Vector3? initialPosition = null;
+            Vector3? finalPosition = null;
+
+            if (newActiveTransition.InitialInferredVisSpecs["position"] != null)
+            {
+                JSONNode positionSpecs = newActiveTransition.InitialInferredVisSpecs["position"];
+                Vector3 position = transform.position;
+                if (positionSpecs["value"] != null)
+                {
+                    position = new Vector3(positionSpecs["value"][0].AsFloat, positionSpecs["value"][1].AsFloat, positionSpecs["value"][2].AsFloat);
+                }
+                else
+                {
+                    if (positionSpecs["x"] != null) position.x = positionSpecs["x"].AsFloat;
+
+                    if (positionSpecs["y"] != null) position.y = positionSpecs["y"].AsFloat;
+
+                    if (positionSpecs["z"] != null) position.z = positionSpecs["z"].AsFloat;
+                }
+                initialPosition = position;
+            }
+
+            if (newActiveTransition.FinalInferredVisSpecs["position"] != null)
+            {
+                JSONNode positionSpecs = newActiveTransition.FinalInferredVisSpecs["position"];
+                Vector3 position = transform.position;
+                if (positionSpecs["value"] != null)
+                {
+                    position = new Vector3(positionSpecs["value"][0].AsFloat, positionSpecs["value"][1].AsFloat, positionSpecs["value"][2].AsFloat);
+                }
+                else
+                {
+                    if (positionSpecs["x"] != null) position.x = positionSpecs["x"].AsFloat;
+
+                    if (positionSpecs["y"] != null) position.y = positionSpecs["y"].AsFloat;
+
+                    if (positionSpecs["z"] != null) position.z = positionSpecs["z"].AsFloat;
+                }
+                finalPosition = position;
+            }
+
+            // We only apply a position transformation if the final position is defined
+            if (finalPosition != null)
+            {
+                // If the initial position is not defined, use the current world position of this Vis
+                if (initialPosition == null)
+                    initialPosition = transform.position;
+
+                // Interpolate
+                posePositionDisposable = newActiveTransition.TweeningObservable.Subscribe(t =>
+                {
+                    transform.position = Vector3.Lerp(initialPosition.Value, finalPosition.Value, t);
+                });
+
+                // Save our start and end values
+                posePositionChanges = new Tuple<string, Vector3, Vector3>(newActiveTransition.Name, initialPosition.Value, finalPosition.Value);
+            }
+
+
+            // Get the initial and final rotation values for the pose
+            Quaternion? initialRotation = null;
+            Quaternion? finalRotation = null;
+
+            if (newActiveTransition.InitialInferredVisSpecs["rotation"] != null)
+            {
+                JSONNode rotationSpecs = newActiveTransition.InitialInferredVisSpecs["rotation"];
+
+                if (rotationSpecs["value"] != null)
+                {
+                    // Euler Angles
+                    if (rotationSpecs["value"].Count == 3)
+                    {
+                        Vector3 eulerAngles = new Vector3(rotationSpecs["value"][0].AsFloat, rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat);
+                        initialRotation = Quaternion.Euler(eulerAngles);
+                    }
+                    // Quaternion
+                    else
+                    {
+                        Quaternion quaternion = new Quaternion(rotationSpecs["value"][0].AsFloat,rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat, rotationSpecs["value"][3].AsFloat);
+                        initialRotation = quaternion;
+                    }
+                }
+                else
+                {
+                    Vector3 eulerAngles = transform.eulerAngles;
+                    if (rotationSpecs["x"] != null) eulerAngles.x = rotationSpecs["x"].AsFloat;
+                    if (rotationSpecs["y"] != null) eulerAngles.y = rotationSpecs["y"].AsFloat;
+                    if (rotationSpecs["z"] != null) eulerAngles.z = rotationSpecs["z"].AsFloat;
+                    initialRotation = Quaternion.Euler(eulerAngles);
+                }
+            }
+
+            if (newActiveTransition.FinalInferredVisSpecs["rotation"] != null)
+            {
+                JSONNode rotationSpecs = newActiveTransition.FinalInferredVisSpecs["rotation"];
+
+                if (rotationSpecs["value"] != null)
+                {
+                    // Euler Angles
+                    if (rotationSpecs["value"].Count == 3)
+                    {
+                        Vector3 eulerAngles = new Vector3(rotationSpecs["value"][0].AsFloat, rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat);
+                        finalRotation = Quaternion.Euler(eulerAngles);
+                    }
+                    // Quaternion
+                    else
+                    {
+                        Quaternion quaternion = new Quaternion(rotationSpecs["value"][0].AsFloat,rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat, rotationSpecs["value"][3].AsFloat);
+                        finalRotation = quaternion;
+                    }
+                }
+                else
+                {
+                    Vector3 eulerAngles = transform.eulerAngles;
+                    if (rotationSpecs["x"] != null) eulerAngles.x = rotationSpecs["x"].AsFloat;
+                    if (rotationSpecs["y"] != null) eulerAngles.y = rotationSpecs["y"].AsFloat;
+                    if (rotationSpecs["z"] != null) eulerAngles.z = rotationSpecs["z"].AsFloat;
+                    finalRotation = Quaternion.Euler(eulerAngles);
+                }
+            }
+
+            // We only apply a rotation transformation if the final rotation is defined
+            if (finalRotation != null)
+            {
+                // If the initial rotation is not defined, use the current world rotation of this Vis
+                if (initialRotation == null)
+                    initialRotation = transform.rotation;
+
+                // Interpolate
+                poseRotationDisposable = newActiveTransition.TweeningObservable.Subscribe(t =>
+                {
+                    transform.rotation = Quaternion.Lerp(initialRotation.Value, finalRotation.Value, t);
+                });
+
+                // Save our start and end values
+                poseRotationChanges = new Tuple<string, Quaternion, Quaternion>(newActiveTransition.Name, initialRotation.Value, finalRotation.Value);
+            }
+
+            // If any of the two had activated, we disable the box collider on this Vis so that things like MRTK can no longer move it
+            if (posePositionChanges != null || poseRotationChanges != null)
+            {
+                boxCollider.enabled = false;
+            }
+        }
+
+        public void StopTransitionPose(string transitionName, bool goToEnd)
+        {
+            if (posePositionChanges != null && posePositionChanges.Item1 == transitionName)
+            {
+                Vector3 position = goToEnd ? posePositionChanges.Item3 : posePositionChanges.Item2;
+                transform.position = position;
+
+                posePositionChanges = null;
+                posePositionDisposable.Dispose();
+                posePositionDisposable = null;
+            }
+
+            if (poseRotationChanges != null && poseRotationChanges.Item1 == transitionName)
+            {
+                Quaternion rotation = goToEnd ? poseRotationChanges.Item3 : poseRotationChanges.Item2;
+                transform.rotation = rotation;
+
+                poseRotationChanges = null;
+                poseRotationDisposable.Dispose();
+                poseRotationDisposable = null;
+            }
+
+            // If both position and rotation are now no longer transitioning, we re-enable the box collider
+            if (posePositionChanges == null && poseRotationChanges == null)
+            {
+                boxCollider.enabled = true;
             }
         }
 
@@ -2194,6 +2401,57 @@ namespace DxR
         #endregion Vis loading functions
 
         #region Unity GameObject handling functions
+
+        private void UpdateVisPose(JSONNode visSpecsInferred)
+        {
+            if (visSpecsInferred["position"] != null)
+            {
+                JSONNode positionSpecs = visSpecsInferred["position"];
+                Vector3 position = transform.position;
+                if (positionSpecs["value"] != null)
+                {
+                    position = new Vector3(positionSpecs["value"][0].AsFloat, positionSpecs["value"][1].AsFloat, positionSpecs["value"][2].AsFloat);
+                }
+                else
+                {
+                    if (positionSpecs["x"] != null) position.x = positionSpecs["x"].AsFloat;
+
+                    if (positionSpecs["y"] != null) position.y = positionSpecs["y"].AsFloat;
+
+                    if (positionSpecs["z"] != null) position.z = positionSpecs["z"].AsFloat;
+                }
+                transform.position = position;
+            }
+
+            if (visSpecsInferred["rotation"] != null)
+            {
+                JSONNode rotationSpecs = visSpecsInferred["rotation"];
+
+                if (rotationSpecs["value"] != null)
+                {
+                    // Euler Angles
+                    if (rotationSpecs["value"].Count == 3)
+                    {
+                        Vector3 eulerAngles = new Vector3(rotationSpecs["value"][0].AsFloat, rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat);
+                        transform.eulerAngles = eulerAngles;
+                    }
+                    // Quaternion
+                    else
+                    {
+                        Quaternion quaternion = new Quaternion(rotationSpecs["value"][0].AsFloat,rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat, rotationSpecs["value"][3].AsFloat);
+                        transform.rotation = quaternion;
+                    }
+                }
+                else
+                {
+                    Vector3 eulerAngles = transform.eulerAngles;
+                    if (rotationSpecs["x"] != null) eulerAngles.x = rotationSpecs["x"].AsFloat;
+                    if (rotationSpecs["y"] != null) eulerAngles.y = rotationSpecs["y"].AsFloat;
+                    if (rotationSpecs["z"] != null) eulerAngles.z = rotationSpecs["z"].AsFloat;
+                    transform.eulerAngles = eulerAngles;
+                }
+            }
+        }
 
         private void DeleteAll()
         {

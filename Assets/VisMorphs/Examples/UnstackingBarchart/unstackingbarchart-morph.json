@@ -96,10 +96,11 @@
     ],
 
     "signals": [{
-            "name": "visCollider",
+            "name": "surfaceCollider",
             "source": {
                 "type": "vis",
-                "select": "collider"
+                "ref": "surface",
+                "select": "closestcollider"
             }
         }, {
             "name": "rightHandPos",
@@ -116,11 +117,18 @@
                 "select": "pinch"
             }
         }, {
+            "name": "isOnSurface",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "intersecting"
+            }
+        }, {
             "name": "pinching",
             "expression": "rightHandPinch > 0.5 "
         }, {
             "name": "extrudeDistance",
-            "expression": "distance(rightHandPos, closestpoint(visCollider, rightHandPos))"
+            "expression": "distance(rightHandPos, closestpoint(surfaceCollider, rightHandPos))"
         }, {
             "name": "tweener1",
             "expression":"normalise(extrudeDistance, 0.05, 0.15, 0, 1)"
@@ -134,7 +142,7 @@
         {
             "name": "unstacking1",
             "states": ["stacked", "staged"],
-            "triggers": ["pinching"],
+            "triggers": ["isOnSurface", "pinching"],
             "timing": {
                 "control": "tweener1"
             },
@@ -147,7 +155,7 @@
         {
             "name": "unstacking2",
             "states": ["staged", "side by side"],
-            "triggers": ["pinching"],
+            "triggers": ["isOnSurface", "pinching"],
             "timing": {
                 "control": "tweener2"
             },
