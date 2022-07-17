@@ -20,7 +20,6 @@
                     "value": -0.5
                 },
                 "z": {
-                    "field": "Class",
                     "type": "nominal"
                 }
             }
@@ -42,7 +41,6 @@
                     "value": -0.5
                 },
                 "z": {
-                    "field": "Class",
                     "type": "nominal"
                 },
                 "color": {
