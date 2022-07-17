@@ -14,7 +14,6 @@ namespace DxR
         private float titleOffset = 0.075f;
         private float tickLabelOffset = 0.03f;
 
-        private bool enableFilter = false;
         private Interactions interactionsObject = null;
         private string dataField = "";
         private char facingDirection;

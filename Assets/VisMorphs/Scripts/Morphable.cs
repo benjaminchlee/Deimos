@@ -12,24 +12,23 @@ namespace DxR.VisMorphs
     [RequireComponent(typeof(Vis))]
     public class Morphable : MonoBehaviour
     {
+        public bool AllowSimultaneousTransitions = true;
         /// <summary>
         /// Debug variables. These don't actually do anything in the code other than print values to the Unity Inspector
         /// </summary>
-        public bool DebugStates = false;
         public bool ShowValuesInInspector = false;
+        public bool DebugStates = false;
+        public bool DebugTransitionCalls = false;
         public List<string> CandidateMorphNames = new List<string>();
         public List<string> CandidateStateNames = new List<string>();
         public List<string> CandidateTransitionNames = new List<string>();
-
         public List<string> ActiveTransitionNames = new List<string>();
-        public List<CandidateMorph> CandidateMorphs = new List<CandidateMorph>();
 
-        public bool AllowSimultaneousTransitions = true;
+        public List<CandidateMorph> CandidateMorphs = new List<CandidateMorph>();
 
         private Vis parentVis;
         private JSONNode currentVisSpec;
         private bool isInitialised;
-
         private Dictionary<string, Tuple<Action, int>> queuedTransitionActivations = new Dictionary<string, Tuple<Action, int>>();
         private Dictionary<string, Tuple<Action, int>> queuedTransitionDeactivations = new Dictionary<string, Tuple<Action, int>>();
 
@@ -529,9 +528,20 @@ namespace DxR.VisMorphs
         /// </summary>
         private void ActivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, string transitionName, bool isReversed = false)
         {
+            if (DebugTransitionCalls)
+            {
+                Debug.Log(string.Format("Vis Morphs: Transition \"{0}\" called Activate function.", transitionName));
+            }
+
             if (ActiveTransitionNames.Contains(transitionName))
             {
-                Debug.LogError(string.Format("Vis Morphs: Transition {0} tried to activate, but it is already active", transitionName));
+                Debug.LogError(string.Format("Vis Morphs: Transition \"{0}\" tried to activate, but it is already active.", transitionName));
+                return;
+            }
+
+            if (ActiveTransitionNames.Count > 0 && !AllowSimultaneousTransitions)
+            {
+                Debug.LogWarning(string.Format("Vis Morphs: Transition \"{0}\" could not be applied as there is already a transition active, and the AllowSimultaneousTransitions flag is set to false.", transitionName));
                 return;
             }
 
@@ -556,12 +566,15 @@ namespace DxR.VisMorphs
 
             if (DebugStates)
             {
+                // Remove the values node because it is usually way to long to properly print to console
                 JSONNode _initialState = initialState.Clone();
                 JSONNode _finalState = finalState.Clone();
-                _initialState.Remove("data");
-                _finalState.Remove("data");
-                Debug.Log("Vis Morphs: Initial state specification:\n" + _initialState.ToString());
-                Debug.Log("Vis Morphs: Final state specification:\n" + _finalState.ToString());
+                if (_initialState["data"]["values"] != null)
+                    _initialState["data"].Remove("values");
+                if (_finalState["data"]["values"] != null)
+                    _finalState["data"].Remove("values");
+                Debug.Log(string.Format("Vis Morphs: Initial state specification for transition \"{0}\":\n{1}", transitionName, initialState.ToString()));
+                Debug.Log(string.Format("Vis Morphs: Final state specification for transition \"{0}\":\n{1}", transitionName, _finalState.ToString()));
             }
 
             // Call update to final state using a tweening observable
@@ -587,7 +600,6 @@ namespace DxR.VisMorphs
             visSpecs.Remove("data");
             JObject _newVisSpecs = Newtonsoft.Json.Linq.JObject.Parse(visSpecs.ToString());
 
-
             /// There are three different types of encoding changes that are possible here, one of which has two sub-conditions:
             /// A) undefined -> defined (i.e., encoding is added)
             /// B) defined -> undefined (i.e., encoding is removed)
@@ -601,6 +613,7 @@ namespace DxR.VisMorphs
             ///         i. If the final state defines a field or value, remove any pre-exisiting field or value in the vis state before adding the one from the final state
             ///         ii. If the final state specifies NULLs anywhere, these are removed from the vis state. Everything else is left unchanged (for now)
 
+            // Check encodings
             foreach (var encoding in ((JObject)_initialStateSpecs["encoding"]).Properties())
             {
                 // Step 1: Check which encodings to remove
@@ -705,7 +718,7 @@ namespace DxR.VisMorphs
             return __newVisSpecs;
         }
 
-        private bool IsJTokenNullOrUndefined(JToken? jObject)
+        private bool IsJTokenNullOrUndefined(JToken jObject)
         {
             return jObject == null || (jObject != null && jObject.Type == JTokenType.Null);
         }
@@ -792,9 +805,14 @@ namespace DxR.VisMorphs
         /// </summary>
         private void DeactivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, string transitionName, bool goToEnd = true)
         {
+            if (DebugTransitionCalls)
+            {
+                Debug.Log(string.Format("Vis Morphs: Transition \"{0}\" called Deactivate function.", transitionName));
+            }
+
             if (!ActiveTransitionNames.Contains(transitionName))
             {
-                Debug.LogError(string.Format("Vis Morphs: Transition {0} tried to deactivate, but it is not active in the first place", transitionName));
+                Debug.LogError(string.Format("Vis Morphs: Transition \"{0}\" tried to deactivate, but it is not active in the first place", transitionName));
                 return;
             }
 

@@ -69,7 +69,7 @@ namespace DxR
         public bool IsReady { get { return isReady; } }
 
         private BoxCollider boxCollider;
-        private Rigidbody rigidbody;
+        private new Rigidbody rigidbody;
 
         public Dictionary<string, Axis> axisInstances = new Dictionary<string, Axis>();
         public Dictionary<string, List<Axis>> facetedAxisInstances = new Dictionary<string, List<Axis>>();
