@@ -5015,13 +5015,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DebugStates: 0
+  AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
+  DebugStates: 0
+  DebugTransitionCalls: 0
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
   ActiveTransitionNames: []
-  AllowSimultaneousTransitions: 1
 --- !u!114 &307809401
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -10012,13 +10013,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DebugStates: 0
+  AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
+  DebugStates: 0
+  DebugTransitionCalls: 0
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
   ActiveTransitionNames: []
-  AllowSimultaneousTransitions: 1
 --- !u!1 &644369574
 GameObject:
   m_ObjectHideFlags: 0
@@ -15708,13 +15710,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DebugStates: 0
+  AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
+  DebugStates: 0
+  DebugTransitionCalls: 0
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
   ActiveTransitionNames: []
-  AllowSimultaneousTransitions: 1
 --- !u!65 &982090488
 BoxCollider:
   m_ObjectHideFlags: 0
@@ -17922,13 +17925,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DebugStates: 0
+  AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
+  DebugStates: 0
+  DebugTransitionCalls: 0
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
   ActiveTransitionNames: []
-  AllowSimultaneousTransitions: 1
 --- !u!1 &1121947162
 GameObject:
   m_ObjectHideFlags: 0
@@ -19915,13 +19919,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DebugStates: 0
+  AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
+  DebugStates: 0
+  DebugTransitionCalls: 0
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
   ActiveTransitionNames: []
-  AllowSimultaneousTransitions: 1
 --- !u!114 &1245073525
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -24271,13 +24276,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DebugStates: 0
+  AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
+  DebugStates: 0
+  DebugTransitionCalls: 0
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
   ActiveTransitionNames: []
-  AllowSimultaneousTransitions: 1
 --- !u!114 &1512344089
 MonoBehaviour:
   m_ObjectHideFlags: 0

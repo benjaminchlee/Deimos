@@ -96,6 +96,12 @@
     ],
 
     "signals": [{
+            "name": "visCollider",
+            "source": {
+                "type": "vis",
+                "select": "collider"
+            }
+        }, {
             "name": "rightHandPos",
             "source": {
                 "type": "hands",
@@ -110,17 +116,11 @@
                 "select": "pinch"
             }
         }, {
-            "name": "visPos",
-            "source": {
-                "type": "vis",
-                "select": "transform.position"
-            }
-        }, {
             "name": "pinching",
             "expression": "rightHandPinch > 0.5 "
         }, {
             "name": "extrudeDistance",
-            "expression": "distance(rightHandPos, visPos)"
+            "expression": "distance(rightHandPos, closestpoint(visCollider, rightHandPos))"
         }, {
             "name": "tweener1",
             "expression":"normalise(extrudeDistance, 0.05, 0.15, 0, 1)"

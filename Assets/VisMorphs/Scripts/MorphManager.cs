@@ -173,6 +173,7 @@ namespace DxR.VisMorphs
 
             // Set types
             interpreter = interpreter.Reference(typeof(Vector3));
+            interpreter = interpreter.Reference(typeof(Collider));
 
             // Set functions
 
@@ -200,6 +201,10 @@ namespace DxR.VisMorphs
             // Distance
             Func<Vector3, Vector3, float> distance = (a, b) => Vector3.Distance(a, b);
             interpreter.SetFunction("distance", distance);
+
+            // Closest point
+            Func<Collider, Vector3, Vector3> closestPoint = (collider, position) => collider.ClosestPoint(position);
+            interpreter.SetFunction("closestpoint", closestPoint);
         }
 
         /// <summary>
@@ -526,6 +531,51 @@ namespace DxR.VisMorphs
                                 .DistinctUntilChanged();
                         }
 
+                    // Emis a Vector3 in world space of the closest point on the surface closest to the vis, regardless of whether it is touching or not. Does not emit if there are no surfaces
+                    case "closestpoint":
+                        {
+                            return Observable.EveryUpdate()
+                                .Select(_ =>
+                                {
+                                    var surfaces = GameObject.FindGameObjectsWithTag("Surface");
+                                    var closestPoints = surfaces.Select(surface => surface.GetComponent<Collider>().ClosestPoint(morphable.transform.position))
+                                                   .OrderBy(closestPoint => Vector3.Distance(morphable.transform.position, closestPoint));
+                                    if (closestPoints.Count() > 0)
+                                    {
+                                        return closestPoints.First();
+                                    }
+                                    else
+                                    {
+                                        return (dynamic)null;
+                                    }
+                                })
+                                .Where(_ => _ != null)
+                                .DistinctUntilChanged();
+                        }
+
+                    // Emis a Vector3 in world space of the closest point on the surface closest to the vis, regardless of whether it is touching or not. Does not emit if there are no surfaces
+                    case "closestcollider":
+                        {
+                            return Observable.EveryUpdate()
+                                .Select(_ =>
+                                {
+                                    var surfaces = GameObject.FindGameObjectsWithTag("Surface");
+                                    var colliders = GameObject.FindGameObjectsWithTag("Surface").Select(surface => surface.GetComponent<Collider>());
+                                    var closestColliders = colliders.OrderBy(collider => Vector3.Distance(morphable.transform.position, collider.ClosestPoint(morphable.transform.position)));
+
+                                    if (closestColliders.Count() > 0)
+                                    {
+                                        return closestColliders.First();
+                                    }
+                                    else
+                                    {
+                                        return (dynamic)null;
+                                    }
+                                })
+                                .Where(_ => _ != null)
+                                .DistinctUntilChanged();
+                        }
+
                     // Finds the largest surface that the vis is touching and emits the selected property of the surface (not the vis)
                     default:
                         {
@@ -556,11 +606,27 @@ namespace DxR.VisMorphs
             if (selector == "")
                 throw new Exception("Vis Morphs: Signal of type vis that do not reference surfaces requires a select expression.");
 
-            // Use the Vis itself and emit values whenever the selected property has changed
-            return morphable.gameObject
-                .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector))
-                .StartWith(morphable.gameObject.GetPropValue(selector))
-                .DistinctUntilChanged();
+            switch (selector)
+            {
+                case "collider":
+                    {
+                        return Observable.EveryUpdate().Select(_ =>
+                        {
+                            return morphable.GetComponent<Collider>();
+                        })
+                        .DistinctUntilChanged();
+                    }
+
+                default:
+                    {
+                    // Use the Vis itself and emit values whenever the selected property has changed
+                    return morphable.gameObject
+                        .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector))
+                        .StartWith(morphable.gameObject.GetPropValue(selector))
+                        .DistinctUntilChanged();
+                    }
+            }
+
         }
 
         private static IObservable<dynamic> CreateObservableFromExpression(string expression, Morphable morphable)

@@ -29,57 +29,52 @@ namespace DxR
         public bool enableTooltip = true;                               // Switch for tooltip that shows datum attributes on-hover of mark instance.
         public bool verbose = true;                                     // Switch for verbose log.
 
-        public static string UNDEFINED = "undefined";                   // Value used for undefined objects in the JSON vis specs.
-        public static float SIZE_UNIT_SCALE_FACTOR = 1.0f / 1000.0f;    // Conversion factor to convert each Unity unit to 1 meter.
-        public static float DEFAULT_VIS_DIMS = 500.0f;                  // Default dimensions of a visualization, if not specified.
+        public static readonly string UNDEFINED = "undefined";                   // Value used for undefined objects in the JSON vis specs.
+        public static readonly float SIZE_UNIT_SCALE_FACTOR = 1.0f / 1000.0f;    // Conversion factor to convert each Unity unit to 1 meter.
+        public static readonly float DEFAULT_VIS_DIMS = 500.0f;                  // Default dimensions of a visualization, if not specified.
 
-        JSONNode visSpecs;                                              // Vis specs that is synced w/ the inferred vis specs and vis.
-        JSONNode visSpecsInferred;                                      // This is the inferred vis specs and is ultimately used for construction.
-
-        Parser parser = null;                                           // Parser of JSON specs and data in text format to JSONNode object specs.
-        GUI gui = null;                                                 // GUI object (class) attached to GUI game object.
-        GameObject tooltip = null;                                      // Tooltip game object for displaying datum info, e.g., on-hover.
+        private Parser parser = null;                                           // Parser of JSON specs and data in text format to JSONNode object specs.
+        private GUI gui = null;                                                 // GUI object (class) attached to GUI game object.
+        private GameObject tooltip = null;                                      // Tooltip game object for displaying datum info, e.g., on-hover.
 
         // Vis Properties:
-        string title;                                                   // Title of vis displayed.
-        float width;                                                    // Width of scene in millimeters.
-        float height;                                                   // Heigh of scene in millimeters.
-        float depth;                                                    // Depth of scene in millimeters.
-        string markType;                                                // Type or name of mark used in vis.
-        public Data data;                                               // Object containing data.
-        bool IsLinked = false;                                          // Link to other vis object for interaction.
-        string data_name=null;
+        public Data data;                                                       // Object containing data.
+        private string title;                                                   // Title of vis displayed.
+        private float width;                                                    // Width of scene in millimeters.
+        private float height;                                                   // Heigh of scene in millimeters.
+        private float depth;                                                    // Depth of scene in millimeters.
+        private string markType;                                                // Type or name of mark used in vis.
+        private bool IsLinked = false;                                          // Link to other vis object for interaction.
+        private string data_name = null;
 
-        public List<GameObject> markInstances;                          // List of mark instances; each mark instance corresponds to a datum.
+        private JSONNode visSpecs;                                              // Vis specs that is synced w/ the inferred vis specs and vis.
+        private JSONNode visSpecsInferred;                                      // This is the inferred vis specs and is ultimately used for construction.
 
         private GameObject parentObject = null;                         // Parent game object for all generated objects associated to vis.
-
         private GameObject viewParentObject = null;                     // Parent game object for all view related objects - axis, legend, marks.
         private GameObject marksParentObject = null;                    // Parent game object for all mark instances.
-
         private GameObject guidesParentObject = null;                   // Parent game object for all guies (axes/legends) instances.
         private GameObject interactionsParentObject = null;             // Parent game object for all interactions, e.g., filters.
-        private GameObject markPrefab = null;                           // Prefab game object for instantiating marks.
-        private List<ChannelEncoding> channelEncodings = null;          // List of channel encodings.
-
-        List<string> marksList;                                         // List of mark prefabs that can be used at runtime.
-        List<string> dataList;                                          // List of local data that can be used at runtime.
-
-        private bool isReady = false;
-        public bool IsReady { get { return isReady; } }
-
+        private GameObject centreOffsetObject = null;
         private BoxCollider boxCollider;
         private new Rigidbody rigidbody;
+        private GameObject markPrefab = null;                           // Prefab game object for instantiating marks.
 
-        public Dictionary<string, Axis> axisInstances = new Dictionary<string, Axis>();
-        public Dictionary<string, List<Axis>> facetedAxisInstances = new Dictionary<string, List<Axis>>();
+        private List<ChannelEncoding> channelEncodings = null;          // List of channel encodings.
+        private List<string> marksList;                                 // List of mark prefabs that can be used at runtime.
+        private List<string> dataList;                                  // List of local data that can be used at runtime.
+        public List<GameObject> markInstances;                          // List of mark instances; each mark instance corresponds to a datum.
+        private Dictionary<string, Axis> axisInstances = new Dictionary<string, Axis>();
+        private Dictionary<string, List<Axis>> facetedAxisInstances = new Dictionary<string, List<Axis>>();
+        private Dictionary<string, ActiveTransition> activeTransitions = new Dictionary<string, ActiveTransition>();
 
         [Serializable]
         public class VisUpdatedEvent : UnityEvent<Vis, JSONNode> { }
         [HideInInspector]
         public VisUpdatedEvent VisUpdated;
 
-        Dictionary<string, ActiveTransition> activeTransitions = new Dictionary<string, ActiveTransition>();
+        private bool isReady = false;
+        public bool IsReady { get { return isReady; } }
 
         private void Awake()
         {
