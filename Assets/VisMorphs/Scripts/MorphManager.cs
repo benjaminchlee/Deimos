@@ -26,7 +26,7 @@ namespace DxR.VisMorphs
         public List<MorphSpecification> MorphJsonSpecifications;
 
         public static MorphManager Instance { get; private set; }
-        public static Interpreter interpreter;
+        public static Dictionary<string, Interpreter> Interpreters = new Dictionary<string, Interpreter>();
 
         public List<Morph> Morphs = new List<Morph>();
         private Dictionary<string, IObservable<dynamic>> GlobalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
@@ -55,8 +55,6 @@ namespace DxR.VisMorphs
             }
 
             // Initialise variables
-            if (interpreter == null)
-                InitialiseExpressionInterpreter();
             if (disposables == null)
                 disposables = new CompositeDisposable();
 
@@ -160,60 +158,6 @@ namespace DxR.VisMorphs
             {
                 Debug.LogWarning(string.Format("Vis Morphs: No signal specification has been provided for Morph {0}. Is this correct?", morph.Name));
             }
-        }
-
-        /// <summary>
-        /// Initialises the defined functions that are part of the DynamicExpresso expression interpreter.
-        ///
-        /// This should only need to be called once at initialisation.
-        /// </summary>
-        private void InitialiseExpressionInterpreter()
-        {
-            interpreter = new Interpreter();
-
-            // Set types
-            interpreter = interpreter.Reference(typeof(Vector3));
-            interpreter = interpreter.Reference(typeof(Quaternion));
-            interpreter = interpreter.Reference(typeof(Collider));
-
-            // Set functions
-
-            // Clamp
-            Func<double, double, double, double> clamp = (input, min, max) => Math.Clamp(input, min, max);
-            interpreter.SetFunction("clamp", clamp);
-
-            // Normalise
-            Func<double, double, double, double, double, double> normalise1 = (input, i0, i1, j0, j1) => Utils.NormaliseValue(input, i0, i1, j0, j1);
-            Func<double, double, double, double> normalise2 = (input, i0, i1) => Utils.NormaliseValue(input, i0, i1);
-            interpreter.SetFunction("normalise", normalise1);
-            interpreter.SetFunction("normalise", normalise2);
-
-            // Vector
-            Func<double, double, double, Vector3> vector3 = (x, y, z) => new Vector3((float)x, (float)y, (float)z);
-            interpreter.SetFunction("vector3", vector3);
-
-            // Quaternion
-            Func<double, double, double, double, Quaternion> quaternion = (x, y, z, w) => new Quaternion((float)x, (float)y, (float)z, (float)w);
-            interpreter.SetFunction("quaternion", quaternion);
-
-            // Vector
-            Func<double, double, double, Quaternion> euler = (x, y, z) => Quaternion.Euler((float)x, (float)y, (float)z);
-            interpreter.SetFunction("euler", euler);
-
-            // Angle
-            Func<Vector3, Vector3, Vector3, float> signedAngle = (from, to, axis) => Vector3.SignedAngle(from, to, axis);
-            interpreter.SetFunction("signedangle", signedAngle);
-
-            Func<Vector3, Vector3, float> angle = (from, to) => Vector3.Angle(from, to);
-            interpreter.SetFunction("angle", angle);
-
-            // Distance
-            Func<Vector3, Vector3, float> distance = (a, b) => Vector3.Distance(a, b);
-            interpreter.SetFunction("distance", distance);
-
-            // Closest point
-            Func<Collider, Vector3, Vector3> closestPoint = (collider, position) => collider.ClosestPoint(position);
-            interpreter.SetFunction("closestpoint", closestPoint);
         }
 
         /// <summary>
@@ -640,6 +584,12 @@ namespace DxR.VisMorphs
 
         private static IObservable<dynamic> CreateObservableFromExpression(string expression, Morphable morphable)
         {
+            // Get the expression interpreter for this morphable. If it does not yet exist, initialise a new one
+            Interpreter interpreter;
+
+            if (!Interpreters.TryGetValue(morphable.GUID, out interpreter))
+                interpreter = InitialiseExpressionInterpreter(morphable.GUID);
+
             // 1. Find all observables that this expression references
             // 2. When any of these emits:
             //      a. Update the variable on the interpreter
@@ -721,6 +671,67 @@ namespace DxR.VisMorphs
             }
         }
 
+        /// <summary>
+        /// Initialises the defined functions that are part of the DynamicExpresso expression interpreter.
+        /// Each Morphable requires its own interpreter to evaluate expressions, as each one may have variables with the
+        /// same name which overlap with one another.
+        /// </summary>
+        private static Interpreter InitialiseExpressionInterpreter(string guid)
+        {
+            if (Interpreters.ContainsKey(guid))
+                throw new Exception(string.Format("Vis Morphs: There already exists a DynamicExpresso interpreter for the Morphable with guid {0}.", guid));
+
+            Interpreter interpreter = new Interpreter();
+
+            // Set types
+            interpreter = interpreter.Reference(typeof(Vector3));
+            interpreter = interpreter.Reference(typeof(Quaternion));
+            interpreter = interpreter.Reference(typeof(Collider));
+
+            // Set functions
+
+            // Clamp
+            Func<double, double, double, double> clamp = (input, min, max) => Math.Clamp(input, min, max);
+            interpreter.SetFunction("clamp", clamp);
+
+            // Normalise
+            Func<double, double, double, double, double, double> normalise1 = (input, i0, i1, j0, j1) => Utils.NormaliseValue(input, i0, i1, j0, j1);
+            Func<double, double, double, double> normalise2 = (input, i0, i1) => Utils.NormaliseValue(input, i0, i1);
+            interpreter.SetFunction("normalise", normalise1);
+            interpreter.SetFunction("normalise", normalise2);
+
+            // Vector
+            Func<double, double, double, Vector3> vector3 = (x, y, z) => new Vector3((float)x, (float)y, (float)z);
+            interpreter.SetFunction("vector3", vector3);
+
+            // Quaternion
+            Func<double, double, double, double, Quaternion> quaternion = (x, y, z, w) => new Quaternion((float)x, (float)y, (float)z, (float)w);
+            interpreter.SetFunction("quaternion", quaternion);
+
+            // Vector
+            Func<double, double, double, Quaternion> euler = (x, y, z) => Quaternion.Euler((float)x, (float)y, (float)z);
+            interpreter.SetFunction("euler", euler);
+
+            // Angle
+            Func<Vector3, Vector3, Vector3, float> signedAngle = (from, to, axis) => Vector3.SignedAngle(from, to, axis);
+            interpreter.SetFunction("signedangle", signedAngle);
+
+            Func<Vector3, Vector3, float> angle = (from, to) => Vector3.Angle(from, to);
+            interpreter.SetFunction("angle", angle);
+
+            // Distance
+            Func<Vector3, Vector3, float> distance = (a, b) => Vector3.Distance(a, b);
+            interpreter.SetFunction("distance", distance);
+
+            // Closest point
+            Func<Collider, Vector3, Vector3> closestPoint = (collider, position) => collider.ClosestPoint(position);
+            interpreter.SetFunction("closestpoint", closestPoint);
+
+            // Save this interpreter to the dictionary, matching it to the provided GUID
+            Interpreters[guid] = interpreter;
+            return interpreter;
+        }
+
         #endregion Signals
 
         #region Transitions
@@ -742,5 +753,11 @@ namespace DxR.VisMorphs
         }
 
         #endregion Transitions
+
+        public void ClearMorphableVariables(Morphable morphable)
+        {
+            if (Interpreters.ContainsKey(morphable.GUID))
+                Interpreters.Remove(morphable.GUID);
+        }
     }
 }

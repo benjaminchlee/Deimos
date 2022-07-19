@@ -12,6 +12,7 @@ namespace DxR.VisMorphs
     [RequireComponent(typeof(Vis))]
     public class Morphable : MonoBehaviour
     {
+        public string GUID;
         public bool AllowSimultaneousTransitions = true;
         /// <summary>
         /// Debug variables. These don't actually do anything in the code other than print values to the Unity Inspector
@@ -68,6 +69,7 @@ namespace DxR.VisMorphs
             {
                 parentVis = GetComponent<Vis>();
                 parentVis.VisUpdated.AddListener(VisUpdated);
+                GUID = System.Guid.NewGuid().ToString().Substring(0, 8);
                 isInitialised = true;
             }
 
@@ -1143,6 +1145,7 @@ namespace DxR.VisMorphs
         {
             Reset();
             parentVis.VisUpdated.RemoveListener(VisUpdated);
+            MorphManager.Instance.ClearMorphableVariables(this);
         }
     }
 }

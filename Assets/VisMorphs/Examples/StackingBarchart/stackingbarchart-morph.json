@@ -98,11 +98,8 @@
             "name": "intersectionAngle",
             "expression": "angle(surfaceNormal, visDirection)"
         }, {
-            "name": "isIntersectingForwards",
-            "expression": "intersectionAngle < 20 || 160 < intersectionAngle"
-        }, {
             "name": "isIntersectingSideways",
-            "expression": "70 < intersectionAngle && intersectionAngle < 110"
+            "expression": "60 < intersectionAngle && intersectionAngle < 120"
         }, {
             "name": "surfaceRotationSideways",
             "expression": "surfaceRotation * euler(0, 90, 0)"

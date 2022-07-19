@@ -3834,6 +3834,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  GUID: 
   AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
   DebugStates: 0
@@ -3854,7 +3855,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 1
+  ShowInternalSpecification: 0
   InputSpecification: "{\r\n    \"name\": \"3d barchart\",\r\n    \"width\": 600,\r\n   
     \"height\": 400,\r\n    \"depth\": 300,\r\n    \"mark\": \"cube\",\r\n    \"encoding\":
     {\r\n        \"x\": {\r\n            \"field\": \"Class\",\r\n            \"type\":
@@ -5735,6 +5736,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  GUID: 
   AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
   DebugStates: 0
@@ -5755,7 +5757,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 1
+  ShowInternalSpecification: 0
   InputSpecification: "{\r\n    \"name\": \"3d barchart\",\r\n    \"width\": 300,\r\n   
     \"height\": 400,\r\n    \"depth\": 600,\r\n    \"mark\": \"cube\",\r\n    \"encoding\":
     {\r\n        \"x\": {\r\n            \"field\": \"Survived\",\r\n           
@@ -11189,7 +11191,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 1
+  ShowInternalSpecification: 0
   InputSpecification: "{\r\n    \"width\": 800,\r\n    \"height\": 500,\r\n    \"mark\":
     \"geoshape\",\r\n    \"encoding\": {\r\n        \"x\": {\r\n            \"field\":
     \"Population\",\r\n            \"type\": \"quantitative\"\r\n        },\r\n       
@@ -11253,6 +11255,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  GUID: 
   AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
   DebugStates: 0
@@ -17603,6 +17606,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  GUID: 
   AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
   DebugStates: 0
@@ -20104,7 +20108,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 1
+  ShowInternalSpecification: 0
   InputSpecification: "{\r\n    \"mark\": \"sphere\",\r\n    \"encoding\": {\r\n     
     \"x\": {\r\n        \"field\": \"Horsepower\",\r\n        \"type\": \"quantitative\"\r\n     
     },\r\n      \"y\": {\r\n        \"field\": \"Miles_per_Gallon\",\r\n        \"type\":
@@ -20164,6 +20168,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  GUID: 
   AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
   DebugStates: 0
@@ -22158,6 +22163,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  GUID: 
   AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
   DebugStates: 0
@@ -22178,7 +22184,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 1
+  ShowInternalSpecification: 0
   InputSpecification: "{\r\n    \"name\": \"3d barchart\",\r\n    \"width\": 300,\r\n   
     \"height\": 400,\r\n    \"depth\": 600,\r\n    \"mark\": \"cube\",\r\n    \"encoding\":
     {\r\n        \"x\": {\r\n            \"field\": \"Sex\",\r\n            \"type\":
@@ -22265,7 +22271,7 @@ MonoBehaviour:
   rotateLerpTime: 0.001
   scaleLerpTime: 0.001
   enableConstraints: 0
-  constraintsManager: {fileID: 1245073529}
+  constraintsManager: {fileID: 215304193}
   elasticsManager: {fileID: 0}
   onManipulationStarted:
     m_PersistentCalls:
@@ -27155,6 +27161,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 36d53dae38cb06d49a351ee1914643b8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  GUID: 
   AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
   DebugStates: 0
@@ -27276,7 +27283,7 @@ MonoBehaviour:
   rotateLerpTime: 0.001
   scaleLerpTime: 0.001
   enableConstraints: 1
-  constraintsManager: {fileID: 1512344094}
+  constraintsManager: {fileID: 215304193}
   elasticsManager: {fileID: 0}
   onManipulationStarted:
     m_PersistentCalls:
