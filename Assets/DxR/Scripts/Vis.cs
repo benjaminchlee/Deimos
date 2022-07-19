@@ -549,48 +549,30 @@ namespace DxR
 
         private void StopTransitionAxes(string transitionName, bool goToEnd)
         {
-            List<string> channelsToRemove = new List<string>();
-            foreach (var kvp in axisInstances)
+            // Stop all regular axes, removing their references if they have been marked for deletion
+            foreach (var kvp in axisInstances.ToList())
             {
                 bool isDeleting = kvp.Value.StopTransition(transitionName, goToEnd);
                 if (isDeleting)
-                    channelsToRemove.Add(kvp.Key);
+                    axisInstances.Remove(kvp.Key);
             }
 
-            List<string> facetChannelsToRemove = new List<string>();
-            List<Axis> facetAxesToRemove = new List<Axis>();
-            foreach (var kvp in facetedAxisInstances)
+            // Stop all faceted axes, removing their references if they have been marked for deletion
+            foreach (var kvp in facetedAxisInstances.ToList())
             {
-                foreach (Axis facetAxes in kvp.Value)
+                foreach (Axis facetAxis in kvp.Value.ToList())
                 {
-                    bool isDeleting = facetAxes.StopTransition(transitionName, goToEnd);
+                    bool isDeleting = facetAxis.StopTransition(transitionName, goToEnd, false);
                     if (isDeleting)
                     {
-                        if (!facetChannelsToRemove.Contains(kvp.Key))
-                            facetChannelsToRemove.Add(kvp.Key);
-
-                        facetAxesToRemove.Add(facetAxes);
+                        kvp.Value.Remove(facetAxis);
                     }
                 }
-            }
 
-            foreach (string channel in channelsToRemove)
-            {
-                axisInstances.Remove(channel);
-            }
-
-            foreach (string channel in facetChannelsToRemove)
-            {
-                List<Axis> facetAxes = facetedAxisInstances[channel];
-
-                foreach (Axis facetAxisToRemove in facetAxesToRemove)
+                // If the given channel no longer has any axes in its list, remove it from the dictionary
+                if (kvp.Value.Count == 0)
                 {
-                    facetAxes.Remove(facetAxisToRemove);
-                }
-
-                if (facetAxes.Count == 0)
-                {
-                    facetedAxisInstances.Remove(channel);
+                    facetedAxisInstances.Remove(kvp.Key);
                 }
             }
         }

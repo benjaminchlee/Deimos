@@ -84,7 +84,7 @@ namespace DxR
         /// <summary>
         /// Returns false if the axis is to be deleted at the end of this function
         /// </summary>
-        public bool StopTransition(string transitionName, bool goToEnd = true)
+        public bool StopTransition(string transitionName, bool goToEnd, bool isFacetAxis = false)
         {
             if (activeAxisTransition == null)
                 return false;
@@ -98,36 +98,24 @@ namespace DxR
             activeAxisTransition.Disposable.Dispose();
 
             // Move the axis to either the start or the end
-            if (goToEnd)
+            JSONNode targetAxisSpecs = goToEnd ? activeAxisTransition.FinalAxisSpecs : activeAxisTransition.InitialAxisSpecs;
+            Scale targetScale = goToEnd ? activeAxisTransition.FinalScale : activeAxisTransition.InitialScale;
+            Vector3 targetTranslation = goToEnd ? activeAxisTransition.FinalTranslation : activeAxisTransition.InitialTranslation;
+
+            // We only keep the axis if the target state actually exists
+            // We also make sure to only keep faceted axes if there's still a facetwrap (i.e., a translation)
+            if (targetAxisSpecs != null && (!isFacetAxis || (isFacetAxis && targetTranslation != Vector3.zero)))
             {
-                if (activeAxisTransition.FinalAxisSpecs != null)
-                {
-                    UpdateSpecs(activeAxisTransition.FinalAxisSpecs, activeAxisTransition.FinalScale);
-                    // Make sure to set the translation too
-                    SetTranslation(activeAxisTransition.FinalTranslation);
-                }
-                else
-                {
-                    Destroy(gameObject);
-                    return true;
-                }
+                UpdateSpecs(targetAxisSpecs, targetScale);
+                SetTranslation(targetTranslation);
+                activeAxisTransition = null;
+                return false;
             }
             else
             {
-                if (activeAxisTransition.InitialAxisSpecs != null)
-                {
-                    UpdateSpecs(activeAxisTransition.InitialAxisSpecs, activeAxisTransition.InitialScale);
-                    SetTranslation(activeAxisTransition.InitialTranslation);
-                }
-                else
-                {
-                    Destroy(gameObject);
-                    return true;
-                }
+                Destroy(gameObject);
+                return true;
             }
-
-            activeAxisTransition = null;
-            return false;
         }
 
         private void InitialiseTweeners(ActiveAxisTransition activeAxisTransition, Vector3 initialTranslation, Vector3 finalTranslation)
