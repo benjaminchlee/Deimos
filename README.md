@@ -20,6 +20,10 @@ Numerous changes have also been made to the base DxR including:
 
 Note that DxR interactions and GUI editor are not a priority of this work and therefore have not been tested at all. These are likely to be broken.
 
+This project is still currently a work in progress and is intended to be submitted at an academic venue.
+
+Development is lead by Benjamin Lee, and done in collaboration with Tim Dwyer and Bernie Jenny (Monash University), Arvind Satyanarayan (Massachusetts Institute of Technology), Maxime Cordeil (the University of Queensland), and Arnaud Prouzeau (Inria).
+
 > ⚠️ Original DxR readme starts below ⚠️
 
 
