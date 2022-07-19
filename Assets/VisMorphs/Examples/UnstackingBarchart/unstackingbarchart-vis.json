@@ -1,0 +1,269 @@
+[
+
+{
+    "name": "stacked 2d barchart",
+    "width": 300,
+    "height": 600,
+    "mark": "cube",
+    "encoding": {
+        "x": {
+            "field": "Survived",
+            "type": "nominal"
+        },
+        "width": {
+            "value": 130
+        },
+        "y": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 2000]
+            }
+        },
+        "height": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 2000]
+            }
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "depth": {
+            "value": 10
+        },
+        "color": {
+            "field": "Class",
+            "type": "nominal"
+        },
+        "yoffset": {
+            "channel": "color"
+        }
+    },
+    "data": {
+        "url": "titanic_2d.csv"
+    }
+}
+,
+
+
+
+{
+    "name": "side by side 2d barchart (extruded)",
+    "width": 300,
+    "height": 600,
+    "depth": 300,
+    "mark": "cube",
+    "encoding": {
+        "x": {
+            "field": "Survived",
+            "type": "nominal"
+        },
+        "width": {
+            "value": 130
+        },
+        "y": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 2000]
+            }
+        },
+        "height": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 2000]
+            }
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "color": {
+            "field": "Class",
+            "type": "nominal"
+        },
+        "depth": {
+            "value": 130
+        },
+        "zoffset": {
+            "channel": "color"
+        },
+        "zoffsetpct": {
+            "value": -3.5
+        }
+    },
+    "data": {
+        "url": "titanic_2d.csv"
+    }
+}
+
+
+,
+
+{
+    "name": "side by side 2d barchart",
+    "width": 600,
+    "height": 600,
+    "mark": "cube",
+    "encoding": {
+        "x": {
+            "field": "Survived",
+            "type": "nominal"
+        },
+        "width": {
+            "value": 60
+        },
+        "y": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 800]
+            }
+        },
+        "height": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 800]
+            }
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "color": {
+            "field": "Class",
+            "type": "nominal"
+        },
+        "xoffset": {
+            "channel": "color"
+        },
+        "xoffsetpct": {
+            "value": -1.5
+        }
+    },
+    "data": {
+        "url": "titanic_2d.csv"
+    }
+}
+
+,
+
+{
+    "name": "3d barchart",
+    "width": 300,
+    "height": 600,
+    "depth": 300,
+    "mark": "cube",
+    "encoding": {
+        "x": {
+            "field": "Sex",
+            "type": "nominal"
+        },
+        "width": {
+            "value": 130
+        },
+        "y": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 2000]
+            }
+        },
+        "height": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 2000]
+            }
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "z": {
+            "field": "Survived",
+            "type": "nominal"
+        },
+        "depth": {
+            "value": 130
+        },
+        "color": {
+            "field": "Class",
+            "type": "nominal"
+        },
+        "yoffset": {
+            "channel": "color"
+        }
+    },
+    "data": {
+        "url": "titanic_3d.csv"
+    }
+}
+
+,
+
+{
+    "name": "faceted barchart",
+    "width": 300,
+    "height": 300,
+    "depth": 300,
+    "mark": "cube",
+    "encoding": {
+        "x": {
+            "field": "Sex",
+            "type": "nominal"
+        },
+        "width": {
+            "value": 130
+        },
+        "y": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 800]
+            }
+        },
+        "height": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 800]
+            }
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "depth": {
+            "value": 10
+        },
+        "color": {
+            "field": "Class",
+            "type": "nominal",
+            "legend": "none"
+        },
+        "facetwrap": {
+            "field": "Class",
+            "type": "nominal",
+            "directions": ["x", "y"],
+            "spacing": [400, -400],
+            "size": 3
+        }
+    },
+    "data": {
+        "url": "titanic_3d.csv"
+    }
+}
+
+
+]

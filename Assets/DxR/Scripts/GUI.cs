@@ -11,8 +11,8 @@ using UnityEngine.EventSystems;
 namespace DxR
 {
     /// <summary>
-    /// Whenever a GUI action is performed, button clicked, dropdown clicked, etc., the guiVisSpecs is automatically updated so it 
-    /// should be in sync all the time. The visSpecs of the targetVis is only updated when calling UpdateVisSpecsFromGUISpecs, and 
+    /// Whenever a GUI action is performed, button clicked, dropdown clicked, etc., the guiVisSpecs is automatically updated so it
+    /// should be in sync all the time. The visSpecs of the targetVis is only updated when calling UpdateVisSpecsFromGUISpecs, and
     /// for the other way around, the guiVisSpecs is updated from the targetVis specs when calling UpdateGUISpecsFromVisSpecs.
     /// </summary>
     public class GUI : MonoBehaviour
@@ -21,7 +21,7 @@ namespace DxR
         JSONNode guiVisSpecs = null;
         Dropdown dataDropdown = null;
         Dropdown markDropdown = null;
-        
+
         Transform addChannelButtonTransform = null;
         GameObject channelGUIPrefab = null;
 
@@ -29,7 +29,9 @@ namespace DxR
         GameObject interactionGUIPrefab = null;
 
         List<string> dataFieldTypeDropdownOptions;
-        
+
+        bool verbose;
+
         // Use this for initialization
         void Start()
         {
@@ -41,10 +43,11 @@ namespace DxR
             return targetVis;
         }
 
-        public void Init(Vis targetVisInstance)
+        public void Init(Vis targetVisInstance, bool verbose = false)
         {
             targetVis = targetVisInstance;
-            
+            this.verbose = verbose;
+
             dataFieldTypeDropdownOptions = new List<string> { "quantitative", "nominal", "ordinal", "temporal" };
 
             Transform dataDropdownTransform = gameObject.transform.Find("DataDropdown");
@@ -69,7 +72,7 @@ namespace DxR
             addChannelBtn.onClick.AddListener(AddEmptyChannelGUICallback);
 
 #if USE_INTERACTION_GUI
-            
+
             interactionGUIPrefab = Resources.Load("GUI/InteractionGUI") as GameObject;
 
             addInteractionButtonTransform = gameObject.transform.Find("InteractionList/Viewport/InteractionListContent/AddInteractionButton");
@@ -149,7 +152,7 @@ namespace DxR
             }
         }
 
-        // Call this to update the GUI and its specs when the vis specs of 
+        // Call this to update the GUI and its specs when the vis specs of
         // the target vis is updated.
         public void UpdateGUISpecsFromVisSpecs()
         {
@@ -178,7 +181,7 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
 #if USE_INTERACTION_GUI
             // Update GUI for interactions:
             //UpdateGUIInteractionsList(guiVisSpecs);
-#endif 
+#endif
         }
 
         // Adds or removes channel GUIs according to specs and updates the dropdowns.
@@ -194,7 +197,7 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
                 foreach (KeyValuePair<string, JSONNode> kvp in channelEncodings.AsObject)
                 {
                     string channelName = kvp.Key;
-                    if(guiVisSpecs["encoding"][channelName]["value"] == null && 
+                    if(guiVisSpecs["encoding"][channelName]["value"] == null &&
                         IsChannelInMarksChannelList(guiVisSpecs["mark"].Value, channelName))
                     {
                         AddChannelGUI(channelName, kvp.Value.AsObject);
@@ -258,7 +261,7 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
         {
             GameObject channelGUI = AddEmptyChannelGUI();
 
-            Debug.Log("Encoding:" + channelName + "," + channelEncodingSpecs.ToString(2));
+            if (verbose) Debug.Log("Encoding:" + channelName + "," + channelEncodingSpecs.ToString(2));
 
             UpdateChannelGUIChannelDropdownValue(channelName, ref channelGUI);
             UpdateChannelGUIDataFieldDropdownValue(channelEncodingSpecs["field"].Value, ref channelGUI);
@@ -335,7 +338,7 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
             {
                 GameObject channelGUI = channelListContent.GetChild(i).gameObject;
                 JSONObject channelSpecs = new JSONObject();
-                
+
                 Dropdown dropdown = channelGUI.transform.Find("DataFieldDropdown").GetComponent<Dropdown>();
                 string dataField = dropdown.options[dropdown.value].text;
                 channelSpecs.Add("field", new JSONString(dataField));
@@ -350,7 +353,7 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
             }
 
             guiVisSpecs["encoding"] = encodingObject;
-            Debug.Log("GUI CHANNEL SPECS: " + guiVisSpecs["encoding"].ToString());
+            if (verbose) Debug.Log("GUI CHANNEL SPECS: " + guiVisSpecs["encoding"].ToString());
 
 #if USE_INTERACTION_GUI
             // Update interaction specs:
@@ -391,12 +394,12 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
         // TODO:
         public void OnChannelGUIChannelDropdownValueChanged(Dropdown changed)
         {
-            Debug.Log("New data " + changed.options[changed.value].text);
+            if (verbose) Debug.Log("New data " + changed.options[changed.value].text);
             string prevValue = ""; // guiVisSpecs["data"]["url"].Value;
             string curValue = changed.options[changed.value].text;
             if (prevValue != curValue)
             {
-                Debug.Log("Updated specs " + curValue);
+                if (verbose) Debug.Log("Updated specs " + curValue);
 
 //                UpdateGUIChannelsList(guiVisSpecs);
             }
@@ -405,12 +408,12 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
         // TODO:
         public void OnChannelGUIDataFieldDropdownValueChanged(Dropdown changed)
         {
-            Debug.Log("New data " + changed.options[changed.value].text);
+            if (verbose) Debug.Log("New data " + changed.options[changed.value].text);
             string prevValue = ""; // guiVisSpecs["data"]["url"].Value;
             string curValue = changed.options[changed.value].text;
             if (prevValue != curValue)
             {
-                Debug.Log("Updated specs " + curValue);
+                if (verbose) Debug.Log("Updated specs " + curValue);
 
                 //                UpdateGUIChannelsList(guiVisSpecs);
             }
@@ -418,50 +421,50 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
 
         public void OnInteractionGUIDataFieldDropdownValueChanged(Dropdown changed, GameObject interactionGUI)
         {
-            Debug.Log("New data " + changed.options[changed.value].text);
+            if (verbose) Debug.Log("New data " + changed.options[changed.value].text);
             string prevValue = ""; // guiVisSpecs["data"]["url"].Value;
             string curValue = changed.options[changed.value].text;
             if (prevValue != curValue)
             {
-                Debug.Log("Updated specs " + curValue);
+                if (verbose) Debug.Log("Updated specs " + curValue);
 
                 //                UpdateGUIChannelsList(guiVisSpecs);
             }
 
-            Debug.Log("Object name " + interactionGUI.name);
+            if (verbose) Debug.Log("Object name " + interactionGUI.name);
 
             UpdateInteraction(interactionGUI);
         }
 
         private void UpdateInteraction(GameObject interactionGUI)
         {
-            
+
         }
 
         public void OnInteractionGUIInteractionTypeDropdownValueChanged(Dropdown changed, GameObject interactionGUI)
         {
-            Debug.Log("New data " + changed.options[changed.value].text);
+            if (verbose) Debug.Log("New data " + changed.options[changed.value].text);
             string prevValue = ""; // guiVisSpecs["data"]["url"].Value;
             string curValue = changed.options[changed.value].text;
             if (prevValue != curValue)
             {
-                Debug.Log("Updated specs " + curValue);
+                if (verbose) Debug.Log("Updated specs " + curValue);
 
                 //                UpdateGUIChannelsList(guiVisSpecs);
             }
 
-            Debug.Log("Object name " + interactionGUI.name);
+            if (verbose) Debug.Log("Object name " + interactionGUI.name);
         }
 
         // TODO:
         public void OnChannelGUIDataFieldTypeDropdownValueChanged(Dropdown changed)
         {
-            Debug.Log("New data " + changed.options[changed.value].text);
+            if (verbose) Debug.Log("New data " + changed.options[changed.value].text);
             string prevValue = ""; // guiVisSpecs["data"]["url"].Value;
             string curValue = changed.options[changed.value].text;
             if (prevValue != curValue)
             {
-                Debug.Log("Updated specs " + curValue);
+                if (verbose) Debug.Log("Updated specs " + curValue);
 
                 //                UpdateGUIChannelsList(guiVisSpecs);
             }
@@ -469,7 +472,7 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
 
         public void OnDataDropdownValueChanged(Dropdown changed)
         {
-            Debug.Log("New data " + changed.options[changed.value].text);
+            if (verbose) Debug.Log("New data " + changed.options[changed.value].text);
             string prevValue = guiVisSpecs["data"]["url"].Value;
             string curValue = changed.options[changed.value].text;
             if (prevValue != curValue)
@@ -478,13 +481,13 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
 
                 // Keep channel field names if they exist in the data
                 // and set to undefined if not, so user can use specs as template for new data.
-                
+
                 List<string> newDataFields = GetDataFieldsList();
                 Transform channelListContent = gameObject.transform.Find("ChannelList/Viewport/ChannelListContent");
                 for (int i = 0; i < channelListContent.childCount - 1; i++)
                 {
                     GameObject channelGUI = channelListContent.GetChild(i).gameObject;
-                    
+
                     Dropdown dropdown = channelGUI.transform.Find("ChannelDropdown").GetComponent<Dropdown>();
                     string channel = dropdown.options[dropdown.value].text;
 
@@ -495,7 +498,7 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
                     }
                 }
 
-                Debug.Log("Updated specs " + guiVisSpecs["encoding"].ToString());
+                if (verbose) Debug.Log("Updated specs " + guiVisSpecs["encoding"].ToString());
 
                 UpdateGUIChannelsList(guiVisSpecs);
             }
@@ -503,7 +506,7 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
 
         public void OnMarkDropdownValueChanged(Dropdown changed)
         {
-            Debug.Log("New mark " + changed.options[changed.value].text);
+            if (verbose) Debug.Log("New mark " + changed.options[changed.value].text);
             string prevValue = guiVisSpecs["mark"].Value;
             string curValue = changed.options[changed.value].text;
             if (prevValue != curValue)
@@ -633,11 +636,11 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
 
         private void DeleteParentOfClickedObjectCallback()
         {
-            Debug.Log("Clicked " + EventSystem.current.currentSelectedGameObject.transform.parent.name);
+            if (verbose) Debug.Log("Clicked " + EventSystem.current.currentSelectedGameObject.transform.parent.name);
             //
             GameObject.Destroy(EventSystem.current.currentSelectedGameObject.transform.parent.gameObject);
         }
-        
+
         public List<string> GetChannelDropdownOptions()
         {
             return targetVis.GetChannelsList(markDropdown.options[markDropdown.value].text);
@@ -717,7 +720,7 @@ UpdateMarkDropdownValue(guiVisSpecs["mark"].Value);
                 dataDropdown.value = valueIndex;
             }
 
-            Debug.Log("Updated GUI data value to " + value);
+            if (verbose) Debug.Log("Updated GUI data value to " + value);
         }
 
         public void UpdateMarkDropdownValue(string value)

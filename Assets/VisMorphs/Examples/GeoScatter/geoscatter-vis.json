@@ -1,0 +1,108 @@
+[
+
+{
+    "width": 800,
+    "height": 500,
+    "mark": "geoshape",
+    "encoding": {
+        "x": {
+            "field": "Population",
+            "type": "quantitative"
+        },
+        "y": {
+            "field": "LifeExpectancy",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [ 70, 85 ]
+            }
+        },
+        "width": {
+            "value": 10
+        },
+        "height": {
+            "value": 10
+        },
+        "color": {
+            "field": "Population",
+            "type": "quantitative"
+        }
+    },
+    "data": {
+        "url": "us-states.json"
+    }
+}
+
+    ,
+
+
+{
+    "width": 800,
+    "height": 500,
+    "mark": "geoshape",
+    "encoding": {
+        "x": {
+            "field": "Population",
+            "type": "quantitative"
+        },
+        "y": {
+            "field": "LifeExpectancy",
+            "type": "quantitative"
+        },
+        "width": {
+            "field": "Longitude",
+            "type": "spatial"
+        },
+        "height": {
+            "field": "Latitude",
+            "type": "spatial"
+        },
+        "color": {
+            "field": "Population",
+            "type": "quantitative"
+        }
+    },
+    "data": {
+        "url": "us-states.json"
+    }
+}
+
+,
+
+{
+    "width": 800,
+    "height": 500,
+    "mark": "geoshape",
+    "encoding": {
+        "x": {
+            "field": "Longitude",
+            "type": "spatial"
+        },
+        "y": {
+            "field": "Latitude",
+            "type": "spatial",
+            "scale": {
+                "type": "linear",
+                "domain": [ 15, 75 ]
+            }
+        },
+        "width": {
+            "field": "Longitude",
+            "type": "spatial"
+        },
+        "height": {
+            "field": "Latitude",
+            "type": "spatial"
+        },
+        "color": {
+            "field": "Population",
+            "type": "quantitative"
+        }
+    },
+    "data": {
+        "url": "us-states.json"
+    }
+}
+
+
+]

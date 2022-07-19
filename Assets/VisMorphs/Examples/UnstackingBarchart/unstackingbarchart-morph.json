@@ -1,0 +1,169 @@
+{
+    "states": [
+        {
+            "name": "stacked",
+            "mark": "cube",
+            "encoding": {
+                "x": {
+                    "field": "Survived",
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffset": {
+                    "channel": "color"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "depth": {
+                    "value": 10
+                },
+                "zoffset": null,
+                "color": {
+                    "type": "nominal"
+                }
+            }
+        },
+        {
+            "name": "staged",
+            "mark": "cube",
+            "encoding": {
+                "x": {
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffset": {
+                    "channel": "color"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "depth": {
+                    "value": 130
+                },
+                "color": {
+                    "type": "nominal"
+                },
+                "zoffset": {
+                    "channel": "color"
+                },
+                "zoffsetpct": {
+                    "value": -3.5
+                }
+            }
+        },
+        {
+            "name": "side by side",
+            "mark": "cube",
+            "encoding": {
+                "x": {
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffset": null,
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "depth": {
+                    "value": 130
+                },
+                "color": {
+                    "type": "nominal"
+                },
+                "zoffset": {
+                    "channel": "color"
+                },
+                "zoffsetpct": {
+                    "value": -3.5
+                }
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "surfaceCollider",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "closestcollider"
+            }
+        }, {
+            "name": "rightHandPos",
+            "source": {
+                "type": "hands",
+                "ref": "right",
+                "select": "position"
+            }
+        }, {
+            "name": "rightHandPinch",
+            "source": {
+                "type": "hands",
+                "ref": "right",
+                "select": "pinch"
+            }
+        }, {
+            "name": "isOnSurface",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "intersecting"
+            }
+        }, {
+            "name": "pinching",
+            "expression": "rightHandPinch > 0.5 "
+        }, {
+            "name": "extrudeDistance",
+            "expression": "distance(rightHandPos, closestpoint(surfaceCollider, rightHandPos))"
+        }, {
+            "name": "tweener1",
+            "expression":"normalise(extrudeDistance, 0.05, 0.15, 0, 1)"
+        }, {
+            "name": "tweener2",
+            "expression":"normalise(extrudeDistance, 0.15, 0.3, 0, 1)"
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "unstacking1",
+            "states": ["stacked", "staged"],
+            "triggers": ["isOnSurface", "pinching"],
+            "timing": {
+                "control": "tweener1"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        },
+        {
+            "name": "unstacking2",
+            "states": ["staged", "side by side"],
+            "triggers": ["isOnSurface", "pinching"],
+            "timing": {
+                "control": "tweener2"
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        }
+    ]
+}

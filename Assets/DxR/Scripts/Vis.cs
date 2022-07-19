@@ -1,16 +1,24 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using SimpleJSON;
 using System.IO;
 using System;
+using System.Linq;
+using UnityEngine.Events;
+using UniRx;
+using GeoJSON.Net.Geometry;
+using Newtonsoft.Json;
+using GeoJSON.Net.Feature;
+using GeoJSON.Net;
+using DxR.VisMorphs;
 
 namespace DxR
 {
     /// <summary>
-    /// This component can be attached to any GameObject (_parentObject) to create a 
+    /// This component can be attached to any GameObject (_parentObject) to create a
     /// data visualization. This component takes a JSON specification as input, and
-    /// generates an interactive visualization as output. The JSON specification 
+    /// generates an interactive visualization as output. The JSON specification
     /// describes the visualization using ONE type of mark and one or more channels.
     /// </summary>
     public class Vis : MonoBehaviour
@@ -21,57 +29,73 @@ namespace DxR
         public bool enableTooltip = true;                               // Switch for tooltip that shows datum attributes on-hover of mark instance.
         public bool verbose = true;                                     // Switch for verbose log.
 
-        public static string UNDEFINED = "undefined";                   // Value used for undefined objects in the JSON vis specs.
-        public static float SIZE_UNIT_SCALE_FACTOR = 1.0f / 1000.0f;    // Conversion factor to convert each Unity unit to 1 meter.
-        public static float DEFAULT_VIS_DIMS = 500.0f;                  // Default dimensions of a visualization, if not specified.
-                
-        JSONNode visSpecs;                                              // Vis specs that is synced w/ the inferred vis specs and vis.
-        JSONNode visSpecsInferred;                                      // This is the inferred vis specs and is ultimately used for construction.
+        public static readonly string UNDEFINED = "undefined";                   // Value used for undefined objects in the JSON vis specs.
+        public static readonly float SIZE_UNIT_SCALE_FACTOR = 1.0f / 1000.0f;    // Conversion factor to convert each Unity unit to 1 meter.
+        public static readonly float DEFAULT_VIS_DIMS = 500.0f;                  // Default dimensions of a visualization, if not specified.
 
-        Parser parser = null;                                           // Parser of JSON specs and data in text format to JSONNode object specs.
-        GUI gui = null;                                                 // GUI object (class) attached to GUI game object.
-        GameObject tooltip = null;                                      // Tooltip game object for displaying datum info, e.g., on-hover.
+        private Parser parser = null;                                           // Parser of JSON specs and data in text format to JSONNode object specs.
+        private GUI gui = null;                                                 // GUI object (class) attached to GUI game object.
+        private GameObject tooltip = null;                                      // Tooltip game object for displaying datum info, e.g., on-hover.
 
         // Vis Properties:
-        string title;                                                   // Title of vis displayed.
-        float width;                                                    // Width of scene in millimeters.
-        float height;                                                   // Heigh of scene in millimeters.
-        float depth;                                                    // Depth of scene in millimeters.
-        string markType;                                                // Type or name of mark used in vis.
-        public Data data;                                               // Object containing data.
-        bool IsLinked = false;                                          // Link to other vis object for interaction.
-        string data_name=null;
+        public Data data;                                                       // Object containing data.
+        private string title;                                                   // Title of vis displayed.
+        private float width;                                                    // Width of scene in millimeters.
+        private float height;                                                   // Heigh of scene in millimeters.
+        private float depth;                                                    // Depth of scene in millimeters.
+        private string markType;                                                // Type or name of mark used in vis.
+        private bool IsLinked = false;                                          // Link to other vis object for interaction.
+        private string data_name = null;
 
-        public List<GameObject> markInstances;                                 // List of mark instances; each mark instance corresponds to a datum.
+        private JSONNode visSpecs;                                              // Vis specs that is synced w/ the inferred vis specs and vis.
+        private JSONNode visSpecsInferred;                                      // This is the inferred vis specs and is ultimately used for construction.
 
         private GameObject parentObject = null;                         // Parent game object for all generated objects associated to vis.
-
         private GameObject viewParentObject = null;                     // Parent game object for all view related objects - axis, legend, marks.
         private GameObject marksParentObject = null;                    // Parent game object for all mark instances.
-
         private GameObject guidesParentObject = null;                   // Parent game object for all guies (axes/legends) instances.
         private GameObject interactionsParentObject = null;             // Parent game object for all interactions, e.g., filters.
+        private GameObject centreOffsetObject = null;
+        private BoxCollider boxCollider;
+        private new Rigidbody rigidbody;
         private GameObject markPrefab = null;                           // Prefab game object for instantiating marks.
-        private List<ChannelEncoding> channelEncodings = null;          // List of channel encodings.
 
-        List<string> marksList;                                         // List of mark prefabs that can be used at runtime.
-        List<string> dataList;                                          // List of local data that can be used at runtime.
+        private List<ChannelEncoding> channelEncodings = null;          // List of channel encodings.
+        private List<string> marksList;                                 // List of mark prefabs that can be used at runtime.
+        private List<string> dataList;                                  // List of local data that can be used at runtime.
+        public List<GameObject> markInstances;                          // List of mark instances; each mark instance corresponds to a datum.
+        private Dictionary<string, Axis> axisInstances = new Dictionary<string, Axis>();
+        private Dictionary<string, List<Axis>> facetedAxisInstances = new Dictionary<string, List<Axis>>();
+        private Dictionary<string, ActiveTransition> activeTransitions = new Dictionary<string, ActiveTransition>();
+        private Tuple<string, Vector3, Vector3> posePositionChanges;
+        private Tuple<string, Quaternion, Quaternion> poseRotationChanges;
+        private IDisposable posePositionDisposable;
+        private IDisposable poseRotationDisposable;
+
+        [Serializable]
+        public class VisUpdatedEvent : UnityEvent<Vis, JSONNode> { }
+        [HideInInspector]
+        public VisUpdatedEvent VisUpdated;
 
         private bool isReady = false;
         public bool IsReady { get { return isReady; } }
 
-        private int frameCount = 0;
-        public int FrameCount { get { return frameCount; } set { frameCount = value; } }
-
-
         private void Awake()
         {
+            if (VisUpdated == null)
+                VisUpdated = new VisUpdatedEvent();
+
             // Initialize objects:
             parentObject = gameObject;
             viewParentObject = gameObject.transform.Find("DxRView").gameObject;
             marksParentObject = viewParentObject.transform.Find("DxRMarks").gameObject;
             guidesParentObject = viewParentObject.transform.Find("DxRGuides").gameObject;
             interactionsParentObject = gameObject.transform.Find("DxRInteractions").gameObject;
+
+            boxCollider = gameObject.GetComponent<BoxCollider>() != null ? gameObject.GetComponent<BoxCollider>() : gameObject.AddComponent<BoxCollider>();
+            rigidbody = gameObject.GetComponent<Rigidbody>() != null ? gameObject.GetComponent<Rigidbody>() : gameObject.AddComponent<Rigidbody>();
+            boxCollider.isTrigger = true;
+            rigidbody.isKinematic = true;
 
             if (viewParentObject == null || marksParentObject == null)
             {
@@ -80,8 +104,18 @@ namespace DxR
 
             parser = new Parser();
 
-            // Parse the vis specs URL into the vis specs object.
-            parser.Parse(visSpecsURL, out visSpecs);
+            // If there is no visSpecsURL defined, and a RuntimeInspectorVisSpecs component is also attached
+            // to this GameObject, then we parse the JSON string specification contained in it instead
+            if (visSpecsURL == "" && GetComponent<RuntimeInspectorVisSpecs>() != null)
+            {
+                string visSpecsString = GetComponent<RuntimeInspectorVisSpecs>().InputSpecification;
+                parser.ParseString(visSpecsString, out visSpecs);
+            }
+            else
+            {
+                // Parse the vis specs URL into the vis specs object.
+                parser.Parse(visSpecsURL, out visSpecs);
+            }
 
             InitDataList();
             InitMarksList();
@@ -89,15 +123,11 @@ namespace DxR
             // Initialize the GUI based on the initial vis specs.
             InitGUI();
             InitTooltip();
-            
+
             // Update vis based on the vis specs.
             UpdateVis();
-            isReady = true;
-        }
 
-        private void Update()
-        {
-            FrameCount++;
+            isReady = true;
         }
 
         public JSONNode GetVisSpecs()
@@ -130,9 +160,11 @@ namespace DxR
         /// Currently, deletes everything and reconstructs everything from scratch.
         /// TODO: Only reconstruct newly updated properties.
         /// </summary>
-        private void UpdateVis()
+        private void UpdateVis(bool callUpdateEvent = true)
         {
-            DeleteAll();
+            // We no longer need to delete marks and axes
+            DeleteInteractions();
+            DeleteLegends();
 
             UpdateVisConfig();
 
@@ -140,408 +172,694 @@ namespace DxR
 
             UpdateMarkPrefab();
 
-            InferVisSpecs();
+            InferVisSpecs(visSpecs, out visSpecsInferred);
 
             ConstructVis(visSpecsInferred);
+
+            if (callUpdateEvent)
+                VisUpdated.Invoke(this, GetVisSpecs());
+
+            UpdateVisPose(visSpecsInferred);
+
+            UpdateCollider();
         }
 
         private void ConstructVis(JSONNode specs)
         {
-            CreateChannelEncodingObjects(specs);
+            CreateChannelEncodingObjects(specs, ref channelEncodings);
 
-            ConstructMarkInstances();
+            // New: Updates existing mark instances, or creates new ones if they do not yet exist
+            ConstructAndUpdateMarkInstances();
 
             ApplyChannelEncodings();
 
-            // Interactions need to be constructed 
-            // before axes and legends
+            // Interactions need to be constructed before axes and legends
             ConstructInteractions(specs);
 
-            ConstructAxes(specs);
+            // New: Updates existing axes instances, or creates new ones if they do not yet exist
+            ConstructAndUpdateAxes(specs, ref channelEncodings);
 
             ConstructLegends(specs);
         }
 
-        private void ConstructInteractions(JSONNode specs)
+        #region Morph specific functions
+
+        public bool ApplyTransition(string transitionName, JSONNode newInitialVisSpecs, JSONNode newFinalVisSpecs, IObservable<float> tweeningObservable, bool isReversed)
         {
-            if (specs["interaction"] == null) return;
-
-            interactionsParentObject.GetComponent<Interactions>().Init(this);
-
-            foreach (JSONObject interactionSpecs in specs["interaction"].AsArray)
+            if (activeTransitions.Keys.Contains(transitionName))
             {
-                if(interactionSpecs["type"] != null && interactionSpecs["field"] != null && interactionSpecs["domain"] != null)
+                throw new Exception(string.Format("Vis Morphs: The transition {0} is currently active, therefore cannot be applied again.", transitionName));
+            }
+
+            // We need to determine the channel encodings which have changed between the initial and final states. These will be used to apply the transition
+            // only to these specific channel encodings, (hopefully) allowing for simultaneous transitions to be applied
+            List<ChannelEncoding> initialChannelEncodings = new List<ChannelEncoding>();
+            JSONNode newInferredInitialVisSpecs;
+            InferVisSpecs(newInitialVisSpecs, out newInferredInitialVisSpecs);
+            CreateChannelEncodingObjects(newInferredInitialVisSpecs, ref initialChannelEncodings);
+
+            List<ChannelEncoding> finalChannelEncodings = new List<ChannelEncoding>();
+            JSONNode newInferredFinalVisSpecs;
+            InferVisSpecs(newFinalVisSpecs, out newInferredFinalVisSpecs);
+            CreateChannelEncodingObjects(newInferredFinalVisSpecs, ref finalChannelEncodings);
+
+            // For each of the two lists, keep only the channel encodings which have changed between them
+            // We also keep all relevant spatial channels if any one of them has changed (e.g., keep x in xoffset is changed)
+            ChannelEncoding.FilterUnchangedChannelEncodings(ref initialChannelEncodings, ref finalChannelEncodings, true);
+
+            // Now make a list containing pairwise ChannelEncodings in tuples, using nulls wherever a channel encoding exists in one but not the other
+            // The third item in the tupple is the name of the channel (non-null)
+            List<Tuple<ChannelEncoding, ChannelEncoding, string>> transitionChannelEncodings = new List<Tuple<ChannelEncoding, ChannelEncoding,string>>();
+            while (initialChannelEncodings.Count > 0)
+            {
+                ChannelEncoding ce1 = initialChannelEncodings[0];
+                string channelName = ce1.channel;
+
+                bool found = false;
+                for (int i = 0; i < finalChannelEncodings.Count; i++)
                 {
-                    switch(interactionSpecs["type"].Value)
+                    ChannelEncoding ce2 = finalChannelEncodings[i];
+                    if (ce1.channel == ce2.channel)
                     {
-                        case "thresholdFilter":
-                            AddThresholdFilterInteraction(interactionSpecs);
-                            break;
-
-                        case "toggleFilter":
-                            AddToggleFilterInteraction(interactionSpecs);
-                            break;
-
-                        default:
-                            return;
+                        transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding, string>(ce1, ce2, channelName));
+                        finalChannelEncodings.RemoveAt(i);
+                        found = true;
+                        break;
                     }
-
-                    Debug.Log("Constructed interaction: " + interactionSpecs["type"].Value +
-                        " for data field " + interactionSpecs["field"].Value);
-                } else
-                {
-                    Debug.Log("Make sure interaction object has type, field, and domain specs.");
-//                    throw new System.Exception("Make sure interaction object has type, field, and domain specs.");
                 }
 
+                if (!found)
+                    transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding, string>(ce1, null, channelName));
+
+                initialChannelEncodings.RemoveAt(0);
             }
-        }
 
-        private void AddThresholdFilterInteraction(JSONObject interactionSpecs)
-        {
-            if (interactionsParentObject != null)
+            while (finalChannelEncodings.Count > 0)
             {
-                interactionsParentObject.GetComponent<Interactions>().AddThresholdFilter(interactionSpecs);
+                ChannelEncoding ce2 = finalChannelEncodings[0];
+                string channelName = ce2.channel;
+                transitionChannelEncodings.Add(new Tuple<ChannelEncoding, ChannelEncoding, string>(null, ce2, channelName));
+                finalChannelEncodings.RemoveAt(0);
             }
-        }
 
-        private void AddToggleFilterInteraction(JSONObject interactionSpecs)
-        {
-            if(interactionsParentObject != null)
-            {
-                interactionsParentObject.GetComponent<Interactions>().AddToggleFilter(interactionSpecs);
-            }            
-        }
+            // Check to see if this transition can be applied. This is only the case when there are no other active transitions which
+            // are affecting the same channel encodings as this new one
+            bool isNewTransitionAllowed = true;
+            List<string> changedChannelsNames = transitionChannelEncodings.Where(tuple => tuple.Item1 != null).Select(tuple => tuple.Item1.channel)
+                                                .Union(transitionChannelEncodings.Where(tuple => tuple.Item2 != null).Select(tuple => tuple.Item2.channel))
+                                                .ToList();
 
-        private void ConstructLegends(JSONNode specs)
-        {
-            // Go through each channel and create legend for color, shape, or size channels:
-            for (int channelIndex = 0; channelIndex < channelEncodings.Count; channelIndex++)
+            foreach (var activeTransition in activeTransitions.Values)
             {
-                ChannelEncoding channelEncoding = channelEncodings[channelIndex];
-                JSONNode legendSpecs = specs["encoding"][channelEncoding.channel]["legend"];
-                if (legendSpecs != null && legendSpecs.Value.ToString() != "none" && channelEncoding.channel == "color")
+                // Check if channel names overlap in the either of the two states
+                bool initialStateOverlap = activeTransition.ChangedChannelEncodings.Where(tuple => tuple.Item1 != null).Select(tuple => tuple.Item1.channel).Any(ce1 => changedChannelsNames.Contains(ce1));
+                bool finalStateOverlap = activeTransition.ChangedChannelEncodings.Where(tuple => tuple.Item2 != null).Select(tuple => tuple.Item2.channel).Any(ce2 => changedChannelsNames.Contains(ce2));
+
+                if (initialStateOverlap || finalStateOverlap)
                 {
-                    if (verbose)
-                    {
-                        Debug.Log("Constructing legend for channel " + channelEncoding.channel);
-                    }
-
-                    ConstructLegendObject(legendSpecs, ref channelEncoding);
+                    isNewTransitionAllowed = false;
+                    break;
                 }
             }
-        }
 
-        private void ConstructLegendObject(JSONNode legendSpecs, ref ChannelEncoding channelEncoding)
-        {
-            GameObject legendPrefab = Resources.Load("Legend/Legend", typeof(GameObject)) as GameObject;
-            if (legendPrefab != null && markPrefab != null)
+            // We also need to check whether this new visualisation updates the visualisation's pose. If there is another
+            // transition which is already updating the pose, then this new transition cannot continue
+            // Position and rotation changes can coexist, but a single transition may affect both at the same time
+            if (isNewTransitionAllowed)
             {
-                channelEncoding.legend = Instantiate(legendPrefab, guidesParentObject.transform);
-                channelEncoding.legend.GetComponent<Legend>().Init(interactionsParentObject.GetComponent<Interactions>());
-                channelEncoding.legend.GetComponent<Legend>().UpdateSpecs(legendSpecs, ref channelEncoding, markPrefab);
+                if (posePositionDisposable != null)
+                {
+                    if (newInferredInitialVisSpecs["position"] != null || newInferredFinalVisSpecs["position"] != null)
+                        isNewTransitionAllowed = false;
+                }
+                if (poseRotationDisposable != null)
+                {
+                    if (newInferredInitialVisSpecs["rotation"] != null || newInferredFinalVisSpecs["rotation"] != null)
+                        isNewTransitionAllowed = false;
+                }
+            }
+
+            // If the new transition has passed our checks, we can finally pass this onto the marks/axes/etc.
+            if (isNewTransitionAllowed)
+            {
+                // Annoyingly enough the mark transition functions don't work when the *inferred* specs are passed in
+                // Therefore we make two versions, one with the inferred specs and one without
+                ActiveTransition newActiveTransition = new ActiveTransition()
+                {
+                    Name = transitionName,
+                    ChangedChannelEncodings = transitionChannelEncodings,
+                    InitialVisSpecs = newInitialVisSpecs,
+                    FinalVisSpecs = newFinalVisSpecs,
+                    InitialInferredVisSpecs = newInferredInitialVisSpecs,
+                    FinalInferredVisSpecs = newInferredFinalVisSpecs,
+                    TweeningObservable = tweeningObservable,
+                    IsReversed = isReversed
+                };
+                activeTransitions.Add(transitionName, newActiveTransition);
+
+                ApplyTransitionChannelEncodings(newActiveTransition);
+                ApplyTransitionAxes(newActiveTransition);
+                ApplyTransitionPose(newActiveTransition);
+
+                return true;
             }
             else
             {
-                throw new Exception("Cannot find legend prefab.");
+                Debug.LogWarning("Vis Morphs: A transition has failed to been applied as it affects a visualisation property which is currently undergoing a transition.");
+                return false;
             }
         }
 
-        private void ConstructAxes(JSONNode specs)
+        public void StopTransition(string transitionName, bool goToEnd = true, bool commitVisSpecChanges = true)
         {
-            // Go through each channel and create axis for each spatial / position channel:
-            for (int channelIndex = 0; channelIndex < channelEncodings.Count; channelIndex++)
+            if (!activeTransitions.ContainsKey(transitionName))
             {
-                ChannelEncoding channelEncoding = channelEncodings[channelIndex];
-                JSONNode axisSpecs = specs["encoding"][channelEncoding.channel]["axis"];
-                if (axisSpecs != null && axisSpecs.Value.ToString() != "none" &&
-                    (channelEncoding.channel == "x" || channelEncoding.channel == "y" ||
-                    channelEncoding.channel == "z"))
+                throw new Exception(string.Format("Vis Morphs: The transition {0} is not active, and therefore cannot be stopped.", transitionName));
+            }
+
+            StopTransitionChannelEncodings(transitionName, goToEnd, commitVisSpecChanges);
+            StopTransitionAxes(transitionName, goToEnd);
+            StopTransitionPose(transitionName, goToEnd);
+
+            UpdateCollider();
+
+            activeTransitions.Remove(transitionName);
+        }
+
+        private void ApplyTransitionChannelEncodings(ActiveTransition activeTransition)
+        {
+            // TODO: We need to do something about the rotation changing, not sure how to fix it
+            for (int i = 0; i < markInstances.Count; i++)
+            {
+                markInstances[i].GetComponent<Mark>().InitialiseTransition(activeTransition, i);
+            }
+        }
+
+        private void StopTransitionChannelEncodings(string transitionName, bool goToEnd, bool commitVisSpecChanges)
+        {
+            for (int i = 0; i < markInstances.Count; i++)
+            {
+                markInstances[i].GetComponent<Mark>().StopTransition(transitionName, goToEnd);
+            }
+
+            ActiveTransition stoppingTransition = activeTransitions[transitionName];
+
+            // If true, we update the vis specs to essentially "keep" the changes caused by the transition
+            // This can be set to false in order to have the transition basically be ephemeral
+            if (commitVisSpecChanges)
+            {
+                List<Tuple<ChannelEncoding, ChannelEncoding, string>> changedChannelEncodings = stoppingTransition.ChangedChannelEncodings;
+
+                // Update the vis specs
+                // For each channel encoding change, change the vis specs based on the one stored in the transition tuple
+                JSONNode stateVisSpecs = (goToEnd) ? stoppingTransition.FinalVisSpecs : stoppingTransition.InitialVisSpecs;
+
+                foreach (var tuple in changedChannelEncodings)
                 {
-                    if (verbose)
+                    string channelName = (tuple.Item1 != null) ? tuple.Item1.channel : tuple.Item2.channel;
+                    ChannelEncoding ceToCheck = goToEnd ? tuple.Item2 : tuple.Item1;
+
+                    // If the target state has a CE (i.e., it exists), copy it from the stateVisSpecs
+                    if (ceToCheck != null)
                     {
-                        Debug.Log("Constructing axis for channel " + channelEncoding.channel);
+                        visSpecs["encoding"][channelName] = stateVisSpecs["encoding"][channelName];
                     }
-
-                    ConstructAxisObject(axisSpecs, ref channelEncoding);
-                }
-            }
-        }
-
-        private void ConstructAxisObject(JSONNode axisSpecs, ref ChannelEncoding channelEncoding)
-        {
-            GameObject axisPrefab = Resources.Load("Axis/Axis", typeof(GameObject)) as GameObject;
-            if (axisPrefab != null)
-            {
-                channelEncoding.axis = Instantiate(axisPrefab, guidesParentObject.transform);
-                channelEncoding.axis.GetComponent<Axis>().Init(interactionsParentObject.GetComponent<Interactions>(), 
-                    channelEncoding.field);
-                channelEncoding.axis.GetComponent<Axis>().UpdateSpecs(axisSpecs, channelEncoding.scale);                
-            }
-            else
-            {
-                throw new Exception("Cannot find axis prefab.");
-            }
-        }
-
-        private void ApplyChannelEncodings()
-        {
-            bool isDirectionChanged = false;
-            foreach(ChannelEncoding ch in channelEncodings)
-            {
-                ApplyChannelEncoding(ch, ref markInstances);
-
-                if(ch.channel == "xdirection" || ch.channel == "ydirection" || ch.channel == "zdirection")
-                {
-                    isDirectionChanged = true;
-                }
-            }
-
-            if(isDirectionChanged)
-            {
-                for (int i = 0; i < markInstances.Count; i++)
-                {
-                    Mark markComponent = markInstances[i].GetComponent<Mark>();
-  
-                    markComponent.SetRotation();
-                }
-            }
-        }
-
-        private void ApplyChannelEncoding(ChannelEncoding channelEncoding,
-            ref List<GameObject> markInstances)
-        {
-            for(int i = 0; i < markInstances.Count; i++)
-            {
-                Mark markComponent = markInstances[i].GetComponent<Mark>();
-                if (markComponent == null)
-                {
-                    throw new Exception("Mark component not present in mark prefab.");
-                }
-
-                if (channelEncoding.value != DxR.Vis.UNDEFINED)
-                {
-                    markComponent.SetChannelValue(channelEncoding.channel, channelEncoding.value);
-                }
-                else
-                {
-                    string channelValue = channelEncoding.scale.ApplyScale(markComponent.datum[channelEncoding.field]);
-                    markComponent.SetChannelValue(channelEncoding.channel, channelValue);
-                }
-            }
-        }
-
-        private void ConstructMarkInstances()
-        {
-            markInstances = new List<GameObject>();
-
-            // Create one mark prefab instance for each data point:
-            foreach (Dictionary<string, string> dataValue in data.values)
-            {
-                // Instantiate mark prefab, copying parentObject's transform:
-                GameObject markInstance = InstantiateMark(markPrefab, marksParentObject.transform);
-
-                // Copy datum in mark:
-                markInstance.GetComponent<Mark>().datum = dataValue;
-
-                // Assign tooltip:
-                if(enableTooltip)
-                {
-                    markInstance.GetComponent<Mark>().InitTooltip(ref tooltip);
-                }
-
-                markInstances.Add(markInstance);
-            }
-        }
-
-        internal List<string> GetDataFieldsListFromURL(string dataURL)
-        {
-            return parser.GetDataFieldsList(dataURL);
-        }
-
-        private GameObject InstantiateMark(GameObject markPrefab, Transform parentTransform)
-        {
-            return Instantiate(markPrefab, parentTransform.position,
-                        parentTransform.rotation, parentTransform);
-        }
-
-        private void CreateChannelEncodingObjects(JSONNode specs)
-        {
-            channelEncodings = new List<ChannelEncoding>();
-
-            // Go through each channel and create ChannelEncoding for each:
-            foreach (KeyValuePair<string, JSONNode> kvp in specs["encoding"].AsObject)
-            {
-                ChannelEncoding channelEncoding = new ChannelEncoding();
-
-                channelEncoding.channel = kvp.Key;
-                JSONNode channelSpecs = kvp.Value;
-                if (channelSpecs["value"] != null)
-                {
-                    channelEncoding.value = channelSpecs["value"].Value.ToString();
-
-                    if (channelSpecs["type"] != null)
+                    // Otherwise, it no longer exists and thus we remove it
+                    else
                     {
-                        channelEncoding.valueDataType = channelSpecs["type"].Value.ToString();
+                        visSpecs["encoding"].Remove(channelName);
                     }
                 }
-                else
+
+                // Make sure that the offsetpcts are at the very end to prevent issues where they get misordered
+                // This code is kinda messy but oh well, can't figure out how else to do it with SimpleJSON
+                var xoffsetpct = visSpecs["encoding"]["xoffsetpct"];
+                var yoffsetpct = visSpecs["encoding"]["yoffsetpct"];
+                var zoffsetpct = visSpecs["encoding"]["zoffsetpct"];
+                if (xoffsetpct != null) visSpecs["encoding"].Remove("xoffsetpct");
+                if (yoffsetpct != null) visSpecs["encoding"].Remove("yoffsetpct");
+                if (zoffsetpct != null) visSpecs["encoding"].Remove("zoffsetpct");
+                visSpecs = visSpecs.Clone();
+                if (xoffsetpct != null) visSpecs["encoding"].Add("xoffsetpct", xoffsetpct);
+                if (yoffsetpct != null) visSpecs["encoding"].Add("yoffsetpct", yoffsetpct);
+                if (zoffsetpct != null) visSpecs["encoding"].Add("zoffsetpct", zoffsetpct);
+
+                // Copy over view-level properties
+                // We skip over certain properties. Position and rotation are skipped because the Unity transform is technically the ground truth
+                // TODO: For now we just blindly copy over the view-level properties. There should be a better way to do this though
+                foreach (var property in stateVisSpecs)
                 {
-                    channelEncoding.field = channelSpecs["field"];
+                    if (property.Key == "data" || property.Key == "mark" || property.Key == "encoding"||
+                        property.Key == "name" || property.Key == "title" ||
+                        property.Key == "position" || property.Key == "rotation")
+                        continue;
 
-                    // Check validity of data field
-                    if(!data.fieldNames.Contains(channelEncoding.field))
+                    if (visSpecs[property.Key] == null)
                     {
-                        throw new Exception("Cannot find data field " + channelEncoding.field + " in data. Please check your spelling (case sensitive).");
-                    }
-
-                    if (channelSpecs["type"] != null)
-                    {
-                        channelEncoding.fieldDataType = channelSpecs["type"];
+                        visSpecs.Add(property.Key,property.Value);
                     }
                     else
                     {
-                        throw new Exception("Missing type for field in channel " + channelEncoding.channel);
+                        visSpecs[property.Key] = property.Value;
                     }
                 }
+            }
+        }
 
-                JSONNode scaleSpecs = channelSpecs["scale"];
-                if (scaleSpecs != null)
+        private void ApplyTransitionAxes(ActiveTransition activeTransition)
+        {
+            // If there is a facetwrap channel, we will actually need to create more axes
+            // This value will be null if there is no facetwrap channel
+            var facetWrapEncodingChange = activeTransition.ChangedChannelEncodings.SingleOrDefault(tuple => tuple.Item3 == "facetwrap");
+
+            // For each changed channel encoding, go through and update its axis (if applicable)
+            foreach (var encodingChange in activeTransition.ChangedChannelEncodings)
+            {
+                string channel = encodingChange.Item3;
+
+                // Only certain channel encodings can have axes. Skip this encoding if it is not one of these
+                if (channel != "x" && channel != "y" && channel != "z")
+                    continue;
+
+                // Get the associated axis specs and scales for both the start and end states
+                JSONNode initialAxisSpecs = activeTransition.InitialInferredVisSpecs["encoding"][channel]["axis"];
+                JSONNode finalAxisSpecs = activeTransition.FinalInferredVisSpecs["encoding"][channel]["axis"];
+                Scale initialScale = encodingChange.Item1 != null ? encodingChange.Item1.scale : null;
+                Scale finalScale = encodingChange.Item2 != null ? encodingChange.Item2.scale : null;
+
+                // We need at least one of these to be defined so that we can activate the transition
+                if (initialAxisSpecs != null || finalAxisSpecs != null)
                 {
-                    CreateScaleObject(scaleSpecs, ref channelEncoding.scale);
+                    // Get the axis for this object. We will need to pass it a channel encoding object but the values will get overridden later on anyway
+                    Axis axis = null;
+                    ChannelEncoding dummyCE = encodingChange.Item1 != null ? encodingChange.Item1 : encodingChange.Item2;
+                    JSONNode dummyAxisSpec = initialAxisSpecs != null ? initialAxisSpecs : finalAxisSpecs;
+                    ConstructAndUpdateAxisObject(channel, dummyAxisSpec, ref dummyCE, out axis);
+
+                    // Call to initialise transition on this single axis
+                    axis.InitialiseTransition(activeTransition, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale);
+
+                    // Now check for facetwrap
+                    if (facetWrapEncodingChange != null)
+                    {
+                        // We need to calculate the translations twice for both the initial and final states
+                        FacetWrapChannelEncoding initialFacetWrapCE = null;
+                        int initialnumFacets = 0;
+                        int initialFacetSize = 1;
+                        float initialDeltaFirstDir = 0;
+                        float initialDeltaSecondDir = 0;
+                        if (facetWrapEncodingChange.Item1 != null)
+                        {
+                            initialFacetWrapCE = (FacetWrapChannelEncoding)facetWrapEncodingChange.Item1;
+                            initialnumFacets = initialFacetWrapCE.numFacets;
+                            initialFacetSize = initialFacetWrapCE.size;
+                            initialDeltaFirstDir = initialFacetWrapCE.spacing[0];
+                            initialDeltaSecondDir = initialFacetWrapCE.spacing[1];
+                        }
+
+                        FacetWrapChannelEncoding finalFacetWrapCE = null;
+                        int finalNumFacets = 0;
+                        int finalFacetSize = 1;
+                        float finalDeltaFirstDir = 0;
+                        float finalDeltaSecondDir = 0;
+                        if (facetWrapEncodingChange.Item2 != null)
+                        {
+                            finalFacetWrapCE = (FacetWrapChannelEncoding)facetWrapEncodingChange.Item2;
+                            finalNumFacets = finalFacetWrapCE.numFacets;
+                            finalFacetSize = finalFacetWrapCE.size;
+                            finalDeltaFirstDir = finalFacetWrapCE.spacing[0];
+                            finalDeltaSecondDir = finalFacetWrapCE.spacing[1];
+                        }
+
+                        // Create the axes for our facet
+                        List<Axis> facetedAxes = new List<Axis>();
+                        ConstructAndUpdateFacetedAxisObjects(channel, dummyAxisSpec, ref dummyCE, ref facetedAxes,
+                                                             Mathf.Max(initialnumFacets, finalNumFacets) - 1);    // We need to minus 1 as we don't include the original axes themselves
+
+                        List<Vector3> initialTranslations = Enumerable.Repeat(Vector3.zero, facetedAxes.Count).ToList();
+                        List<Vector3> finalTranslations = Enumerable.Repeat(Vector3.zero, facetedAxes.Count).ToList();
+
+                        // Calculate translations for initial
+                        for (int facetIdx = 0; facetIdx < initialnumFacets - 1; facetIdx++)
+                        {
+                            Axis facetAxis = facetedAxes[facetIdx];
+
+                            // Apply translation to these axes
+                            int firstDir = initialFacetWrapCE.directions[0];
+                            int secondDir = initialFacetWrapCE.directions[1];
+
+                            int idxFirstDir = (facetIdx + 1) % initialFacetSize;
+                            int idxSecondDir = Mathf.FloorToInt((facetIdx + 1) / (float)initialFacetSize);
+
+                            Vector3 translation = initialTranslations[facetIdx];
+                            translation[firstDir] = initialDeltaFirstDir * idxFirstDir;
+                            translation[secondDir] = initialDeltaSecondDir * idxSecondDir;
+                            initialTranslations[facetIdx] = translation;
+                        }
+
+                        // Calculate translations for final
+                        for (int facetIdx = 0; facetIdx < finalNumFacets - 1; facetIdx++)
+                        {
+                            Axis facetAxis = facetedAxes[facetIdx];
+
+                            // Apply translation to these axes
+                            int firstDir = finalFacetWrapCE.directions[0];
+                            int secondDir = finalFacetWrapCE.directions[1];
+
+                            int idxFirstDir = (facetIdx + 1) % finalFacetSize;
+                            int idxSecondDir = Mathf.FloorToInt((facetIdx + 1) / (float)finalFacetSize);
+
+                            Vector3 translation = finalTranslations[facetIdx];
+                            translation[firstDir] = finalDeltaFirstDir * idxFirstDir;
+                            translation[secondDir] = finalDeltaSecondDir * idxSecondDir;
+                            finalTranslations[facetIdx] = translation;
+                        }
+
+                        // Apply the transition
+                        for (int i = 0; i < facetedAxes.Count; i++)
+                        {
+                            facetedAxes[i].InitialiseTransition(activeTransition, initialAxisSpecs, finalAxisSpecs,
+                                                                initialScale, finalScale,
+                                                                initialTranslations[i], finalTranslations[i]);
+                        }
+                    }
                 }
-
-                channelEncodings.Add(channelEncoding);
             }
         }
 
-        private void CreateScaleObject(JSONNode scaleSpecs, ref Scale scale)
+        private void StopTransitionAxes(string transitionName, bool goToEnd)
         {
-            switch (scaleSpecs["type"].Value.ToString())
+            // Stop all regular axes, removing their references if they have been marked for deletion
+            foreach (var kvp in axisInstances.ToList())
             {
-                case "none":
-                    scale = new ScaleNone(scaleSpecs);
-                    break;
-
-                case "linear":
-                    scale = new ScaleLinear(scaleSpecs);
-                    break;
-
-                case "band":
-                    scale = new ScaleBand(scaleSpecs);
-                    break;
-
-                case "point":
-                    scale = new ScalePoint(scaleSpecs);
-                    break;
-
-                case "ordinal":
-                    scale = new ScaleOrdinal(scaleSpecs);
-                    break;
-
-                case "sequential":
-                    scale = new ScaleSequential(scaleSpecs);
-                    break;
-
-                default:
-                    scale = null;
-                    break;
+                bool isDeleting = kvp.Value.StopTransition(transitionName, goToEnd);
+                if (isDeleting)
+                    axisInstances.Remove(kvp.Key);
             }
-        }
 
-        private void InferVisSpecs()
-        {
-            if (markPrefab != null)
+            // Stop all faceted axes, removing their references if they have been marked for deletion
+            foreach (var kvp in facetedAxisInstances.ToList())
             {
-                markPrefab.GetComponent<Mark>().Infer(data, visSpecs, out visSpecsInferred, visSpecsURL);
-
-                if(enableSpecsExpansion)
+                foreach (Axis facetAxis in kvp.Value.ToList())
                 {
-                    JSONNode visSpecsToWrite = JSON.Parse(visSpecsInferred.ToString());
-                    if (visSpecs["data"]["url"] != null && visSpecs["data"]["url"] != "inline")
+                    bool isDeleting = facetAxis.StopTransition(transitionName, goToEnd, false);
+                    if (isDeleting)
                     {
-                        visSpecsToWrite["data"].Remove("values");
+                        kvp.Value.Remove(facetAxis);
                     }
+                }
 
-                    if (visSpecs["interaction"].AsArray.Count == 0)
-                    {
-                        visSpecsToWrite.Remove("interaction");
-                    }
-#if UNITY_EDITOR
-            System.IO.File.WriteAllText(Parser.GetFullSpecsPath(visSpecsURL), visSpecsToWrite.ToString(2));
-#else
-
-                    UnityEngine.Windows.File.WriteAllBytes(Parser.GetFullSpecsPath(visSpecsURL),
-                        System.Text.Encoding.UTF8.GetBytes(visSpecsToWrite.ToString(2)));
-#endif
-
-                    
+                // If the given channel no longer has any axes in its list, remove it from the dictionary
+                if (kvp.Value.Count == 0)
+                {
+                    facetedAxisInstances.Remove(kvp.Key);
                 }
             }
-            else
+        }
+
+        private void ApplyTransitionPose(ActiveTransition newActiveTransition)
+        {
+            // Get the initial and final values for the pose
+            Vector3? initialPosition = null;
+            Vector3? finalPosition = null;
+
+            if (newActiveTransition.InitialInferredVisSpecs["position"] != null)
             {
-                throw new Exception("Cannot perform inferrence without mark prefab loaded.");
+                JSONNode positionSpecs = newActiveTransition.InitialInferredVisSpecs["position"];
+                Vector3 position = transform.position;
+                if (positionSpecs["value"] != null)
+                {
+                    position = new Vector3(positionSpecs["value"][0].AsFloat, positionSpecs["value"][1].AsFloat, positionSpecs["value"][2].AsFloat);
+                }
+                else
+                {
+                    if (positionSpecs["x"] != null) position.x = positionSpecs["x"].AsFloat;
+
+                    if (positionSpecs["y"] != null) position.y = positionSpecs["y"].AsFloat;
+
+                    if (positionSpecs["z"] != null) position.z = positionSpecs["z"].AsFloat;
+                }
+                initialPosition = position;
+            }
+
+            if (newActiveTransition.FinalInferredVisSpecs["position"] != null)
+            {
+                JSONNode positionSpecs = newActiveTransition.FinalInferredVisSpecs["position"];
+                Vector3 position = transform.position;
+                if (positionSpecs["value"] != null)
+                {
+                    position = new Vector3(positionSpecs["value"][0].AsFloat, positionSpecs["value"][1].AsFloat, positionSpecs["value"][2].AsFloat);
+                }
+                else
+                {
+                    if (positionSpecs["x"] != null) position.x = positionSpecs["x"].AsFloat;
+
+                    if (positionSpecs["y"] != null) position.y = positionSpecs["y"].AsFloat;
+
+                    if (positionSpecs["z"] != null) position.z = positionSpecs["z"].AsFloat;
+                }
+                finalPosition = position;
+            }
+
+            // We only apply a position transformation if the final position is defined
+            if (finalPosition != null)
+            {
+                // If the initial position is not defined, use the current world position of this Vis
+                if (initialPosition == null)
+                    initialPosition = transform.position;
+
+                // Interpolate
+                posePositionDisposable = newActiveTransition.TweeningObservable.Subscribe(t =>
+                {
+                    transform.position = Vector3.Lerp(initialPosition.Value, finalPosition.Value, t);
+                });
+
+                // Save our start and end values
+                posePositionChanges = new Tuple<string, Vector3, Vector3>(newActiveTransition.Name, initialPosition.Value, finalPosition.Value);
+            }
+
+
+            // Get the initial and final rotation values for the pose
+            Quaternion? initialRotation = null;
+            Quaternion? finalRotation = null;
+
+            if (newActiveTransition.InitialInferredVisSpecs["rotation"] != null)
+            {
+                JSONNode rotationSpecs = newActiveTransition.InitialInferredVisSpecs["rotation"];
+
+                if (rotationSpecs["value"] != null)
+                {
+                    // Euler Angles
+                    if (rotationSpecs["value"].Count == 3)
+                    {
+                        Vector3 eulerAngles = new Vector3(rotationSpecs["value"][0].AsFloat, rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat);
+                        initialRotation = Quaternion.Euler(eulerAngles);
+                    }
+                    // Quaternion
+                    else
+                    {
+                        Quaternion quaternion = new Quaternion(rotationSpecs["value"][0].AsFloat,rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat, rotationSpecs["value"][3].AsFloat);
+                        initialRotation = quaternion;
+                    }
+                }
+                else
+                {
+                    Vector3 eulerAngles = transform.eulerAngles;
+                    if (rotationSpecs["x"] != null) eulerAngles.x = rotationSpecs["x"].AsFloat;
+                    if (rotationSpecs["y"] != null) eulerAngles.y = rotationSpecs["y"].AsFloat;
+                    if (rotationSpecs["z"] != null) eulerAngles.z = rotationSpecs["z"].AsFloat;
+                    initialRotation = Quaternion.Euler(eulerAngles);
+                }
+            }
+
+            if (newActiveTransition.FinalInferredVisSpecs["rotation"] != null)
+            {
+                JSONNode rotationSpecs = newActiveTransition.FinalInferredVisSpecs["rotation"];
+
+                if (rotationSpecs["value"] != null)
+                {
+                    // Euler Angles
+                    if (rotationSpecs["value"].Count == 3)
+                    {
+                        Vector3 eulerAngles = new Vector3(rotationSpecs["value"][0].AsFloat, rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat);
+                        finalRotation = Quaternion.Euler(eulerAngles);
+                    }
+                    // Quaternion
+                    else
+                    {
+                        Quaternion quaternion = new Quaternion(rotationSpecs["value"][0].AsFloat,rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat, rotationSpecs["value"][3].AsFloat);
+                        finalRotation = quaternion;
+                    }
+                }
+                else
+                {
+                    Vector3 eulerAngles = transform.eulerAngles;
+                    if (rotationSpecs["x"] != null) eulerAngles.x = rotationSpecs["x"].AsFloat;
+                    if (rotationSpecs["y"] != null) eulerAngles.y = rotationSpecs["y"].AsFloat;
+                    if (rotationSpecs["z"] != null) eulerAngles.z = rotationSpecs["z"].AsFloat;
+                    finalRotation = Quaternion.Euler(eulerAngles);
+                }
+            }
+
+            // We only apply a rotation transformation if the final rotation is defined
+            if (finalRotation != null)
+            {
+                // If the initial rotation is not defined, use the current world rotation of this Vis
+                if (initialRotation == null)
+                    initialRotation = transform.rotation;
+
+                // Interpolate
+                poseRotationDisposable = newActiveTransition.TweeningObservable.Subscribe(t =>
+                {
+                    transform.rotation = Quaternion.Lerp(initialRotation.Value, finalRotation.Value, t);
+                });
+
+                // Save our start and end values
+                poseRotationChanges = new Tuple<string, Quaternion, Quaternion>(newActiveTransition.Name, initialRotation.Value, finalRotation.Value);
+            }
+
+            // If any of the two had activated, we disable the box collider on this Vis so that things like MRTK can no longer move it
+            if (posePositionChanges != null || poseRotationChanges != null)
+            {
+                boxCollider.enabled = false;
             }
         }
 
-        private void UpdateMarkPrefab()
+        public void StopTransitionPose(string transitionName, bool goToEnd)
         {
-            string markType = visSpecs["mark"].Value;
-            markPrefab = LoadMarkPrefab(markType);
+            if (posePositionChanges != null && posePositionChanges.Item1 == transitionName)
+            {
+                Vector3 position = goToEnd ? posePositionChanges.Item3 : posePositionChanges.Item2;
+                transform.position = position;
+
+                posePositionChanges = null;
+                posePositionDisposable.Dispose();
+                posePositionDisposable = null;
+            }
+
+            if (poseRotationChanges != null && poseRotationChanges.Item1 == transitionName)
+            {
+                Quaternion rotation = goToEnd ? poseRotationChanges.Item3 : poseRotationChanges.Item2;
+                transform.rotation = rotation;
+
+                poseRotationChanges = null;
+                poseRotationDisposable.Dispose();
+                poseRotationDisposable = null;
+            }
+
+            // If both position and rotation are now no longer transitioning, we re-enable the box collider
+            if (posePositionChanges == null && poseRotationChanges == null)
+            {
+                boxCollider.enabled = true;
+            }
         }
 
-        private GameObject LoadMarkPrefab(string markName)
+        #endregion Morph specific functions
+
+        #region Data loading functions
+
+        private void InitDataList()
         {
-            string markNameLowerCase = markName.ToLower();
-            GameObject markPrefabResult = Resources.Load("Marks/" + markNameLowerCase + "/" + markNameLowerCase) as GameObject;
-
-            if (markPrefabResult == null)
+            string[] dirs = Directory.GetFiles(Application.dataPath + "/StreamingAssets/DxRData");
+            dataList = new List<string>();
+            dataList.Add(DxR.Vis.UNDEFINED);
+            dataList.Add("inline");
+            for (int i = 0; i < dirs.Length; i++)
             {
-                throw new Exception("Cannot load mark " + markNameLowerCase);
+                if (Path.GetExtension(dirs[i]) != ".meta")
+                {
+                    dataList.Add(Path.GetFileName(dirs[i]));
+                }
             }
-            else if (verbose)
-            {
-                Debug.Log("Loaded mark " + markNameLowerCase);
-            }
-
-            // If the prefab does not have a Mark script attached to it, attach the default base Mark script object, i.e., core mark.
-            if (markPrefabResult.GetComponent<Mark>() == null)
-            {
-                DxR.Mark markComponent = markPrefabResult.AddComponent(typeof(DxR.Mark)) as DxR.Mark;
-            }
-            markPrefabResult.GetComponent<Mark>().markName = markNameLowerCase;
-
-            return markPrefabResult;
         }
 
-        internal List<string> GetDataFieldsListFromValues(JSONNode valuesSpecs)
+        public List<string> GetDataList()
         {
-            return parser.GetDataFieldsListFromValues(valuesSpecs);
+            return dataList;
         }
 
         private void UpdateVisData()
         {
+            bool dataChanged = true;
+            string dataString = "";
+            JSONNode valuesSpecs = null;
+
             if(visSpecs["data"]["url"] != "inline")
             {
-                visSpecs["data"].Add("values", parser.CreateValuesSpecs(visSpecs["data"]["url"]));
-                data_name = visSpecs["data"]["url"];
-            }
-            
-            JSONNode valuesSpecs = visSpecs["data"]["values"];
+                string dataFilename = Parser.GetFullDataPath(visSpecs["data"]["url"].Value);
+                dataString = Parser.GetStringFromFile(dataFilename);
 
-            Debug.Log("Data update " + visSpecs["data"]["values"].ToString());
+                // Don't parse this data string if it is the same as the one that is currently used for the existing data
+                // This is basically the same code from Parser.CreateValuesSpecs
+                if (data != null && data.src == dataString)
+                {
+                    dataChanged = false;
+                }
+                else
+                {
+                    string ext = Path.GetExtension(dataFilename);
+                    if (ext == ".json")
+                    {
+                        valuesSpecs = JSON.Parse(dataString);
+                    }
+                    else if (ext == ".csv")
+                    {
+                        valuesSpecs = JSON.ParseCSV(dataString);
+                    }
+                    else
+                    {
+                        throw new Exception("Cannot load file type" + ext);
+                    }
+
+                    visSpecs["data"].Add("values", valuesSpecs);
+                    data_name = visSpecs["data"]["url"];
+                }
+            }
+            else
+            {
+                valuesSpecs = visSpecs["data"]["values"];
+                dataString = valuesSpecs.ToString();
+
+                if (data != null && data.src == dataString)
+                    dataChanged = false;
+            }
+
+            if (verbose) Debug.Log("Data update " + dataString);
+
+            // Only update the vis data when it is either not yet defined, or if it has changed
+            if (!dataChanged)
+                return;
 
             data = new Data();
+            data.src = dataString;
 
+            // Data gets parsed differently depending if its in a standard or geoJSON format
+            if (!IsDataGeoJSON(valuesSpecs))
+            {
+                PopulateTabularData(valuesSpecs, ref data);
+            }
+            else
+            {
+                PopulateGeoJSONData(valuesSpecs, ref data);
+            }
+        }
+
+        private bool IsDataGeoJSON(JSONNode valuesSpecs)
+        {
+            if (valuesSpecs["type"] != null)
+                return valuesSpecs["type"] == "FeatureCollection";
+
+            return false;
+        }
+
+        private void PopulateTabularData(JSONNode valuesSpecs, ref Data data)
+        {
             CreateDataFields(valuesSpecs, ref data);
 
             data.values = new List<Dictionary<string, string>>();
 
             int numDataFields = data.fieldNames.Count;
-            if (verbose)
-            {
-                Debug.Log("Counted " + numDataFields.ToString() + " fields in data.");
-            }
+            if (verbose) Debug.Log("Counted " + numDataFields.ToString() + " fields in data.");
 
             // Loop through the values in the specification
             // and insert one Dictionary entry in the values list for each.
@@ -558,10 +876,10 @@ namespace DxR
                     if (value[curFieldName].IsNull)
                     {
                         valueHasNullField = true;
-                        Debug.Log("value null found: ");
+                        if (verbose) Debug.Log("value null found: ");
                         break;
                     }
-                   
+
                     d.Add(curFieldName, value[curFieldName]);
                 }
 
@@ -581,9 +899,137 @@ namespace DxR
             //            SubsampleData(valuesSpecs, 8, "Assets/DxR/Resources/cars_subsampled.json");
         }
 
-        public string GetDataName()
+        private void PopulateGeoJSONData(JSONNode valuesSpecs, ref Data data)
         {
-            return data_name;
+            data.values = new List<Dictionary<string, string>>();
+            data.polygons = new List<List<List<IPosition>>>();
+            data.centres = new List<IPosition>();
+
+            // We have to use geoJSON.NET here
+            var featureCollection = JsonConvert.DeserializeObject<FeatureCollection>(valuesSpecs.ToString());
+
+            // Create the data fields for the geoJSON feature properties (similar to CreateDataFields())
+            data.fieldNames = new List<string>();
+            // We also add two here for Longitude and Latitude
+            data.fieldNames.Add("Longitude");
+            data.fieldNames.Add("Latitude");
+            foreach (var kvp in featureCollection.Features.First().Properties)
+            {
+                data.fieldNames.Add(kvp.Key);
+            }
+
+            // Populate our data structures with those from the geoJSON
+            foreach (var feature in featureCollection.Features)
+            {
+                // Add values (i.e., properties)
+                Dictionary<string, string> datum = new Dictionary<string, string>();
+                foreach (var kvp in feature.Properties)
+                {
+                    datum.Add(kvp.Key, kvp.Value.ToString());
+                }
+
+                // Add polygons
+                List<List<IPosition>> featurePolygons = new List<List<IPosition>>();
+                switch (feature.Geometry.Type)
+                {
+                    case GeoJSONObjectType.Polygon:
+                        {
+                            var polygon = feature.Geometry as Polygon;
+                            foreach (LineString lineString in polygon.Coordinates)
+                            {
+                                List<IPosition> positions = new List<IPosition>();
+
+                                foreach (IPosition position in lineString.Coordinates)
+                                {
+                                    positions.Add(position);
+                                }
+
+                                // If the last position is the same as the first one, remove the last position
+                                var firstPos = positions[0];
+                                var lastPos = positions[positions.Count - 1];
+                                if (firstPos.Latitude == lastPos.Latitude && firstPos.Longitude == lastPos.Longitude)
+                                    positions.RemoveAt(positions.Count - 1);
+
+                                featurePolygons.Add(positions);
+                            }
+                            break;
+                        }
+
+                    case GeoJSONObjectType.MultiPolygon:
+                        {
+                            MultiPolygon multiPolygon = feature.Geometry as MultiPolygon;
+                            foreach (Polygon polygon in multiPolygon.Coordinates)
+                            {
+                                foreach (LineString lineString in polygon.Coordinates)
+                                {
+                                    List<IPosition> positions = new List<IPosition>();
+                                    foreach (IPosition position in lineString.Coordinates)
+                                    {
+                                        positions.Add(position);
+                                    }
+
+                                    // If the last position is the same as the first one, remove the last position
+                                    var firstPos = positions[0];
+                                    var lastPos = positions[positions.Count - 1];
+                                    if (firstPos.Latitude == lastPos.Latitude && firstPos.Longitude == lastPos.Longitude)
+                                        positions.RemoveAt(positions.Count - 1);
+
+                                    featurePolygons.Add(positions);
+                                }
+                            }
+                            break;
+                        }
+                }
+
+                data.polygons.Add(featurePolygons);
+
+                // Find the centre position of these polygons as well
+                // From https://stackoverflow.com/questions/6671183/calculate-the-center-point-of-multiple-latitude-longitude-coordinate-pairs
+                var flattenedPositions = featurePolygons.SelectMany(x => x);
+                double x = 0;
+                double y = 0;
+                double z = 0;
+
+                foreach (var position in flattenedPositions)
+                {
+                    var latitude = position.Latitude * Math.PI / 180;
+                    var longitude = position.Longitude * Math.PI / 180;
+
+                    x += Math.Cos(latitude) * Math.Cos(longitude);
+                    y += Math.Cos(latitude) * Math.Sin(longitude);
+                    z += Math.Sin(latitude);
+                }
+
+                var total = flattenedPositions.Count();
+
+                x = x / total;
+                y = y / total;
+                z = z / total;
+
+                var centralLongitude = Math.Atan2(y, x);
+                var centralSquareRoot = Math.Sqrt(x * x + y * y);
+                var centralLatitude = Math.Atan2(z, centralSquareRoot);
+
+                var centroid = new Position(centralLatitude * 180 / Math.PI, centralLongitude * 180 / Math.PI);
+                data.centres.Add(centroid);
+
+                // Create a new data object for the centre points to act as longitude and latitude quantitative/nominal values
+                datum.Add("Latitude", centroid.Latitude.ToString());
+                datum.Add("Longitude", centroid.Longitude.ToString());
+
+                data.values.Add(datum);
+            }
+        }
+
+        private void CreateDataFields(JSONNode valuesSpecs, ref Data data)
+        {
+            data.fieldNames = new List<string>();
+            foreach (KeyValuePair<string, JSONNode> kvp in valuesSpecs[0].AsObject)
+            {
+                data.fieldNames.Add(kvp.Key);
+
+                if (verbose) Debug.Log("Reading data field: " + kvp.Key);
+            }
         }
 
         private void SubsampleData(JSONNode data, int samplingRate, string outputName)
@@ -602,17 +1048,56 @@ namespace DxR
             System.IO.File.WriteAllText(outputName, output.ToString());
         }
 
-        private void CreateDataFields(JSONNode valuesSpecs, ref Data data)
+        public string GetDataName()
         {
-            data.fieldNames = new List<string>();
-            foreach (KeyValuePair<string, JSONNode> kvp in valuesSpecs[0].AsObject)
-            {
-                data.fieldNames.Add(kvp.Key);
+            return data_name;
+        }
 
-                if (verbose)
+        internal List<string> GetDataFieldsListFromURL(string dataURL)
+        {
+            return parser.GetDataFieldsList(dataURL);
+        }
+
+        internal List<string> GetDataFieldsListFromValues(JSONNode valuesSpecs)
+        {
+            return parser.GetDataFieldsListFromValues(valuesSpecs);
+        }
+
+
+        #endregion Data loading functions
+
+        #region Vis specification functions
+
+        private void InferVisSpecs(JSONNode newVisSpecs, out JSONNode newVisSpecsInferred)
+        {
+            if (markPrefab != null)
+            {
+                markPrefab.GetComponent<Mark>().Infer(data, newVisSpecs, out newVisSpecsInferred, visSpecsURL);
+
+                if(enableSpecsExpansion)
                 {
-                    Debug.Log("Reading data field: " + kvp.Key);
+                    JSONNode visSpecsToWrite = JSON.Parse(visSpecsInferred.ToString());
+                    if (visSpecs["data"]["url"] != null && visSpecs["data"]["url"] != "inline")
+                    {
+                        visSpecsToWrite["data"].Remove("values");
+                    }
+
+                    if (visSpecs["interaction"].AsArray.Count == 0)
+                    {
+                        visSpecsToWrite.Remove("interaction");
+                    }
+
+                    #if UNITY_EDITOR
+                    System.IO.File.WriteAllText(Parser.GetFullSpecsPath(visSpecsURL), visSpecsToWrite.ToString(2));
+                    #else
+                    UnityEngine.Windows.File.WriteAllBytes(Parser.GetFullSpecsPath(visSpecsURL),
+                        System.Text.Encoding.UTF8.GetBytes(visSpecsToWrite.ToString(2)));
+                    #endif
                 }
+            }
+            else
+            {
+                throw new Exception("Cannot perform inferrence without mark prefab loaded.");
             }
         }
 
@@ -653,22 +1138,999 @@ namespace DxR
             }
         }
 
-        private void DeleteAll()
+        #endregion Vis specification functions
+
+        #region Channel Encoding functions
+
+        private void CreateChannelEncodingObjects(JSONNode specs, ref List<ChannelEncoding> newChannelEncodings)
         {
-            foreach (Transform child in guidesParentObject.transform)
+            newChannelEncodings = new List<ChannelEncoding>();
+
+            // Go through each channel and create ChannelEncoding for each one
+            foreach (KeyValuePair<string, JSONNode> kvp in specs["encoding"].AsObject)
             {
-                GameObject.Destroy(child.gameObject);
+                // The type of ChannelEncoding object which we create depends on the channel
+                ChannelEncoding channelEncoding;
+                if (kvp.Key.EndsWith("offset"))
+                {
+                    channelEncoding = new OffsetChannelEncoding();
+                }
+                else if (kvp.Key == "facetwrap")
+                {
+                    channelEncoding = new FacetWrapChannelEncoding();
+                }
+                else
+                {
+                    channelEncoding = new ChannelEncoding();
+                }
+
+                channelEncoding.channel = kvp.Key;
+                JSONNode channelSpecs = kvp.Value;
+
+                // Handle special encodings first that do not conform to the standard rules
+                if (channelEncoding.IsFacetWrap())
+                {
+                    FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncoding;
+
+                    if (channelSpecs["field"] != null)
+                    {
+                        facetWrapChannelEncoding.field = channelSpecs["field"];
+                        if(!data.fieldNames.Contains(channelEncoding.field))
+                        {
+                            throw new Exception("Cannot find data field " + channelEncoding.field + " in data. Please check your spelling (case sensitive).");
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("Facet wrap channel requires a field to be defined");
+                    }
+                    if (channelSpecs["type"] != null)
+                    {
+                        if (channelSpecs["type"] == "quantitative")
+                            throw new NotImplementedException("Quantitative types for facet wrap is not yet supported.");
+                    }
+                    else
+                    {
+                        throw new Exception("Missing type for field in channel " + facetWrapChannelEncoding.channel);
+                    }
+                    if (channelSpecs["value"] != null)
+                    {
+                        throw new Exception("Facet wrap channel cannot have a value property. Use field and type instead.");
+                    }
+                    if (channelSpecs["directions"] != null)
+                    {
+                        JSONArray array = channelSpecs["directions"].AsArray;
+
+                        if (array.Count != 2)
+                        {
+                            throw new Exception("Facet wrap requires two direction values to be provided.");
+                        }
+
+                        for (int i = 0; i < array.Count; i++)
+                        {
+                            // We store these strings internally as integers
+                            if (array[i] == "x")
+                            {
+                                facetWrapChannelEncoding.directions.Add(0);
+                            }
+                            else if (array[i] == "y")
+                            {
+                                facetWrapChannelEncoding.directions.Add(1);
+                            }
+                            else if (array[i] == "z")
+                            {
+                                facetWrapChannelEncoding.directions.Add(2);
+                            }
+                            else
+                            {
+                                throw new Exception("Facet wrap directions can only be x, y, or z. Direction value " + array[i] + " found instead.");
+                            }
+                        }
+
+                        if (facetWrapChannelEncoding.directions.Distinct().Count() == 1)
+                        {
+                            throw new Exception("Facet wrap directions must all be unique.");
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("Facet wrap channel requires one or two directions to be defined. Valid directions are x, y, z, formatted as a string array.");
+                    }
+                    if (channelSpecs["size"] != null)
+                    {
+                        facetWrapChannelEncoding.size = int.Parse(channelSpecs["size"]);
+                    }
+                    if (channelSpecs["spacing"] != null)
+                    {
+                        JSONArray array = channelSpecs["spacing"].AsArray;
+
+                        if (array.Count != 2)
+                        {
+                            throw new Exception("Facet wrap requires two spacing values to be provided.");
+                        }
+
+                        for (int i = 0; i < array.Count; i++)
+                        {
+                            if (array[i].IsNumber)
+                            {
+                                facetWrapChannelEncoding.spacing.Add(float.Parse(array[i]));
+                            }
+                            else
+                            {
+                                throw new Exception("Facet wrap spacing values need to be numbers.");
+                            }
+                        }
+                    }
+                    else
+                    {
+                        throw new Exception("Facet wrap channel requires spacing values to be defined. This is in the form of a float array and should be the same length as the direction values.");
+                    }
+                }
+                // Certain encodings have special properties that should not exist on other channels
+                else if (channelSpecs["channel"] != null)
+                {
+                    // Only offset encodings should have a "channel" property
+                    if (channelEncoding.IsOffset())
+                    {
+                        ((OffsetChannelEncoding)channelEncoding).linkedChannel = channelSpecs["channel"];
+                    }
+                    else
+                    {
+                        throw new Exception("Channel  " + channelEncoding.channel + " has a channel property which is not allowed.");
+                    }
+                }
+                else if (channelSpecs["value"] != null)
+                {
+                    channelEncoding.value = channelSpecs["value"].Value.ToString();
+
+                    if (channelSpecs["type"] != null)
+                    {
+                        channelEncoding.valueDataType = channelSpecs["type"].Value.ToString();
+                    }
+                }
+                else
+                {
+                    channelEncoding.field = channelSpecs["field"];
+
+                    // Check validity of data field
+                    if(!data.fieldNames.Contains(channelEncoding.field))
+                    {
+                        throw new Exception("Cannot find data field " + channelEncoding.field + " in data. Please check your spelling (case sensitive).");
+                    }
+
+                    if (channelSpecs["type"] != null)
+                    {
+                        channelEncoding.fieldDataType = channelSpecs["type"];
+                    }
+                    else
+                    {
+                        throw new Exception("Missing type for field in channel " + channelEncoding.channel);
+                    }
+                }
+
+                JSONNode scaleSpecs = channelSpecs["scale"];
+                if (scaleSpecs != null)
+                {
+                    CreateScaleObject(scaleSpecs, ref channelEncoding.scale);
+                }
+
+                newChannelEncodings.Add(channelEncoding);
             }
 
-            foreach (Transform child in marksParentObject.transform)
+            // Now that we have created all of the channel encodings, we go back and add additional information to special ones
+            // For now we check offsets
+            PopulateOffsetChannelEncodings(ref newChannelEncodings);
+
+            // Then we check translations applied by faceting
+            PopulateFacetEncodings(ref newChannelEncodings);
+        }
+
+        private void PopulateOffsetChannelEncodings(ref List<ChannelEncoding> newChannelEncodings)
+        {
+            foreach (ChannelEncoding channelEncoding in newChannelEncodings)
             {
-                GameObject.Destroy(child.gameObject);
+                if (channelEncoding.IsOffset())
+                {
+                    OffsetChannelEncoding offsetCE = (OffsetChannelEncoding)channelEncoding;
+
+                    // Skip the offset if it doesn't specify a linked channel
+                    if (offsetCE.linkedChannel == null)
+                        return;
+
+                    // Get the ChannelEncoding of the categorical channel that this offset relates to (accessed via "channel" property)
+                    ChannelEncoding categoricalCE = newChannelEncodings.Single(ch => ch.channel == offsetCE.linkedChannel);
+
+                    // Check to make sure that it is actually categorical
+                    if (categoricalCE.fieldDataType != "ordinal" && categoricalCE.fieldDataType != "nominal")
+                    {
+                        throw new Exception("The channel which an offset references must be either ordinal or nominal type.");
+                    }
+
+                    // Get the ChannelEncodings of the spatial dimensions. These are used to determine the groups
+                    List<ChannelEncoding> spatialCEs = new List<ChannelEncoding>();
+                    foreach (string dimension in new string[] { "x", "y,", "z" })
+                    {
+                        ChannelEncoding ce = newChannelEncodings.SingleOrDefault(x => x.channel == dimension);
+                        if (ce != null)
+                        {
+                            if (ce.fieldDataType == "ordinal" || ce.fieldDataType == "nominal")
+                            {
+                                spatialCEs.Add(ce);
+                            }
+                        }
+                    }
+
+                    // Convert the ChannelEncodings to string names
+                    List<string> spatialGroupFieldNames = spatialCEs.Select(x => x.field).ToList();
+
+                    // If there is a facet wrap also included, we use its field as another grouping
+                    ChannelEncoding facetWrapCE = newChannelEncodings.SingleOrDefault(ch => ch.channel == "facetwrap");
+                    if (facetWrapCE != null)
+                    {
+                        spatialGroupFieldNames.Add(facetWrapCE.field);
+                    }
+
+                    // Get the ChannelEncoding of the size dimension associated with the offsetting CE direction
+                    string spatialChannelName = channelEncoding.channel[0].ToString();
+                    string sizeChannelName = (spatialChannelName == "x" ? "width" : (spatialChannelName == "y" ? "height" : "depth"));
+                    ChannelEncoding offsettingSizeCE = newChannelEncodings.Single(ch => ch.channel == sizeChannelName);
+
+                    // Get our data values
+                    List<Dictionary<string, string>> dataValues = data.values;
+
+                    // Get float values of these size values
+                    List<float> sizeValues = new List<float>();
+                    // If it is a value
+                    if (offsettingSizeCE.value != "" && float.TryParse(offsettingSizeCE.value, out float f))
+                    {
+                        sizeValues = Enumerable.Repeat(f, dataValues.Count).ToList();
+                    }
+                    else if (offsettingSizeCE.field != "")
+                    {
+                        string sizeFieldName = offsettingSizeCE.field;
+
+                        foreach (var dataValue in dataValues)
+                        {
+                            sizeValues.Add(float.Parse(dataValue[sizeFieldName]));
+                        }
+                    }
+
+                    // Get the order of the categories. This order will be used to stagger the offset amounts
+                    List<string> offsetOrder = categoricalCE.scale.domain;
+
+                    // Initialise our data structure
+                    // Dictionary key: The names of the grouping spatial CEs concatenated together
+                    // Dictionary value: A list of tuples representing datums in the group
+                    //      Tuple value: 1) The index of the datum; 2) The value of the offsetting field (i.e., category); 3) The value of the offsetting size field
+                    Dictionary<string, List<Tuple<int, string, float>>> groupedDataValues = new Dictionary<string, List<Tuple<int, string, float>>>();
+
+                    // Populate our data structure
+                    for (int index = 0; index < dataValues.Count; index++)
+                    {
+                        Dictionary<string, string> dataValue = dataValues[index];
+
+                        string key = string.Join(" ", spatialGroupFieldNames.Select(x => dataValue[x]));
+
+                        List<Tuple<int, string, float>> groupedList;
+                        if (!groupedDataValues.TryGetValue(key, out groupedList))
+                        {
+                            groupedList = new List<Tuple<int, string, float>>();
+                            groupedDataValues.Add(key, groupedList);
+                        }
+
+                        groupedList.Add(new Tuple<int, string, float>(index, dataValue[categoricalCE.field], sizeValues[index]));
+                    }
+
+                    // Sort the lists in the data structure based on the order of categories defined in the offset
+                    foreach (var groupedListKey in groupedDataValues.Keys.ToList())
+                    {
+                        groupedDataValues[groupedListKey] = groupedDataValues[groupedListKey].OrderBy(tuple => offsetOrder.IndexOf(tuple.Item2)).ToList();
+                    }
+
+                    // Create a new list which will store our offset values
+                    List<string> offsetValues = Enumerable.Repeat("", dataValues.Count).ToList();
+
+                    // For each (now sorted) grouped list, calculate the amount to offset by and store it in the offsetValues list based on the index stored in the tuple
+                    // We don't need to update the dictionary any more
+                    foreach (var groupedList in groupedDataValues.Values)
+                    {
+                        float offset = 0;
+                        foreach (var tuple in groupedList)
+                        {
+                            int index = tuple.Item1;
+                            offsetValues[index] = offset.ToString();
+                            offset += tuple.Item3;
+                        }
+                    }
+
+                    // Pass this offsetValues list off to the channel encoding
+                    offsetCE.values = offsetValues;
+
+                    // Copy over the scale from the size CE
+                    offsetCE.scale = offsettingSizeCE.scale;
+                }
+            }
+        }
+
+        private void PopulateFacetEncodings(ref List<ChannelEncoding> newChannelEncodings)
+        {
+            var ce = newChannelEncodings.SingleOrDefault(ch => ch.channel == "facetwrap");
+            if (ce == null)
+                return;
+
+            FacetWrapChannelEncoding facetWrapCE = (FacetWrapChannelEncoding)ce;
+
+            // Get the data dimension of the field to facet by
+            List<Dictionary<string, string>> dataValues = data.values;
+            List<string> facetingValues = new List<string>();
+            string facetingField = facetWrapCE.field;
+            foreach (var dataValue in dataValues)
+            {
+                facetingValues.Add(dataValue[facetingField]);
             }
 
-            // TODO: Do not delete, but only update:
-            foreach (Transform child in interactionsParentObject.transform)
+            // Get the order of the categories. This order will be used to position the facets
+            List<string> facetOrder = facetWrapCE.scale.domain;
+
+            // Position the facets by calculating translation offsets per each data value (i.e., mark)
+            int facetSize = facetWrapCE.size;
+
+            // Create our data structure
+            List<string> xTranslationValues = new List<string>();
+            List<string> yTranslationValues = new List<string>();
+            List<string> zTranslationValues = new List<string>();
+            List<Vector3> translationValues = new List<Vector3>();
+
+            // Get the spacing values between each small multiple
+            float deltaFirstDir = facetWrapCE.spacing[0];
+            float deltaSecondDir = facetWrapCE.spacing[1];
+
+            // Get the indices (0, 1, 2) of the spatial directions which are spacing towards
+            int firstDir = facetWrapCE.directions[0];
+            int secondDir = facetWrapCE.directions[1];
+
+            for (int i = 0; i < facetingValues.Count; i++)
             {
-                GameObject.Destroy(child.gameObject);
+                // Calculate the index along the two spatial directions as though it were a 2D grid
+                int facetIdx = facetOrder.IndexOf(facetingValues[i]);
+                int idxFirstDir = facetIdx % facetSize;
+                int idxSecondDir = Mathf.FloorToInt(facetIdx / (float)facetSize);
+
+                // Calculate and store translation values based on the calculated index on the grid and the delta spacing between them
+                Vector3 translation = Vector3.zero;
+                translation[firstDir] = deltaFirstDir * idxFirstDir;
+                translation[secondDir] = deltaSecondDir * idxSecondDir;
+
+                xTranslationValues.Add(translation.x.ToString());
+                yTranslationValues.Add(translation.y.ToString());
+                zTranslationValues.Add(translation.z.ToString());
+                translationValues.Add(translation);
+            }
+
+            // Store our data structure
+            facetWrapCE.xTranslation = xTranslationValues;
+            facetWrapCE.yTranslation = yTranslationValues;
+            facetWrapCE.zTranslation = zTranslationValues;
+            facetWrapCE.translation = translationValues;
+            facetWrapCE.numFacets = facetOrder.Count;
+        }
+
+        private void CreateScaleObject(JSONNode scaleSpecs, ref Scale scale)
+        {
+            switch (scaleSpecs["type"].Value.ToString())
+            {
+                case "none":
+                    scale = new ScaleNone(scaleSpecs);
+                    break;
+
+                case "linear":
+                case "spatial":
+                    scale = new ScaleLinear(scaleSpecs, verbose);
+                    break;
+
+                case "band":
+                    scale = new ScaleBand(scaleSpecs, verbose);
+                    break;
+
+                case "point":
+                    scale = new ScalePoint(scaleSpecs, verbose);
+                    break;
+
+                case "ordinal":
+                    scale = new ScaleOrdinal(scaleSpecs, verbose);
+                    break;
+
+                case "sequential":
+                    scale = new ScaleSequential(scaleSpecs, verbose);
+                    break;
+
+                default:
+                    scale = null;
+                    break;
+            }
+        }
+
+        private void ApplyChannelEncodings()
+        {
+            bool isDirectionChanged = false;
+            foreach(ChannelEncoding ch in channelEncodings)
+            {
+                ApplyChannelEncoding(ch, ref markInstances);
+
+                if(ch.channel == "xdirection" || ch.channel == "ydirection" || ch.channel == "zdirection")
+                {
+                    isDirectionChanged = true;
+                }
+            }
+
+            if(isDirectionChanged)
+            {
+                for (int i = 0; i < markInstances.Count; i++)
+                {
+                    Mark markComponent = markInstances[i].GetComponent<Mark>();
+
+                    markComponent.SetRotation();
+                }
+            }
+        }
+
+        private void ApplyChannelEncoding(ChannelEncoding channelEncoding,
+            ref List<GameObject> markInstances)
+        {
+            for(int i = 0; i < markInstances.Count; i++)
+            {
+                Mark markComponent = markInstances[i].GetComponent<Mark>();
+                if (markComponent == null)
+                {
+                    throw new Exception("Mark component not present in mark prefab.");
+                }
+
+                markComponent.ApplyChannelEncoding(channelEncoding, i);
+            }
+        }
+
+        #endregion Channel encoding functions
+
+        #region Mark creation functions
+
+        private void InitMarksList()
+        {
+            marksList = new List<string>();
+            marksList.Add(DxR.Vis.UNDEFINED);
+
+            TextAsset marksListTextAsset = (TextAsset)Resources.Load("Marks/marks", typeof(TextAsset));
+            if (marksListTextAsset != null)
+            {
+                JSONNode marksListObject = JSON.Parse(marksListTextAsset.text);
+                for (int i = 0; i < marksListObject["marks"].AsArray.Count; i++)
+                {
+                    string markNameLowerCase = marksListObject["marks"][i].Value.ToString().ToLower();
+                    GameObject markPrefabResult = Resources.Load("Marks/" + markNameLowerCase + "/" + markNameLowerCase) as GameObject;
+
+                    if (markPrefabResult != null)
+                    {
+                        marksList.Add(markNameLowerCase);
+                    }
+                }
+            }
+            else
+            {
+                throw new System.Exception("Cannot find marks.json file in Assets/DxR/Resources/Marks/ directory");
+            }
+
+#if UNITY_EDITOR
+            string[] dirs = Directory.GetFiles("Assets/DxR/Resources/Marks");
+            for (int i = 0; i < dirs.Length; i++)
+            {
+                if (Path.GetExtension(dirs[i]) != ".meta" && Path.GetExtension(dirs[i]) != ".json"
+                    && !marksList.Contains(Path.GetFileName(dirs[i])))
+                {
+                    marksList.Add(Path.GetFileName(dirs[i]));
+                }
+            }
+#endif
+
+            if (!marksList.Contains(visSpecs["mark"].Value.ToString()))
+            {
+                marksList.Add(visSpecs["mark"].Value.ToString());
+            }
+        }
+
+        public List<string> GetMarksList()
+        {
+            return marksList;
+        }
+
+        private void ConstructMarkInstances()
+        {
+            markInstances = new List<GameObject>();
+
+            // Create one mark prefab instance for each data point:
+            int idx = 0;
+            foreach (Dictionary<string, string> dataValue in data.values)
+            {
+                // Instantiate mark prefab, copying parentObject's transform:
+                GameObject markInstance = InstantiateMark(markPrefab, marksParentObject.transform);
+
+                // Copy datum in mark:
+                Mark mark = markInstance.GetComponent<Mark>();
+                mark.datum = dataValue;
+
+                // Copy over polygons for spatial data if applicable
+                if (data.polygons != null)
+                {
+                    mark.polygons = data.polygons[idx];
+                    mark.centre = data.centres[idx];
+                }
+
+                // Assign tooltip:
+                if(enableTooltip)
+                {
+                    mark.InitTooltip(ref tooltip);
+                }
+
+                markInstances.Add(markInstance);
+                idx++;
+            }
+        }
+
+        /// <summary>
+        /// Updates mark instances with new values if they already exist, or creates new ones if they either don't exist or do not match mark names
+        ///
+        /// This essentially supercedes ConstructMarkInstances and all related functions
+        /// </summary>
+        private void ConstructAndUpdateMarkInstances(bool resetMarkValues = true)
+        {
+            if (markInstances == null) markInstances = new List<GameObject>();
+
+            // Create one mark for each data point, creating marks if they do not exist
+            for (int i = 0; i < data.values.Count; i++)
+            {
+                Dictionary<string, string> dataValue = data.values[i];
+
+                GameObject markInstance;
+
+                // If there is a mark instance for this dataValue, use it
+                if (i < markInstances.Count)
+                {
+                    // But, only use it if its mark name is correct
+                    // TODO: This is a hacky way of checking mark name, so it might break something later on
+                    if (markInstances[i].name.Contains(markPrefab.name))
+                    {
+                        markInstance = markInstances[i];
+                    }
+                    else
+                    {
+                        // Otherwise, destroy the old mark and replace it with a new one
+                        GameObject oldMarkInstance = markInstances[i];
+                        markInstance = InstantiateMark(markPrefab, marksParentObject.transform);
+                        markInstances[i] = markInstance;
+                        Destroy(oldMarkInstance);
+                    }
+                }
+                // If there isn't a mark instance for this dataValue, create one
+                else
+                {
+                    markInstance = InstantiateMark(markPrefab, marksParentObject.transform);
+                    markInstances.Add(markInstance);
+                }
+
+
+                // Copy datum in mark
+                Mark mark = markInstance.GetComponent<Mark>();
+                mark.datum = dataValue;
+
+                // Rest mark values to default
+                if (resetMarkValues)
+                    mark.ResetToDefault();
+
+                // Copy over polygons and centres for spatial data if applicable
+                if (data.polygons != null)
+                {
+                    mark.polygons = data.polygons[i];
+                    mark.centre = data.centres[i];
+                }
+
+                if (enableTooltip)
+                {
+                    mark.InitTooltip(ref tooltip);
+                }
+            }
+
+            // Delete all leftover marks
+            while (data.values.Count < markInstances.Count)
+            {
+                GameObject markInstance = markInstances[markInstances.Count - 1];
+                Destroy(markInstance);
+                markInstances.RemoveAt(markInstances.Count - 1);
+            }
+        }
+
+        private GameObject InstantiateMark(GameObject markPrefab, Transform parentTransform)
+        {
+            return Instantiate(markPrefab, parentTransform.position,
+                        parentTransform.rotation, parentTransform);
+        }
+
+        private void UpdateMarkPrefab()
+        {
+            string markType = visSpecs["mark"].Value;
+            markPrefab = LoadMarkPrefab(markType);
+        }
+
+        private GameObject LoadMarkPrefab(string markName)
+        {
+            string markNameLowerCase = markName.ToLower();
+            GameObject markPrefabResult = Resources.Load("Marks/" + markNameLowerCase + "/" + markNameLowerCase) as GameObject;
+
+            if (markPrefabResult == null)
+            {
+                throw new Exception("Cannot load mark " + markNameLowerCase);
+            }
+            else if (verbose)
+            {
+                Debug.Log("Loaded mark " + markNameLowerCase);
+            }
+
+            // If the prefab does not have a Mark script attached to it, attach the default base Mark script object, i.e., core mark.
+            if (markPrefabResult.GetComponent<Mark>() == null)
+            {
+                DxR.Mark markComponent = markPrefabResult.AddComponent(typeof(DxR.Mark)) as DxR.Mark;
+            }
+            markPrefabResult.GetComponent<Mark>().markName = markNameLowerCase;
+
+            return markPrefabResult;
+        }
+
+        public List<string> GetChannelsList(string markName)
+        {
+            GameObject markObject = LoadMarkPrefab(markName);
+            return markObject.GetComponent<Mark>().GetChannelsList();
+        }
+
+        #endregion Mark creation functions
+
+        #region Axis functions
+
+        private void ConstructAxes(JSONNode specs)
+        {
+            // If there is a facet wrap channel, we will actually need to create more axes
+            FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncodings.SingleOrDefault(ce => ce.IsFacetWrap());
+
+            // Go through each channel and create axis for each spatial / position channel:
+            for (int channelIndex = 0; channelIndex < channelEncodings.Count; channelIndex++)
+            {
+                ChannelEncoding channelEncoding = channelEncodings[channelIndex];
+                JSONNode axisSpecs = specs["encoding"][channelEncoding.channel]["axis"];
+                if (axisSpecs != null && axisSpecs.Value.ToString() != "none" &&
+                    (channelEncoding.channel == "x" || channelEncoding.channel == "y" ||
+                    channelEncoding.channel == "z"))
+                {
+                    if (verbose) Debug.Log("Constructing axis for channel " + channelEncoding.channel);
+
+                    ConstructAxisObject(axisSpecs, ref channelEncoding);
+
+                    // Construct even more axes if there is a facet wrap channel
+                    if (facetWrapChannelEncoding != null)
+                    {
+                        if (verbose) Debug.Log("Constructing faceted axes for channel " + channelEncoding.channel);
+
+                        int facetSize = facetWrapChannelEncoding.size;
+                        float deltaFirstDir = facetWrapChannelEncoding.spacing[0];
+                        float deltaSecondDir = facetWrapChannelEncoding.spacing[1];
+
+                        // Create numFacets - 1 new axes
+                        for (int facetIdx = 1; facetIdx < facetWrapChannelEncoding.numFacets; facetIdx++)
+                        {
+                            Axis axis = ConstructFacetedAxisObject(axisSpecs, ref channelEncoding, ref facetWrapChannelEncoding);
+
+                            // Apply translation to these axes
+                            int firstDir = facetWrapChannelEncoding.directions[0];
+                            int secondDir = facetWrapChannelEncoding.directions[1];
+
+                            int idxFirstDir = facetIdx % facetSize;
+                            int idxSecondDir = Mathf.FloorToInt(facetIdx / (float)facetSize);
+
+                            axis.SetTranslation(deltaFirstDir * idxFirstDir, firstDir);
+                            axis.SetTranslation(deltaSecondDir * idxSecondDir, secondDir);
+                        }
+                    }
+                }
+            }
+        }
+
+        private void ConstructAxisObject(JSONNode axisSpecs, ref ChannelEncoding channelEncoding)
+        {
+            GameObject axisPrefab = Resources.Load("Axis/Axis", typeof(GameObject)) as GameObject;
+            if (axisPrefab != null)
+            {
+                channelEncoding.axis = Instantiate(axisPrefab, guidesParentObject.transform);
+                channelEncoding.axis.GetComponent<Axis>().Init(interactionsParentObject.GetComponent<Interactions>(),
+                    channelEncoding.field);
+                channelEncoding.axis.GetComponent<Axis>().UpdateSpecs(axisSpecs, channelEncoding.scale);
+            }
+            else
+            {
+                throw new Exception("Cannot find axis prefab.");
+            }
+        }
+
+        private Axis ConstructFacetedAxisObject(JSONNode axisSpecs, ref ChannelEncoding channelEncoding, ref FacetWrapChannelEncoding facetWrapChannelEncoding)
+        {
+            GameObject axisPrefab = Resources.Load("Axis/Axis", typeof(GameObject)) as GameObject;
+            if (axisPrefab != null)
+            {
+                GameObject axisGameObject = Instantiate(axisPrefab, guidesParentObject.transform);
+                facetWrapChannelEncoding.axes.Add(axisGameObject);
+                Axis axis = axisGameObject.GetComponent<Axis>();
+                axis.Init(interactionsParentObject.GetComponent<Interactions>(),
+                    channelEncoding.field);
+                axis.UpdateSpecs(axisSpecs, channelEncoding.scale);
+                return axis;
+            }
+            else
+            {
+                throw new Exception("Cannot find axis prefab.");
+            }
+        }
+
+        /// <summary>
+        /// Updates axis instances with new values if they already exist, or creates new ones if they don't exist
+        ///
+        /// This essentially supercedes ConstructAxes and all related functions
+        /// </summary>
+        private void ConstructAndUpdateAxes(JSONNode specs, ref List<ChannelEncoding> channelEncodings)
+        {
+            // Create a list that will keep track of the axes that we will want to keep
+            // The ones which we haven't visited we will destroy at the end of this function
+            List<string> visitedAxisChannels = new List<string>();
+            // Also, create an equivalent list for faceting
+            List<string> visitedFacetingAxisChannels = new List<string>();
+
+            // If there is a facet wrap channel, we will actually need to create more axes
+            FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncodings.SingleOrDefault(ce => ce.IsFacetWrap());
+
+            // Go through each channel and create axis for each spatial / position channel:
+            for (int channelIndex = 0; channelIndex < channelEncodings.Count; channelIndex++)
+            {
+                ChannelEncoding channelEncoding = channelEncodings[channelIndex];
+                string channel = channelEncoding.channel;
+
+                // Only certain channel encodings can have axes. Skip this encoding if it is not one of these
+                if (channel != "x" && channel != "y" && channel != "z")
+                    continue;
+
+                // Get the specs for this axis
+                JSONNode axisSpecs = specs["encoding"][channel]["axis"];
+
+                // If no specs were defined for this axis, skip it
+                if (!(axisSpecs != null && axisSpecs.Value != "none"))
+                    continue;
+
+                if (verbose) Debug.Log("Constructing axis for channel " + channelEncoding.channel);
+
+                ConstructAndUpdateAxisObject(channel, axisSpecs, ref channelEncoding, out Axis a);
+
+                visitedAxisChannels.Add(channel);
+
+                // If there is a facetwrap channel, we need to add more axes
+                if (facetWrapChannelEncoding != null)
+                {
+                    if (verbose) Debug.Log("Constructing faceted axes for channel " + channelEncoding.channel);
+
+                    int numFacets = facetWrapChannelEncoding.numFacets;
+                    int facetSize = facetWrapChannelEncoding.size;
+                    float deltaFirstDir = facetWrapChannelEncoding.spacing[0];
+                    float deltaSecondDir = facetWrapChannelEncoding.spacing[1];
+
+                    // Create the axes for our facet
+                    List<Axis> facetedAxes = new List<Axis>();
+                    ConstructAndUpdateFacetedAxisObjects(channel, axisSpecs, ref channelEncoding, ref facetedAxes, numFacets - 1);
+
+                    // Arrange the facets
+                    for (int facetIdx = 0; facetIdx < facetedAxes.Count; facetIdx++)
+                    {
+                        Axis axis = facetedAxes[facetIdx];
+
+                        // Apply translation to these axes
+                        int firstDir = facetWrapChannelEncoding.directions[0];
+                        int secondDir = facetWrapChannelEncoding.directions[1];
+
+                        int idxFirstDir = (facetIdx + 1) % facetSize;
+                        int idxSecondDir = Mathf.FloorToInt((facetIdx + 1) / (float)facetSize);
+
+                        axis.SetTranslation(deltaFirstDir * idxFirstDir, firstDir);
+                        axis.SetTranslation(deltaSecondDir * idxSecondDir, secondDir);
+                    }
+
+                    visitedFacetingAxisChannels.Add(channel);
+                }
+            }
+
+            // Go through and delete the axes for the channels which we did not visit
+            foreach (var kvp in axisInstances)
+            {
+                if (!visitedAxisChannels.Contains(kvp.Key))
+                    Destroy(kvp.Value.gameObject);
+            }
+            foreach (var kvp in facetedAxisInstances)
+            {
+                if (!visitedFacetingAxisChannels.Contains(kvp.Key))
+                {
+                    foreach (Axis axis in kvp.Value)
+                        Destroy(axis.gameObject);
+                }
+            }
+
+            // Clear dictionary references
+            foreach (string key in axisInstances.Keys.ToList())
+            {
+                if (!visitedAxisChannels.Contains(key))
+                    axisInstances.Remove(key);
+            }
+            foreach (string key in facetedAxisInstances.Keys.ToList())
+            {
+                if (!visitedFacetingAxisChannels.Contains(key))
+                    facetedAxisInstances.Remove(key);
+            }
+        }
+
+        private void ConstructAndUpdateAxisObject(string channel, JSONNode axisSpecs, ref ChannelEncoding channelEncoding, out Axis axis)
+        {
+            // Get the axis object
+            if (!axisInstances.TryGetValue(channel, out axis))
+            {
+                GameObject axisGameObject = Instantiate(Resources.Load("Axis/Axis", typeof(GameObject)), guidesParentObject.transform) as GameObject;
+                axis = axisGameObject.GetComponent<Axis>();
+                axisInstances.Add(channel, axis);
+            }
+
+            axis.Init(interactionsParentObject.GetComponent<Interactions>(), channelEncoding.field);
+            axis.UpdateSpecs(axisSpecs, channelEncoding.scale);
+        }
+
+        private void ConstructAndUpdateFacetedAxisObjects(string channel, JSONNode axisSpecs, ref ChannelEncoding channelEncoding, ref List<Axis> axisList, int count)
+        {
+            // Get the axis list
+            if (!facetedAxisInstances.TryGetValue(channel, out axisList))
+            {
+                axisList = new List<Axis>();
+                facetedAxisInstances.Add(channel, axisList);
+            }
+
+            // Get the axis object from the list if it already exists, or create a new one
+            Axis axis;
+            for (int i = 0; i < count; i++)
+            {
+                if (i < axisList.Count)
+                {
+                    axis = axisList[i];
+                }
+                else
+                {
+                    GameObject axisGameObject = Instantiate(Resources.Load("Axis/Axis", typeof(GameObject)), guidesParentObject.transform) as GameObject;
+                    axis = axisGameObject.GetComponent<Axis>();
+                    axisList.Add(axis);
+                }
+
+                axis.Init(interactionsParentObject.GetComponent<Interactions>(), channelEncoding.field);
+                axis.UpdateSpecs(axisSpecs, channelEncoding.scale);
+            }
+
+            // Delete all leftover axes
+            while (count < axisList.Count)
+            {
+                axis = axisList[axisList.Count - 1];
+                Destroy(axis.gameObject);
+                axisList.RemoveAt(axisList.Count - 1);
+            }
+        }
+
+        #endregion Axis functions
+
+        #region Legend functions
+
+        private void ConstructLegends(JSONNode specs)
+        {
+            // Go through each channel and create legend for color, shape, or size channels:
+            for (int channelIndex = 0; channelIndex < channelEncodings.Count; channelIndex++)
+            {
+                ChannelEncoding channelEncoding = channelEncodings[channelIndex];
+                JSONNode legendSpecs = specs["encoding"][channelEncoding.channel]["legend"];
+                if (legendSpecs != null && legendSpecs.Value.ToString() != "none" && channelEncoding.channel == "color")
+                {
+                    if (verbose) Debug.Log("Constructing legend for channel " + channelEncoding.channel);
+
+                    ConstructLegendObject(legendSpecs, ref channelEncoding);
+                }
+            }
+        }
+
+        private void ConstructLegendObject(JSONNode legendSpecs, ref ChannelEncoding channelEncoding)
+        {
+            GameObject legendPrefab = Resources.Load("Legend/Legend", typeof(GameObject)) as GameObject;
+            if (legendPrefab != null && markPrefab != null)
+            {
+                channelEncoding.legend = Instantiate(legendPrefab, guidesParentObject.transform);
+                channelEncoding.legend.GetComponent<Legend>().Init(interactionsParentObject.GetComponent<Interactions>());
+                channelEncoding.legend.GetComponent<Legend>().UpdateSpecs(legendSpecs, ref channelEncoding, markPrefab);
+            }
+            else
+            {
+                throw new Exception("Cannot find legend prefab.");
+            }
+        }
+
+        #endregion Legend functions
+
+        #region GUI and interactions functions
+
+        private void ConstructInteractions(JSONNode specs)
+        {
+            if (specs["interaction"] == null) return;
+
+            interactionsParentObject.GetComponent<Interactions>().Init(this);
+
+            foreach (JSONObject interactionSpecs in specs["interaction"].AsArray)
+            {
+                if(interactionSpecs["type"] != null && interactionSpecs["field"] != null && interactionSpecs["domain"] != null)
+                {
+                    switch(interactionSpecs["type"].Value)
+                    {
+                        case "thresholdFilter":
+                            AddThresholdFilterInteraction(interactionSpecs);
+                            break;
+
+                        case "toggleFilter":
+                            AddToggleFilterInteraction(interactionSpecs);
+                            break;
+
+                        default:
+                            return;
+                    }
+
+                    if (verbose) Debug.Log("Constructed interaction: " + interactionSpecs["type"].Value +
+                        " for data field " + interactionSpecs["field"].Value);
+                } else
+                {
+                    if (verbose) Debug.Log("Make sure interaction object has type, field, and domain specs.");
+//                    throw new System.Exception("Make sure interaction object has type, field, and domain specs.");
+                }
+
+            }
+        }
+
+        private void AddThresholdFilterInteraction(JSONObject interactionSpecs)
+        {
+            if (interactionsParentObject != null)
+            {
+                interactionsParentObject.GetComponent<Interactions>().AddThresholdFilter(interactionSpecs);
+            }
+        }
+
+        private void AddToggleFilterInteraction(JSONObject interactionSpecs)
+        {
+            if(interactionsParentObject != null)
+            {
+                interactionsParentObject.GetComponent<Interactions>().AddToggleFilter(interactionSpecs);
+            }
+        }
+
+        // Update the visibility of each mark according to the filters results:
+        internal void FiltersUpdated()
+        {
+            if(interactionsParentObject != null)
+            {
+                ShowAllMarks();
+
+                foreach (KeyValuePair<string,List<bool>> filterResult in interactionsParentObject.GetComponent<Interactions>().filterResults)
+                {
+                    List<bool> visib = filterResult.Value;
+                    for (int m = 0; m < markInstances.Count; m++)
+                    {
+                        markInstances[m].SetActive(visib[m] && markInstances[m].activeSelf);
+                    }
+                }
             }
         }
 
@@ -677,12 +2139,110 @@ namespace DxR
             Transform guiTransform = parentObject.transform.Find("DxRGUI");
             GameObject guiObject = guiTransform.gameObject;
             gui = guiObject.GetComponent<GUI>();
-            gui.Init(this);
+            gui.Init(this, verbose);
 
             if (!enableGUI && guiObject != null)
             {
                 guiObject.SetActive(false);
             }
+        }
+
+        private int GetFieldIndexInInteractionSpecs(JSONNode interactionSpecs, string searchFieldName)
+        {
+            int index = 0;
+            foreach (JSONObject interactionObject in interactionSpecs.AsArray)
+            {
+                string fieldName = interactionObject["field"];
+                if (fieldName == searchFieldName)
+                {
+                    return index;
+                }
+                index++;
+            }
+            return -1;
+        }
+
+        private bool FieldIsInInteractionSpecs(JSONNode interactionSpecs, string searchFieldName)
+        {
+            foreach (JSONObject interactionObject in interactionSpecs.AsArray)
+            {
+                string fieldName = interactionObject["field"];
+                if(fieldName == searchFieldName)
+                {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        #endregion GUI and interactions functions
+
+        #region Vis loading functions
+
+        /// <summary>
+        /// Manually calls an update to update the VisSpecs from a given string, rather than from a file URL
+        /// </summary>
+        public void UpdateVisSpecsFromStringSpecs(string specs)
+        {
+            JSONNode textSpecs;
+            parser.ParseString(specs, out textSpecs);
+
+            visSpecs = textSpecs;
+
+            if (enableGUI)
+                gui.UpdateGUISpecsFromVisSpecs();
+
+            UpdateVis();
+        }
+
+        public void UpdateVisSpecsFromJSONNode(JSONNode specs, bool callUpdateEvent = true, bool updateGuiSpecs = true)
+        {
+            visSpecs = specs;
+
+            if (enableGUI && updateGuiSpecs)
+                gui.UpdateGUISpecsFromVisSpecs();
+
+            UpdateVis(callUpdateEvent);
+        }
+
+        public void UpdateVisSpecsFromTextSpecs()
+        {
+            // For now, just reset the vis specs to empty and
+            // copy the contents of the text to vis specs; starting
+            // everything from scratch. Later on, the new specs will have
+            // to be compared with the current specs to get a list of what
+            // needs to be updated and only this list will be acted on.
+            JSONNode textSpecs;
+            parser.Parse(visSpecsURL, out textSpecs);
+
+            visSpecs = textSpecs;
+
+            if (enableGUI)
+                gui.UpdateGUISpecsFromVisSpecs();
+
+            UpdateVis();
+        }
+
+        public void UpdateTextSpecsFromVisSpecs()
+        {
+            JSONNode visSpecsToWrite = JSON.Parse(visSpecs.ToString());
+            if(visSpecs["data"]["url"] != null && visSpecs["data"]["url"] != "inline")
+            {
+                visSpecsToWrite["data"].Remove("values");
+            }
+
+            if(visSpecs["interaction"].AsArray.Count == 0)
+            {
+                visSpecsToWrite.Remove("interaction");
+            }
+
+            #if UNITY_EDITOR
+            System.IO.File.WriteAllText(Parser.GetFullSpecsPath(visSpecsURL), visSpecsToWrite.ToString(2));
+            #else
+
+            UnityEngine.Windows.File.WriteAllBytes(Parser.GetFullSpecsPath(visSpecsURL),
+                System.Text.Encoding.UTF8.GetBytes(visSpecsToWrite.ToString(2)));
+            #endif
         }
 
         private void UpdateGUISpecsFromVisSpecs()
@@ -695,13 +2255,13 @@ namespace DxR
             // For now, just reset the vis specs to empty and
             // copy the contents of the text to vis specs; starting
             // everything from scratch. Later on, the new specs will have
-            // to be compared with the current specs to get a list of what 
+            // to be compared with the current specs to get a list of what
             // needs to be updated and only this list will be acted on.
 
             JSONNode guiSpecs = JSON.Parse(gui.GetGUIVisSpecs().ToString());
 
 
-            // Remove data values so that parsing can put them again. 
+            // Remove data values so that parsing can put them again.
             // TODO: Optimize this.
             if (guiSpecs["data"]["url"] != null)
             {
@@ -716,7 +2276,7 @@ namespace DxR
 
             visSpecs["mark"] = guiSpecs["mark"];
 
-            Debug.Log("GUI SPECS: " + guiSpecs.ToString());
+            if (verbose) Debug.Log("GUI SPECS: " + guiSpecs.ToString());
 
             // UPDATE CHANNELS:
 
@@ -758,11 +2318,11 @@ namespace DxR
             foreach (KeyValuePair<string, JSONNode> kvp in guiSpecs["encoding"].AsObject)
             {
                 string channelName = kvp.Key;
-                Debug.Log("Testing channel " + channelName);
-                
+                if (verbose) Debug.Log("Testing channel " + channelName);
+
                 if (guiSpecs["encoding"][channelName]["value"] == null && visSpecs["encoding"][channelName] == null)
                 {
-                    Debug.Log("Adding channel " + channelName);
+                    if (verbose) Debug.Log("Adding channel " + channelName);
                     visSpecs["encoding"].Add(channelName, guiSpecs["encoding"][channelName]);
                 }
             }
@@ -784,7 +2344,7 @@ namespace DxR
             // Do the update:
             foreach (string fieldName in fieldsToUpdate)
             {
-                visSpecs["interaction"][GetFieldIndexInInteractionSpecs(visSpecs["interaction"], fieldName)]["type"] = 
+                visSpecs["interaction"][GetFieldIndexInInteractionSpecs(visSpecs["interaction"], fieldName)]["type"] =
                     guiSpecs["interaction"][GetFieldIndexInInteractionSpecs(visSpecs["interaction"], fieldName)]["type"];
             }
 
@@ -811,7 +2371,7 @@ namespace DxR
 
                 if (!FieldIsInInteractionSpecs(visSpecs["interaction"], fieldName))
                 {
-                    Debug.Log("Adding interaction for field " + fieldName);
+                    if (verbose) Debug.Log("Adding interaction for field " + fieldName);
                     visSpecs["interaction"].Add(guiSpecs["interaction"][GetFieldIndexInInteractionSpecs(guiSpecs["interaction"], fieldName)]);
                 }
             }
@@ -820,183 +2380,111 @@ namespace DxR
             UpdateVis();
         }
 
-        private int GetFieldIndexInInteractionSpecs(JSONNode interactionSpecs, string searchFieldName)
+        #endregion Vis loading functions
+
+        #region Unity GameObject handling functions
+
+        private void UpdateVisPose(JSONNode visSpecsInferred)
         {
-            int index = 0;
-            foreach (JSONObject interactionObject in interactionSpecs.AsArray)
+            if (visSpecsInferred["position"] != null)
             {
-                string fieldName = interactionObject["field"];
-                if (fieldName == searchFieldName)
+                JSONNode positionSpecs = visSpecsInferred["position"];
+                Vector3 position = transform.position;
+                if (positionSpecs["value"] != null)
                 {
-                    return index;
+                    position = new Vector3(positionSpecs["value"][0].AsFloat, positionSpecs["value"][1].AsFloat, positionSpecs["value"][2].AsFloat);
                 }
-                index++;
-            }
-            return -1;
-        }
-
-        private bool FieldIsInInteractionSpecs(JSONNode interactionSpecs, string searchFieldName)
-        {
-            foreach (JSONObject interactionObject in interactionSpecs.AsArray)
-            {
-                string fieldName = interactionObject["field"];
-                if(fieldName == searchFieldName)
+                else
                 {
-                    return true;
+                    if (positionSpecs["x"] != null) position.x = positionSpecs["x"].AsFloat;
+
+                    if (positionSpecs["y"] != null) position.y = positionSpecs["y"].AsFloat;
+
+                    if (positionSpecs["z"] != null) position.z = positionSpecs["z"].AsFloat;
                 }
+                transform.position = position;
             }
-            return false;
-        }
 
-        private void InitDataList()
-        {
-            string[] dirs = Directory.GetFiles(Application.dataPath + "/StreamingAssets/DxRData");
-            dataList = new List<string>();
-            dataList.Add(DxR.Vis.UNDEFINED);
-            dataList.Add("inline");
-            for (int i = 0; i < dirs.Length; i++)
+            if (visSpecsInferred["rotation"] != null)
             {
-                if (Path.GetExtension(dirs[i]) != ".meta")
+                JSONNode rotationSpecs = visSpecsInferred["rotation"];
+
+                if (rotationSpecs["value"] != null)
                 {
-                    dataList.Add(Path.GetFileName(dirs[i]));
-                }
-            }
-        }
-
-        public List<string> GetDataList()
-        {
-            return dataList;
-        }
-
-        private void InitMarksList()
-        {
-            marksList = new List<string>();
-            marksList.Add(DxR.Vis.UNDEFINED);
-            
-            TextAsset marksListTextAsset = (TextAsset)Resources.Load("Marks/marks", typeof(TextAsset));
-            if (marksListTextAsset != null)
-            {
-                JSONNode marksListObject = JSON.Parse(marksListTextAsset.text);
-                for (int i = 0; i < marksListObject["marks"].AsArray.Count; i++)
-                {
-                    string markNameLowerCase = marksListObject["marks"][i].Value.ToString().ToLower();
-                    GameObject markPrefabResult = Resources.Load("Marks/" + markNameLowerCase + "/" + markNameLowerCase) as GameObject;
-
-                    if (markPrefabResult != null)
+                    // Euler Angles
+                    if (rotationSpecs["value"].Count == 3)
                     {
-                        marksList.Add(markNameLowerCase);
+                        Vector3 eulerAngles = new Vector3(rotationSpecs["value"][0].AsFloat, rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat);
+                        transform.eulerAngles = eulerAngles;
+                    }
+                    // Quaternion
+                    else
+                    {
+                        Quaternion quaternion = new Quaternion(rotationSpecs["value"][0].AsFloat,rotationSpecs["value"][1].AsFloat, rotationSpecs["value"][2].AsFloat, rotationSpecs["value"][3].AsFloat);
+                        transform.rotation = quaternion;
                     }
                 }
-            }
-            else
-            {
-                throw new System.Exception("Cannot find marks.json file in Assets/DxR/Resources/Marks/ directory");
-            }
-
-#if UNITY_EDITOR
-            string[] dirs = Directory.GetFiles("Assets/DxR/Resources/Marks");
-            for (int i = 0; i < dirs.Length; i++)
-            {
-                if (Path.GetExtension(dirs[i]) != ".meta" && Path.GetExtension(dirs[i]) != ".json" 
-                    && !marksList.Contains(Path.GetFileName(dirs[i])))
+                else
                 {
-                    marksList.Add(Path.GetFileName(dirs[i]));
+                    Vector3 eulerAngles = transform.eulerAngles;
+                    if (rotationSpecs["x"] != null) eulerAngles.x = rotationSpecs["x"].AsFloat;
+                    if (rotationSpecs["y"] != null) eulerAngles.y = rotationSpecs["y"].AsFloat;
+                    if (rotationSpecs["z"] != null) eulerAngles.z = rotationSpecs["z"].AsFloat;
+                    transform.eulerAngles = eulerAngles;
                 }
             }
-#endif
+        }
 
-            if (!marksList.Contains(visSpecs["mark"].Value.ToString()))
+        private void DeleteAll()
+        {
+            DeleteMarks();
+            DeleteAxes();
+            DeleteLegends();
+            DeleteInteractions();
+        }
+
+        private void DeleteMarks()
+        {
+            foreach (Transform child in marksParentObject.transform)
             {
-                marksList.Add(visSpecs["mark"].Value.ToString());
+                child.gameObject.SetActive(false);
+                GameObject.Destroy(child.gameObject);
             }
         }
 
-        public List<string> GetMarksList()
+        private void DeleteLegends()
         {
-            return marksList;
-        }
-
-        public void UpdateVisSpecsFromTextSpecs()
-        {
-            // For now, just reset the vis specs to empty and
-            // copy the contents of the text to vis specs; starting
-            // everything from scratch. Later on, the new specs will have
-            // to be compared with the current specs to get a list of what 
-            // needs to be updated and only this list will be acted on.
-
-            JSONNode textSpecs;
-            parser.Parse(visSpecsURL, out textSpecs);
-
-            visSpecs = textSpecs;
-
-            gui.UpdateGUISpecsFromVisSpecs();
-            UpdateVis();
-        }
-
-        public void UpdateTextSpecsFromVisSpecs()
-        {
-            JSONNode visSpecsToWrite = JSON.Parse(visSpecs.ToString());
-            if(visSpecs["data"]["url"] != null && visSpecs["data"]["url"] != "inline")
+            foreach (Transform child in guidesParentObject.transform)
             {
-                visSpecsToWrite["data"].Remove("values");
-            }
-
-            if(visSpecs["interaction"].AsArray.Count == 0)
-            {
-                visSpecsToWrite.Remove("interaction");
-            }
-
-#if UNITY_EDITOR
-            System.IO.File.WriteAllText(Parser.GetFullSpecsPath(visSpecsURL), visSpecsToWrite.ToString(2));
-#else
-
-            UnityEngine.Windows.File.WriteAllBytes(Parser.GetFullSpecsPath(visSpecsURL),
-                System.Text.Encoding.UTF8.GetBytes(visSpecsToWrite.ToString(2)));
-#endif
-        }
-
-        public List<string> GetChannelsList(string markName)
-        {
-            GameObject markObject = LoadMarkPrefab(markName);
-            return markObject.GetComponent<Mark>().GetChannelsList();
-        }
-
-        public void Rescale(float scaleFactor)
-        {
-            viewParentObject.transform.localScale = Vector3.Scale(viewParentObject.transform.localScale, 
-                new Vector3(scaleFactor, scaleFactor, scaleFactor));
-        }
-
-        public void ResetView()
-        {
-            viewParentObject.transform.localScale = new Vector3(1, 1, 1);
-            viewParentObject.transform.localEulerAngles = new Vector3(0, 0, 0);
-            viewParentObject.transform.localPosition = new Vector3(0, 0, 0);
-        }
-
-        public void RotateAroundCenter(Vector3 rotationAxis, float angleDegrees)
-        {
-            Vector3 center = viewParentObject.transform.parent.transform.position + 
-                new Vector3(width * SIZE_UNIT_SCALE_FACTOR / 2.0f, height * SIZE_UNIT_SCALE_FACTOR / 2.0f, 
-                depth * SIZE_UNIT_SCALE_FACTOR / 2.0f);
-            viewParentObject.transform.RotateAround(center, rotationAxis, angleDegrees);
-        }
-
-        // Update the visibility of each mark according to the filters results:
-        internal void FiltersUpdated()
-        {
-            if(interactionsParentObject != null)
-            {
-                ShowAllMarks();
-
-                foreach (KeyValuePair<string,List<bool>> filterResult in interactionsParentObject.GetComponent<Interactions>().filterResults)
+                if (child.gameObject.GetComponent<Legend>() != null)
                 {
-                    List<bool> visib = filterResult.Value;
-                    for (int m = 0; m < markInstances.Count; m++)
-                    {
-                        markInstances[m].SetActive(visib[m] && markInstances[m].activeSelf);
-                    }
+                    child.gameObject.SetActive(false);
+                    GameObject.Destroy(child.gameObject);
                 }
+            }
+        }
+
+        private void DeleteAxes()
+        {
+            foreach (Transform child in guidesParentObject.transform)
+            {
+                if (child.gameObject.GetComponent<Axis>() != null)
+                {
+                    child.gameObject.SetActive(false);
+                    GameObject.Destroy(child.gameObject);
+                }
+            }
+            axisInstances.Clear();
+            facetedAxisInstances.Clear();
+        }
+
+        private void DeleteInteractions()
+        {
+            // TODO: Do not delete, but only update:
+            foreach (Transform child in interactionsParentObject.transform)
+            {
+                child.gameObject.SetActive(false);
+                GameObject.Destroy(child.gameObject);
             }
         }
 
@@ -1007,11 +2495,70 @@ namespace DxR
                 markInstances[m].SetActive(true);
             }
         }
+        public void RotateAroundCenter(Vector3 rotationAxis, float angleDegrees)
+        {
+            Vector3 center = viewParentObject.transform.parent.transform.position +
+                new Vector3(width * SIZE_UNIT_SCALE_FACTOR / 2.0f, height * SIZE_UNIT_SCALE_FACTOR / 2.0f,
+                depth * SIZE_UNIT_SCALE_FACTOR / 2.0f);
+            viewParentObject.transform.RotateAround(center, rotationAxis, angleDegrees);
+        }
+
+
+        public void Rescale(float scaleFactor)
+        {
+            viewParentObject.transform.localScale = Vector3.Scale(viewParentObject.transform.localScale,
+                new Vector3(scaleFactor, scaleFactor, scaleFactor));
+        }
 
         public Vector3 GetVisSize()
         {
             return new Vector3(width, height, depth);
         }
+
+        public void ResetView()
+        {
+            viewParentObject.transform.localScale = new Vector3(1, 1, 1);
+            viewParentObject.transform.localEulerAngles = new Vector3(0, 0, 0);
+            viewParentObject.transform.localPosition = new Vector3(0, 0, 0);
+        }
+
+        /// <summary>
+        /// Updates the BoxCollider on this Vis to be the same size as the bounding box of all of its renderers (marks, axes, text, etc.)
+        ///
+        /// Code to handle rotation from: https://answers.unity.com/questions/17968/finding-the-bounds-of-a-grouped-model.html?childToView=1147799#answer-1147799
+        /// </summary>
+        private void UpdateCollider()
+        {
+            Quaternion currentRotation = transform.rotation;
+            transform.rotation = Quaternion.identity;
+
+            // Iterate through all renderers on this Vis gameobject
+            Renderer[] renderers = gameObject.GetComponentsInChildren<Renderer>();
+            if (renderers.Length > 0)
+            {
+                Bounds bounds = renderers[0].bounds;
+
+                for (int i = 1; i < renderers.Length; i++)
+                {
+                    bounds.Encapsulate(renderers[i].bounds);
+                }
+
+                Vector3 localCenter = bounds.center - transform.position;
+                bounds.center = localCenter;
+
+                boxCollider.center = bounds.center;
+                boxCollider.size = bounds.size;
+            }
+            // If no renderers, then just hide the collider
+            else
+            {
+                boxCollider.size = Vector3.zero;
+            }
+
+            transform.rotation = currentRotation;
+        }
+
+        #endregion Unity GameObject handling functions
     }
 
 }

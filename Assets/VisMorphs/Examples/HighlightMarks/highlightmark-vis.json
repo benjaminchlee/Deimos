@@ -1,0 +1,20 @@
+{
+    "mark": "sphere",
+    "encoding": {
+      "x": {
+        "field": "Horsepower",
+        "type": "quantitative"
+      },
+      "y": {
+        "field": "Miles_per_Gallon",
+        "type": "quantitative"
+      },
+      "z": {
+        "field": "Acceleration",
+        "type": "quantitative"
+      }
+    },
+    "data": {
+      "url": "cars.json"
+    }
+  }

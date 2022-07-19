@@ -1,0 +1,48 @@
+{
+    "name": "3d barchart",
+    "width": 300,
+    "height": 400,
+    "depth": 600,
+    "mark": "cube",
+    "encoding": {
+        "x": {
+            "field": "Survived",
+            "type": "nominal"
+        },
+        "width": {
+            "value": 130
+        },
+        "y": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 900]
+            }
+        },
+        "height": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 900]
+            }
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "z": {
+            "field": "Class",
+            "type": "nominal"
+        },
+        "depth": {
+            "value": 130
+        },
+        "color": {
+            "value": "green"
+        }
+    },
+    "data": {
+        "url": "titanic_2d.csv"
+    }
+}

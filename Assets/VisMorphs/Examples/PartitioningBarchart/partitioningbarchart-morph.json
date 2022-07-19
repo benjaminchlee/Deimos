@@ -1,0 +1,103 @@
+
+{
+    "states": [
+        {
+            "name": "stacked",
+            "encoding": {
+                "x": {
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "z": {
+                    "field": "other.encoding.facetwrap.field",
+                    "type": "nominal"
+                },
+                "depth": {
+                    "value": 130
+                }
+            }
+        },
+        {
+            "name": "faceted",
+            "encoding": {
+                "x": {
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "z": null,
+                "depth": {
+                    "value": 10
+                },
+                "facetwrap": {
+                    "field": "other.encoding.z.field",
+                    "type": "nominal",
+                    "directions": ["x", "y"],
+                    "spacing": [400, -500],
+                    "size": 2
+                }
+            },
+            "position": {
+                "value": "collisionPoint"
+            },
+            "rotation": {
+                "value": "surfaceRotation"
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "intersectingSurface",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "intersecting"
+            }
+        }, {
+            "name": "collisionPoint",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "collisionpoint"
+            }
+        }, {
+            "name": "surfaceRotation",
+            "source": {
+                "type": "vis",
+                "ref": "surface",
+                "select": "transform.rotation"
+            }
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "stacked2faceted",
+            "states": ["stacked", "faceted"],
+            "triggers": ["intersectingSurface"],
+            "timing": {
+                "control": 0.5
+            },
+            "interrupt": {
+                "control": "reset",
+                "value": "start"
+            },
+            "bidirectional": true
+        }
+    ]
+}
