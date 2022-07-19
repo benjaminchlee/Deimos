@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json.Linq;
 using SimpleJSON;
 using UniRx;
 using UnityEngine;
@@ -16,6 +17,7 @@ namespace DxR.VisMorphs
         public List<Tuple<JSONNode, CompositeDisposable, List<bool>, bool>> CandidateTransitionsWithSubscriptions;
         public Dictionary<string, IObservable<dynamic>> LocalSignalObservables;
         public CompositeDisposable Disposables;
+        public Dictionary<string, JObject> StoredVisKeyframes;
         public string Name { get => Morph.Name; }
 
         public CandidateMorph(Morph morph)
@@ -26,6 +28,7 @@ namespace DxR.VisMorphs
             CandidateTransitionsWithSubscriptions = new List<Tuple<JSONNode, CompositeDisposable, List<bool>, bool>>();
             LocalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
             Disposables = new CompositeDisposable();
+            StoredVisKeyframes = new Dictionary<string, JObject>();
         }
 
         public void SaveLocalSignal(string name, IObservable<dynamic> observable)

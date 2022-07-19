@@ -198,23 +198,24 @@ namespace DxR.VisMorphs
         /// </summary>
         private void TransferActiveCandidateMorphsAndTransitions(List<CandidateMorph> oldCandidateMorphs, ref List<CandidateMorph> newCandidateMorphs)
         {
-            var newCandidateTransitions = newCandidateMorphs.SelectMany(cm => cm.CandidateTransitions).Select(ct => (string)ct.Item1["name"]);
+            List<string> newCandidateMorphNames = newCandidateMorphs.Select(cm => cm.Name).ToList();
+            List<string> newCandidateTransitionNames = newCandidateMorphs.SelectMany(cm => cm.CandidateTransitions).Select(ct => (string)ct.Item1["name"]).ToList();
 
             List<string> transferredMorphNames = new List<string>();
 
+            // For each transition which we still have active, copy over all of its variables so that it can continue transitioning without interruption
             foreach (string activeTransitionName in ActiveTransitionNames.ToList())
             {
                 // If the active transition is in the new list of candidate transitions, transfer its variable references over
-                if (newCandidateTransitions.Contains(activeTransitionName))
+                if (newCandidateTransitionNames.Contains(activeTransitionName))
                 {
-                    // Get the morph that this active transition belongs to
+                    // Get the morph that this active transition belongs to and the new morph that we are transfering its variables to
                     CandidateMorph sourceMorph = oldCandidateMorphs.Single(cm => cm.CandidateTransitions.Select(ct => (string)ct.Item1["name"]).Contains(activeTransitionName));
-                    // Only copy over the equivalent transition and its subscriptions, and the local signal references
                     CandidateMorph targetMorph = newCandidateMorphs.Single(cm => cm.Name == sourceMorph.Name);
 
+                    // Only copy over the equivalent transition and its subscriptions, and the local signal references
                     Tuple<JSONNode, CompositeDisposable, List<bool>, bool> sourceTransitionWithSubscriptions = sourceMorph.CandidateTransitionsWithSubscriptions.Single(ct => ct.Item1["name"] == activeTransitionName);
                     targetMorph.CandidateTransitionsWithSubscriptions.Add(sourceTransitionWithSubscriptions);
-
                     targetMorph.LocalSignalObservables = sourceMorph.LocalSignalObservables;
 
                     // Keep track of this old morph, we will not clear its local signals later
@@ -226,6 +227,17 @@ namespace DxR.VisMorphs
                     // This probably causes issues whereby changing visualisation encodings means that sometimes conditions will no longer be met, but oh well
                     parentVis.StopTransition(activeTransitionName);
                     ActiveTransitionNames.Remove(activeTransitionName);
+                }
+            }
+
+            // We also copy over all of the stored keyframes from any old morphs to the new morphs, assuming that they are still active
+            // TODO: This is a bit of a naive implementation and will probably break in one or two edge cases, mostly when changes are made
+            //       to a visualisation by the user whilst a transition is in progress
+            foreach (CandidateMorph oldMorph in oldCandidateMorphs)
+            {
+                if (newCandidateMorphNames.Contains(oldMorph.Name))
+                {
+                    newCandidateMorphs.Single(cm => cm.Name == oldMorph.Name).StoredVisKeyframes = oldMorph.StoredVisKeyframes;
                 }
             }
 
@@ -725,12 +737,20 @@ namespace DxR.VisMorphs
 
             if (!isReversed)
             {
+                // Before we do anything, store the current vis spec so that we can come back to it later
+                candidateMorph.StoredVisKeyframes[_initialStateSpec["name"].ToString()] = _originalVisSpec;
+
+                // Generate our initial and final specs
                 _initialVisSpec = _originalVisSpec;
                 _finalVisSpec = GenerateVisSpecFromStateSpecs(_initialVisSpec, _initialStateSpec, _finalStateSpec, candidateMorph);
+
+                // Replace all of the leaf nodes that reference other values by JSON path or by Signal names with their proper values
                 ReplaceLeafValuesInVisSpec(ref _finalVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
+
             }
             else
             {
+                candidateMorph.StoredVisKeyframes[_finalStateSpec["name"].ToString()] = _originalVisSpec;
                 _finalVisSpec = _originalVisSpec;
                 _initialVisSpec = GenerateVisSpecFromStateSpecs(_finalVisSpec, _finalStateSpec, _initialStateSpec, candidateMorph);
                 ReplaceLeafValuesInVisSpec(ref _initialVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
@@ -760,78 +780,140 @@ namespace DxR.VisMorphs
         ///     b. If it was defined in the initial state, we modify the vis state depending on the following rules: (CHANGED)
         ///         i. If the final state defines a field or value, remove any pre-exisiting field or value in the vis state before adding the one from the final state
         ///         ii. If the final state specifies NULLs anywhere, these are removed from the vis state. Everything else is left unchanged (for now)
+        ///
+        /// We also update the vis spec based on a stored history of keyframe specs that were created within the context of this Candidate Morph. This is to allow
+        /// instances where a reverse transition "redos" any changes made to it. For example, a transition which removes an encoding can easily add it back
+        /// in when applied in reverse due to this memory.
+        ///
+        /// There are three different scenarios where this applicable, but only if the final state has a matching keyframe spec stored:
+        /// A) undefined -> defined: We copy over everything in the stored keyframe spec
+        /// B) defined -> undefined: We copy over everything in the stored keyframe spec, but ONLY if it is undefined by omission, rather than by an explicit NULL
+        /// C) defined -> defined: We copy over everything in the stored keyframe spec
         /// </summary>
-        private JObject GenerateVisSpecFromStateSpecs(JObject _visSpecs, JObject _initialStateSpecs, JObject _finalStateSpecs, CandidateMorph candidateMorph)
+        private JObject GenerateVisSpecFromStateSpecs(JObject _visSpec, JObject _initialStateSpec, JObject _finalStateSpec, CandidateMorph candidateMorph)
         {
-            JObject _newVisSpecs = _visSpecs.DeepClone() as JObject;
+            JObject _newVisSpec = _visSpec.DeepClone() as JObject;
+
+            // Get the stored keyframe spec based on the final state's name, if any. If there isn't we will skip the vis spec history process
+            JObject _storedKeyframeSpec = null;
+            candidateMorph.StoredVisKeyframes.TryGetValue(_finalStateSpec["name"].ToString(), out _storedKeyframeSpec);
 
             // Check encodings
-            foreach (var encoding in ((JObject)_initialStateSpecs["encoding"]).Properties())
+            foreach (var encoding in ((JObject)_initialStateSpec["encoding"]).Properties())
             {
-                // Step 1: Check which encodings to remove
-                if (IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]))
+                // Step 1: Check which encodings to remove. We remove encodings that are defined in initial but not in final
+                if (IsJTokenNullOrUndefined(_finalStateSpec["encoding"][encoding.Name]))
                 {
-                    _newVisSpecs["encoding"][encoding.Name]?.Parent.Remove();
+                    // If the final state does not explicitly specify NULL, and we have a stored keyframe spec, copy over its value to the vis spec instead (scenario B)
+                    if (_finalStateSpec["encoding"][encoding.Name] == null &&
+                        (_storedKeyframeSpec != null && !IsJTokenNullOrUndefined(_storedKeyframeSpec["encoding"][encoding.Name])))
+                    {
+                        _newVisSpec["encoding"][encoding.Name] = _storedKeyframeSpec["encoding"][encoding.Name];
+                    }
+                    // Otherwise, just remove it from the vis spec
+                    else
+                    {
+                        _newVisSpec["encoding"][encoding.Name]?.Parent.Remove();
+                    }
                 }
             }
 
-            foreach (var encoding in ((JObject)_finalStateSpecs["encoding"]).Properties())
+            foreach (var encoding in ((JObject)_finalStateSpec["encoding"]).Properties())
             {
                 // Ignore any encodings marked as a wildcard (*)
+                // However, we still copy over any changes from our stored keyframe spec, if any
+                // TODO: This might actually break something, I'm not sure
                 if (encoding.Value.ToString() == "*")
+                {
+                    if (_storedKeyframeSpec != null && !IsJTokenNullOrUndefined(_storedKeyframeSpec["encoding"][encoding.Name]))
+                    {
+                        // We use first Remove then Add here to forcefully replace any encodings already in the vis spec
+                        _newVisSpec["encoding"][encoding.Name]?.Parent.Remove();
+                        ((JObject)_newVisSpec["encoding"]).Add(_storedKeyframeSpec["encoding"][encoding.Name].Parent);
+                    }
+
                     continue;
+                }
 
                 // Ignore any encodings that are defined as null, as these were already handled in Step 1
                 if (IsJTokenNullOrUndefined(encoding.Value))
                     continue;
 
-                // Step 2a: Add any encodings to the vis state
-                if (IsJTokenNullOrUndefined(_initialStateSpecs["encoding"][encoding.Name]))
+                // Step 2a: Add any encodings to the vis spec that were not in the initial spec but are in the final spec
+                if (IsJTokenNullOrUndefined(_initialStateSpec["encoding"][encoding.Name]))
                 {
-                    // TODO: We might have to resolve any instances of fields being declared by reference
-                    // We use first Remove then Add here to forcefully replace any encodings already in the vis spec
-                    _newVisSpecs["encoding"][encoding.Name]?.Parent.Remove();
-                    ((JObject)_newVisSpecs["encoding"]).Add(encoding);
+                    // Copy over the values from the stored keyframe spec if it exists (scenario A)
+                    if (_storedKeyframeSpec != null && !IsJTokenNullOrUndefined(_storedKeyframeSpec["encoding"][encoding.Name]))
+                    {
+                        // We use first Remove then Add here to forcefully replace any encodings already in the vis spec
+                        _newVisSpec["encoding"][encoding.Name]?.Parent.Remove();
+                        ((JObject)_newVisSpec["encoding"]).Add(_storedKeyframeSpec["encoding"][encoding.Name].Parent);
+                    }
+                    // Otherwise just add whatever value that was in the final spec
+                    else
+                    {
+                        _newVisSpec["encoding"][encoding.Name]?.Parent.Remove();
+                        ((JObject)_newVisSpec["encoding"]).Add(encoding);
+                    }
                 }
                 // Step 2b: Modify any encodings that are defined in both
                 else
                 {
-                    // Step 2bi: Make sure that the vis state doesn't have both a field and value (the final state takes priority)
-                    if (!IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]["field"]) || !IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][encoding.Name]["value"]))
+                    // Copy over the values from the stored keyframe spec if it exists (scenario C)
+                    // We should be able to do a direct copy since all the values in the stored keyframe should be valid
+                    if (_storedKeyframeSpec != null && !IsJTokenNullOrUndefined(_storedKeyframeSpec["encoding"][encoding.Name]))
                     {
-                        // If the final state has either a field or value, we remove fields and values from the vis state to simplify the merging later
-                        if (_newVisSpecs["encoding"][encoding.Name] != null)
-                        {
-                            if (_newVisSpecs["encoding"][encoding.Name]["field"] != null)
-                                _newVisSpecs["encoding"][encoding.Name]["field"].Parent.Remove();
-                            if (_newVisSpecs["encoding"][encoding.Name]["value"] != null)
-                                _newVisSpecs["encoding"][encoding.Name]["value"]?.Parent.Remove();
-                        }
+                        _newVisSpec["encoding"][encoding.Name]?.Parent.Remove();
+                        ((JObject)_newVisSpec["encoding"]).Add(_storedKeyframeSpec["encoding"][encoding.Name].Parent);
                     }
-
-                    ((JObject)_newVisSpecs["encoding"][encoding.Name]).Merge(
-                        _finalStateSpecs["encoding"][encoding.Name], new JsonMergeSettings
+                    // Otherwise just compute as per normal
+                    // Step 2bi: Make sure that the vis state doesn't have both a field and value (the final state takes priority)
+                    else
+                    {
+                        if (!IsJTokenNullOrUndefined(_finalStateSpec["encoding"][encoding.Name]["field"]) || !IsJTokenNullOrUndefined(_finalStateSpec["encoding"][encoding.Name]["value"]))
                         {
-                            MergeArrayHandling = MergeArrayHandling.Replace,
-                            MergeNullValueHandling = MergeNullValueHandling.Merge
-                        });
+                            // If the final state has either a field or value, we remove fields and values from the vis state to simplify the merging later
+                            if (_newVisSpec["encoding"][encoding.Name] != null)
+                            {
+                                if (_newVisSpec["encoding"][encoding.Name]["field"] != null)
+                                    _newVisSpec["encoding"][encoding.Name]["field"].Parent.Remove();
+                                if (_newVisSpec["encoding"][encoding.Name]["value"] != null)
+                                    _newVisSpec["encoding"][encoding.Name]["value"]?.Parent.Remove();
+                            }
+                        }
+
+                        ((JObject)_newVisSpec["encoding"][encoding.Name]).Merge(
+                            _finalStateSpec["encoding"][encoding.Name], new JsonMergeSettings
+                            {
+                                MergeArrayHandling = MergeArrayHandling.Replace,
+                                MergeNullValueHandling = MergeNullValueHandling.Merge
+                            });
+                    }
                 }
             }
 
             // We now also apply the same logic as above, except this time to the view-level properties
-            foreach (var property in ((JObject)_initialStateSpecs).Properties())
+            foreach (var property in ((JObject)_initialStateSpec).Properties())
             {
                 if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" || property.Name == "name" || property.Name == "title")
                     continue;
 
                 // Step 1: Check which encodings to remove
-                if (IsJTokenNullOrUndefined(_finalStateSpecs["encoding"][property.Name]))
+                if (IsJTokenNullOrUndefined(_finalStateSpec[property.Name]))
                 {
-                    _newVisSpecs[property.Name]?.Parent.Remove();
+                    if (_finalStateSpec[property.Name] == null &&
+                        (_storedKeyframeSpec != null && !IsJTokenNullOrUndefined(_storedKeyframeSpec[property.Name])))
+                    {
+                        _newVisSpec[property.Name] = _storedKeyframeSpec[property.Name];
+                    }
+                    else
+                    {
+                        _newVisSpec[property.Name]?.Parent.Remove();
+                    }
                 }
             }
 
-            foreach (var property in ((JObject)_finalStateSpecs).Properties())
+            foreach (var property in ((JObject)_finalStateSpec).Properties())
             {
                 if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" || property.Name == "name" || property.Name == "title")
                     continue;
@@ -841,33 +923,47 @@ namespace DxR.VisMorphs
                     continue;
 
                 // Step 2a: Add any properties to the vis state
-                if (IsJTokenNullOrUndefined(_initialStateSpecs[property.Name]))
+                if (IsJTokenNullOrUndefined(_initialStateSpec[property.Name]))
                 {
-                    _newVisSpecs[property.Name]?.Parent.Remove();
-                    ((JObject)_newVisSpecs).Add(property);
+                    if (_storedKeyframeSpec != null && !IsJTokenNullOrUndefined(_storedKeyframeSpec[property.Name]))
+                    {
+                        // We use first Remove then Add here to forcefully replace any encodings already in the vis spec
+                        _newVisSpec[property.Name]?.Parent.Remove();
+                        ((JObject)_newVisSpec).Add(_storedKeyframeSpec[property.Name].Parent);
+                    }
+                    else
+                    {
+                        _newVisSpec[property.Name]?.Parent.Remove();
+                        ((JObject)_newVisSpec).Add(property);
+                    }
                 }
                 // Step 2b: Modify any properties that are defined in both
                 else
                 {
-                    if (!IsJTokenNullOrUndefined(_finalStateSpecs[property.Name]))
+                    if (_storedKeyframeSpec != null && !IsJTokenNullOrUndefined(_storedKeyframeSpec[property.Name]))
+                    {
+                        _newVisSpec[property.Name]?.Parent.Remove();
+                        ((JObject)_newVisSpec).Add(_storedKeyframeSpec[property.Name].Parent);
+                    }
+                    else if (!IsJTokenNullOrUndefined(_finalStateSpec[property.Name]))
                     {
                         // Take the value from the final state
-                        if (_newVisSpecs[property.Name] != null)
-                            _newVisSpecs[property.Name].Parent.Remove();
-                        _newVisSpecs.Add(property.Name, _finalStateSpecs[property.Name]);
+                        if (_newVisSpec[property.Name] != null)
+                            _newVisSpec[property.Name].Parent.Remove();
+                        _newVisSpec.Add(property.Name, _finalStateSpec[property.Name]);
                     }
                 }
             }
 
             // Clean up any nulls in the vis specs
-            RemoveNullPropertiesInVisSpec(ref _newVisSpecs);
+            RemoveNullPropertiesInVisSpec(ref _newVisSpec);
 
-            return _newVisSpecs;
+            return _newVisSpec;
         }
 
-        private bool IsJTokenNullOrUndefined(JToken jObject)
+        private bool IsJTokenNullOrUndefined(JToken jToken)
         {
-            return jObject == null || (jObject != null && jObject.Type == JTokenType.Null);
+            return jToken == null || (jToken != null && jToken.Type == JTokenType.Null);
         }
 
         /// <summary>
