@@ -122,22 +122,7 @@
                 "control": "reset",
                 "value": "start"
             },
-            "bidirectional": false,
-            "priority": 1
-        },
-        {
-            "name": "unstacking",
-            "states": ["stacked 2d barchart", "3d barchart"],
-            "triggers": ["!intersectingSurface"],
-            "timing": {
-                "control": 0.5,
-                "elapsed": "end"
-            },
-            "interrupt": {
-                "control": "reset",
-                "value": "end"
-            },
-            "bidirectional": false,
+            "bidirectional": true,
             "priority": 1
         }
     ]

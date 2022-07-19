@@ -38,21 +38,7 @@
                 "control": "reset",
                 "value": "start"
             },
-            "bidirectional": false
-        },
-        {
-            "name": "coloured2base",
-            "states": ["coloured", "base"],
-            "triggers": ["!mousedown"],
-            "timing": {
-                "control": 1,
-                "elapsed": "end"
-            },
-            "interrupt": {
-                "control": "reset",
-                "value": "end"
-            },
-            "bidirectional": false
+            "bidirectional": true
         }
     ]
 }

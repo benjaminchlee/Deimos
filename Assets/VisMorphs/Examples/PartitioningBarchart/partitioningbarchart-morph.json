@@ -97,20 +97,7 @@
                 "control": "reset",
                 "value": "start"
             },
-            "bidirectional": false
-        },
-        {
-            "name": "faceted2stacked",
-            "states": ["faceted", "stacked"],
-            "triggers": ["!intersectingSurface"],
-            "timing": {
-                "control": 0.5
-            },
-            "interrupt": {
-                "control": "reset",
-                "value": "end"
-            },
-            "bidirectional": false
+            "bidirectional": true
         }
     ]
 }

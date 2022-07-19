@@ -87,21 +87,7 @@
                 "control": "reset",
                 "value": "start"
             },
-            "bidirectional": false
-        },
-        {
-            "name": "unflatteningX",
-            "states": ["flattenedX", "unflattened"],
-            "triggers": ["!isClose"],
-            "timing": {
-                "control": 0.5,
-                "elapsed": "end"
-            },
-            "interrupt": {
-                "control": "reset",
-                "value": "end"
-            },
-            "bidirectional": false
+            "bidirectional": true
         },
         {
             "name": "flatteningZ",
@@ -115,21 +101,7 @@
                 "control": "reset",
                 "value": "start"
             },
-            "bidirectional": false
-        },
-        {
-            "name": "unflatteningZ",
-            "states": ["flattenedZ", "unflattened"],
-            "triggers": ["!isClose"],
-            "timing": {
-                "control": 0.5,
-                "elapsed": "end"
-            },
-            "interrupt": {
-                "control": "reset",
-                "value": "end"
-            },
-            "bidirectional": false
+            "bidirectional": true
         }
     ]
 }

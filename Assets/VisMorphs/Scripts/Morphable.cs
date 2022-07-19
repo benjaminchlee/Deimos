@@ -291,8 +291,10 @@ namespace DxR.VisMorphs
                     List<bool> boolList = new List<bool>();                         // A list of booleans which will be modified by later observables. The transition begins when all booleans are true
                     bool isReversed = candidateTransition.Item2;                    // Whether the transition is reversed
 
-                    // We now actually create our subscriptions themselves
+                    // We create a boolean that will track whether or not this transition is based on a timer
+                    bool isTimerUsed = true;
 
+                    // We now actually create the subscriptions themselves
                     // If this Transition is using a Predicate as a tweener, we subscribe to it such that the Transition only actually begins if this tweener returns a value between 0 and 1 (exclusive)
                     if (transitionSpec["timing"] != null && transitionSpec["timing"]["control"] != null)
                     {
@@ -302,6 +304,8 @@ namespace DxR.VisMorphs
 
                         if (observable != null)
                         {
+                            isTimerUsed = false;
+
                             boolList.Add(false);
                             // Delay subscription until end of frame so that all signals can be subscribed to
                             observable.DelayFrameSubscription(0, FrameCountType.EndOfFrame).Subscribe(f =>
@@ -332,6 +336,11 @@ namespace DxR.VisMorphs
                         }
                     }
 
+                    // If this observable uses a timer, we want to accommodate the reverse transition. Therefore, the transition should start if all triggers
+                    // return FALSE, rather than remain true, as they will already be true by the time the forward transition finishes
+                    // This boolean helps us reverse the required truthiness
+                    bool useReverseTrigger = isTimerUsed && isReversed;
+
                     // Subscribe to the rest of the Triggers. If no triggers are defined, then we can just skip this process entirely
                     var triggerNames = transitionSpec["triggers"];
                     if (triggerNames != null)
@@ -340,7 +349,11 @@ namespace DxR.VisMorphs
                         {
                             // Set the index that will be used to then modify the boolean in our boolArray
                             int index = boolList.Count;
-                            boolList.Add(false);
+
+                            // Set the default value of the bool list. This is to ensure that it doesn't immediately call an activation signal before at least one signal has resolved
+                            // For standard transitions, all of the booleans start as false
+                            // For reverse transitions, all of the booleans start as true
+                            boolList.Add(useReverseTrigger);
 
                             // Get the name of the trigger. If it has an ! in front of it, we inverse its value
                             string triggerName = triggerNames[k];
@@ -364,8 +377,17 @@ namespace DxR.VisMorphs
                                 {
                                     boolList[index] = b;
 
-                                    // If all of the predicates for this Transition returned true...
-                                    if (!boolList.Contains(false))
+                                    // Determine whether or not our list of booleans and triggers have met the conditions necessary to trigger the transition
+                                    // This is only applicable for transitions that use timers
+                                    // For forward transitions, ALL booleans in the list need to be true
+                                    // For reverse transitions, at least one of the booleans in the list needs to be false
+                                    bool triggersMet = false;
+                                    if (!useReverseTrigger)
+                                        triggersMet = !boolList.Contains(false);
+                                    else
+                                        triggersMet = boolList.Contains(false);
+
+                                    if (triggersMet)
                                     {
                                         // AND this morph is not currently active, we can then formally activate the Transition
                                         if (!ActiveTransitionNames.Contains(transitionName) && !queuedTransitionActivations.ContainsKey(transitionName))
@@ -546,7 +568,7 @@ namespace DxR.VisMorphs
             return true;
         }
 
-        private IObservable<float> CreateTweeningObservable(CandidateMorph candidateMorph, JSONNode transitionSpec)
+        private IObservable<float> CreateTweeningObservable(CandidateMorph candidateMorph, JSONNode transitionSpec, bool isReversed)
         {
             JSONNode timingSpecs = transitionSpec["timing"];
 
@@ -569,12 +591,17 @@ namespace DxR.VisMorphs
                 // Otherwise, use the time provided in the specification
                 else
                 {
-                    return CreateTimerObservable(candidateMorph, transitionSpec, timingSpecs["control"]);
+                    return CreateTimerObservable(candidateMorph, transitionSpec, timingSpecs["control"], isReversed);
                 }
             }
         }
 
-        private IObservable<float> CreateTimerObservable(CandidateMorph candidateMorph, JSONNode transitionSpec, float duration)
+        /// <summary>
+        /// Creates an observable that returns a normalised value between 0 to 1 over the specified duration. This is meant to be used for tweening.
+        /// By default, the value will increment starting from 0 and automatically termating at 1. If isReversed is set to true, then this will be
+        /// inversed, starting at 1 and terminating at 0.
+        /// </summary>
+        private IObservable<float> CreateTimerObservable(CandidateMorph candidateMorph, JSONNode transitionSpec, float duration, bool isReversed = false)
         {
             float startTime = Time.time;
 
@@ -582,11 +609,20 @@ namespace DxR.VisMorphs
             var timerObservable = Observable.EveryUpdate().Select(_ =>
             {
                 float timer = Time.time - startTime;
-                return Mathf.Clamp(timer / duration, 0, 1);
+                float tween = Mathf.Clamp(timer / duration, 0, 1);
+
+                if (!isReversed)
+                    return tween;
+                else
+                    return 1 - tween;
             })
                 .TakeUntil(cancellationObservable);
 
             bool goToEnd = transitionSpec["timing"]["elapsed"] != null ? transitionSpec["timing"]["elapsed"] == "end" : true;
+
+            // If the transition is reversed, "end" actually means the initial state, therefore we flip this boolean
+            if (isReversed)
+                goToEnd = !goToEnd;
 
             // HACKY WORKAROUND: We need some way to cancel this timer early in case it gets interrupted. For now we just find the composite
             // disposable tied to the transition and the subscription to it. Ideally this should be done alongside with all of the other signals
@@ -645,7 +681,7 @@ namespace DxR.VisMorphs
             }
 
             // Call update to final state using a tweening observable
-            var tweeningObservable = CreateTweeningObservable(candidateMorph, transitionSpec);
+            var tweeningObservable = CreateTweeningObservable(candidateMorph, transitionSpec, isReversed);
             bool success = parentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservable, isReversed);
 
             if (success)
@@ -673,7 +709,7 @@ namespace DxR.VisMorphs
                 return;
             }
 
-            parentVis.StopTransition(transitionName, goToEnd);
+            parentVis.StopTransition(transitionName, goToEnd, true);
 
             // Unsubscribe to this transition's signals
             candidateMorph.DisposeTransitionSubscriptions(transitionName);
