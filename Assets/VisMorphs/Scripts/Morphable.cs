@@ -931,7 +931,11 @@ namespace DxR.VisMorphs
             // We now also apply the same logic as above, except this time to the view-level properties
             foreach (var property in ((JObject)_initialStateSpec).Properties())
             {
-                if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" || property.Name == "name" || property.Name == "title")
+                // TODO: Currently there's a bandaid fix in place whereby we can't actually remove width/height/depth values from a specification,
+                // otherwise the inference fails and causes the scale object to not calculate the correct range. Fix this later if this causes further issues
+                if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" ||
+                    property.Name == "name" || property.Name == "title" ||
+                    property.Name == "width" || property.Name == "height" || property.Name == "depth")
                     continue;
 
                 // Step 1: Check which encodings to remove
