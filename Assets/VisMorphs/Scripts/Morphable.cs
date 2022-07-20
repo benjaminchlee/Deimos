@@ -402,12 +402,20 @@ namespace DxR.VisMorphs
                                         // Otherwise, if this Transition WAS active but now no longer meets the trigger conditions,
                                         if (ActiveTransitionNames.Contains(transitionName) && !queuedTransitionDeactivations.ContainsKey(transitionName))
                                         {
-                                            // If the Transition specification includes which direction (start or end) to reset the Vis to, we use it
                                             bool goToEnd = false;
-
-                                            if (transitionSpec["interrupt"]["control"] == "reset")
+                                            // The transition spec provides additional rules for what to do when the transition is interrupted
+                                            if (transitionSpec["interrupt"]["control"] != null)
                                             {
-                                                goToEnd = transitionSpec["interrupt"]["value"] == "end";
+                                                // If the control is set to "ignore", it means we ignore this call to disable. Return out of this function
+                                                if (transitionSpec["interrupt"]["control"] == "ignore")
+                                                {
+                                                    return;
+                                                }
+                                                // If the control is set to "reset", we reset the transition back to either the initial or final state, depending on what is specified
+                                                else if (transitionSpec["interrupt"]["control"] == "reset")
+                                                {
+                                                    goToEnd = transitionSpec["interrupt"]["value"] == "end";
+                                                }
                                             }
 
                                             queuedTransitionDeactivations.Add(transitionName, new Tuple<Action, int>(() => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd), transitionPriority));

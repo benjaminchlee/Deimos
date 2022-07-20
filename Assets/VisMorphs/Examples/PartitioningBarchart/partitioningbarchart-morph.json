@@ -94,8 +94,7 @@
                 "control": 0.5
             },
             "interrupt": {
-                "control": "reset",
-                "value": "start"
+                "control": "ignore"
             },
             "bidirectional": true
         }

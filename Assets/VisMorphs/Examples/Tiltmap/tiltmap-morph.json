@@ -121,10 +121,6 @@
                 "control": "c2pTween",
                 "easing": "inoutcubic"
             },
-            "interrupt": {
-                "control": "reset",
-                "value": "start"
-            },
             "bidirectional": true
         },
         {
@@ -134,10 +130,6 @@
             "timing": {
                 "control": "p2bTween",
                 "easing": "inoutcubic"
-            },
-            "interrupt": {
-                "control": "reset",
-                "value": "start"
             },
             "bidirectional": true
         }

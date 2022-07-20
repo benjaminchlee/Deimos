@@ -1,7 +1,7 @@
 {
     "states": [
         {
-            "name": "base",
+            "name": "uncoloured",
             "encoding": {
                 "color": null
             }
@@ -27,16 +27,15 @@
 
     "transitions": [
         {
-            "name": "base2coloured",
-            "states": ["base", "coloured"],
+            "name": "uncoloured2coloured",
+            "states": ["uncoloured", "coloured"],
             "triggers": ["mousedown"],
             "timing": {
-                "control": 1,
+                "control": 0.25,
                 "elapsed": "end"
             },
             "interrupt": {
-                "control": "reset",
-                "value": "start"
+                "control": "ignore"
             },
             "bidirectional": true
         }

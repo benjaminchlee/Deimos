@@ -112,12 +112,10 @@
             "states": ["3d barchart", "stacked 2d barchart"],
             "triggers": ["intersectingSurface", "isIntersectingSideways"],
             "timing": {
-                "control": 0.5,
-                "elapsed": "end"
+                "control": 0.5
             },
             "interrupt": {
-                "control": "reset",
-                "value": "start"
+                "control": "ignore"
             },
             "bidirectional": true,
             "priority": 1

@@ -84,8 +84,7 @@
                 "elapsed": "end"
             },
             "interrupt": {
-                "control": "reset",
-                "value": "start"
+                "control": "ignore"
             },
             "bidirectional": true
         },
@@ -98,8 +97,7 @@
                 "elapsed": "end"
             },
             "interrupt": {
-                "control": "reset",
-                "value": "start"
+                "control": "ignore"
             },
             "bidirectional": true
         }
