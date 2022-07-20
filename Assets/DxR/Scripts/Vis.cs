@@ -552,7 +552,7 @@ namespace DxR
             // Stop all regular axes, removing their references if they have been marked for deletion
             foreach (var kvp in axisInstances.ToList())
             {
-                bool isDeleting = kvp.Value.StopTransition(transitionName, goToEnd);
+                bool isDeleting = kvp.Value.StopTransition(transitionName, goToEnd, false);
                 if (isDeleting)
                     axisInstances.Remove(kvp.Key);
             }
@@ -562,7 +562,7 @@ namespace DxR
             {
                 foreach (Axis facetAxis in kvp.Value.ToList())
                 {
-                    bool isDeleting = facetAxis.StopTransition(transitionName, goToEnd, false);
+                    bool isDeleting = facetAxis.StopTransition(transitionName, goToEnd, true);
                     if (isDeleting)
                     {
                         kvp.Value.Remove(facetAxis);

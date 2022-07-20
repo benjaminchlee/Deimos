@@ -86,7 +86,7 @@ namespace DxR
         /// <summary>
         /// Returns false if the axis is to be deleted at the end of this function
         /// </summary>
-        public bool StopTransition(string transitionName, bool goToEnd, bool isFacetAxis = false)
+        public bool StopTransition(string transitionName, bool goToEnd, bool isFacetAxis)
         {
             if (activeAxisTransition == null)
                 return false;
