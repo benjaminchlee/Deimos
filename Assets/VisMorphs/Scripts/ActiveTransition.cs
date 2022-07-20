@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using SimpleJSON;
 using UnityEngine;
+using static DxR.VisMorphs.EasingFunction;
 
 namespace DxR.VisMorphs
 {
@@ -15,6 +16,7 @@ namespace DxR.VisMorphs
         public JSONNode InitialInferredVisSpecs;
         public JSONNode FinalInferredVisSpecs;
         public IObservable<float> TweeningObservable;
+        public Function EasingFunction;
         public Dictionary<string, Tuple<float, float>> Stages;
     }
 }

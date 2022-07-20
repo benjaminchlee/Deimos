@@ -5,6 +5,7 @@ using SimpleJSON;
 using UnityEngine;
 using DxR.VisMorphs;
 using UniRx;
+using static DxR.VisMorphs.EasingFunction;
 
 namespace DxR
 {
@@ -33,6 +34,7 @@ namespace DxR
         {
             public string Name;
             public IObservable<float> TweeningObservable;
+            public Function EasingFunction;
             public Dictionary<string, Tuple<float, float>> Stages;
             public string Channel;
             public CompositeDisposable Disposable;
@@ -49,6 +51,7 @@ namespace DxR
             {
                 this.Name = activeTransition.Name;
                 this.TweeningObservable = activeTransition.TweeningObservable;
+                this.EasingFunction = activeTransition.EasingFunction;
                 this.Stages = activeTransition.Stages;
                 this.Channel = channel;
                 this.Disposable = disposable;
@@ -132,6 +135,18 @@ namespace DxR
                 activeAxisTransition.TweeningObservable = activeAxisTransition.TweeningObservable.Select(t =>
                 {
                     return Utils.NormaliseValue(t, minTween, maxTween, 0, 1);
+                });
+            }
+
+            // We extend this observable again if there is an easing function defined
+            if (activeAxisTransition.EasingFunction != null)
+            {
+                activeAxisTransition.TweeningObservable = activeAxisTransition.TweeningObservable.Select(t =>
+                {
+                    // Only do it if t is inside the accepted ranges, otherwise it returns NaN
+                    if (0 <= t && t <= 1)
+                        return activeAxisTransition.EasingFunction(0, 1, t);
+                    return t;
                 });
             }
 

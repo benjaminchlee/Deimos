@@ -6,6 +6,7 @@ using Newtonsoft.Json.Linq;
 using SimpleJSON;
 using UniRx;
 using UnityEngine;
+using static DxR.VisMorphs.EasingFunction;
 
 namespace DxR.VisMorphs
 {
@@ -677,6 +678,11 @@ namespace DxR.VisMorphs
                                      out initialState,
                                      out finalState);
 
+            // Get the easing function which we will apply to this transition (if any). If no easing function is defined, we don't set the easing function
+            // as we don't want to have to calculate the linear function when we don't need to
+            Ease ease = (transitionSpec["timing"]["easing"] != null) ? EasingFunction.GetEaseFromString(transitionSpec["timing"]["easing"]) : Ease.Linear;
+            Function easingFunction = (ease != Ease.Linear) ? EasingFunction.GetEasingFunction(ease) : null;
+
             // Get the set of stages that are defined in this transition (if any). We pass this onto the Vis
             Dictionary<string, Tuple<float, float>> stages = GetTransitionStages(transitionSpec, transitionName);
 
@@ -695,7 +701,7 @@ namespace DxR.VisMorphs
 
             // Call update to final state using a tweening observable
             var tweeningObservable = CreateTweeningObservable(candidateMorph, transitionSpec, isReversed);
-            bool success = parentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservable, stages);
+            bool success = parentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservable, easingFunction, stages);
 
             if (success)
             {

@@ -72,7 +72,7 @@
             "triggers": [],
             "timing": {
                 "control": "geoscatterSlider",
-                "easing": "inoutcubic"
+                "easing": "easeinoutquint"
             },
             "staging": {
                 "x": [0, 0.5],

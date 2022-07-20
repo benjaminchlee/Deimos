@@ -8,6 +8,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UniRx;
 using DxR.VisMorphs;
+using static DxR.VisMorphs.EasingFunction;
 
 namespace DxR
 {
@@ -49,6 +50,7 @@ namespace DxR
                 this.InitialVisSpecs = activeTransition.InitialVisSpecs;
                 this.FinalVisSpecs = activeTransition.FinalVisSpecs;
                 this.TweeningObservable = activeTransition.TweeningObservable;
+                this.EasingFunction = activeTransition.EasingFunction;
                 this.Stages = activeTransition.Stages;
                 this.Disposable = disposable;
                 this.MarkIndex = markIndex;
@@ -360,6 +362,14 @@ namespace DxR
                 // Rescale the tween value if necessary
                 if (tweenRescaled)
                     t = Utils.NormaliseValue(t, minTween, maxTween, 0, 1);
+
+                // We also need to apply an easing function if one has been given
+                if (activeMarkTransition.EasingFunction != null)
+                {
+                    // Only do it if t is inside the accepted ranges, otherwise it returns NaN
+                    if (0 <= t && t <= 1)
+                        t = activeMarkTransition.EasingFunction(0, 1, t);
+                }
 
                 // We need to do this properly depending on the data type that we expect for the given channel
                 switch (channel)

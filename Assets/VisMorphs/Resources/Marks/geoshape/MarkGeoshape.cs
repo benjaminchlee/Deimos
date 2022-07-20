@@ -110,6 +110,11 @@ namespace DxR
                     if (tweenRescaled)
                         t = Utils.NormaliseValue(t, minTween, maxTween, 0, 1);
 
+
+                    // We also need to apply an easing function if one has been given
+                    if (activeMarkTransition.EasingFunction != null)
+                        t = activeMarkTransition.EasingFunction(0, 1, t);
+
                     for (int i = 0; i < vertices.Count; i++)
                     {
                         Vector3 vertex = vertices[i];

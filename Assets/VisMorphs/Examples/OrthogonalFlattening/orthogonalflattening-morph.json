@@ -94,6 +94,7 @@
             "triggers": ["isLookingFront", "isClose"],
             "timing": {
                 "control": 0.5,
+                "easing": "easeoutcirc",
                 "elapsed": "end"
             },
             "interrupt": {

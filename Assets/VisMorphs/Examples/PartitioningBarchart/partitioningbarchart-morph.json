@@ -91,7 +91,8 @@
             "states": ["stacked", "faceted"],
             "triggers": ["intersectingSurface"],
             "timing": {
-                "control": 0.5
+                "control": 0.75,
+                "easing": "easeoutcirc"
             },
             "interrupt": {
                 "control": "ignore"

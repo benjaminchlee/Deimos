@@ -12,6 +12,7 @@ using Newtonsoft.Json;
 using GeoJSON.Net.Feature;
 using GeoJSON.Net;
 using DxR.VisMorphs;
+using static DxR.VisMorphs.EasingFunction;
 
 namespace DxR
 {
@@ -204,7 +205,7 @@ namespace DxR
 
         #region Morph specific functions
 
-        public bool ApplyTransition(string transitionName, JSONNode newInitialVisSpecs, JSONNode newFinalVisSpecs, IObservable<float> tweeningObservable, Dictionary<string, Tuple<float, float>> stages)
+        public bool ApplyTransition(string transitionName, JSONNode newInitialVisSpecs, JSONNode newFinalVisSpecs, IObservable<float> tweeningObservable, Function easingFunction, Dictionary<string, Tuple<float, float>> stages)
         {
             if (activeTransitions.Keys.Contains(transitionName))
             {
@@ -313,6 +314,7 @@ namespace DxR
                     InitialInferredVisSpecs = newInferredInitialVisSpecs,
                     FinalInferredVisSpecs = newInferredFinalVisSpecs,
                     TweeningObservable = tweeningObservable,
+                    EasingFunction = easingFunction,
                     Stages = stages
                 };
                 activeTransitions.Add(transitionName, newActiveTransition);
@@ -631,6 +633,10 @@ namespace DxR
                 // Interpolate
                 posePositionDisposable = newActiveTransition.TweeningObservable.Subscribe(t =>
                 {
+                    // Apply easing if applicable
+                    if (newActiveTransition.EasingFunction != null)
+                        t = newActiveTransition.EasingFunction(0, 1, t);
+
                     transform.position = Vector3.Lerp(initialPosition.Value, finalPosition.Value, t);
                 });
 
@@ -711,6 +717,10 @@ namespace DxR
                 // Interpolate
                 poseRotationDisposable = newActiveTransition.TweeningObservable.Subscribe(t =>
                 {
+                    // Apply easing if applicable
+                    if (newActiveTransition.EasingFunction != null)
+                        t = newActiveTransition.EasingFunction(0, 1, t);
+
                     transform.rotation = Quaternion.Lerp(initialRotation.Value, finalRotation.Value, t);
                 });
 

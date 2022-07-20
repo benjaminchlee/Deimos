@@ -118,8 +118,7 @@
             "states": ["choropleth", "prism"],
             "triggers": null,
             "timing": {
-                "control": "c2pTween",
-                "easing": "inoutcubic"
+                "control": "c2pTween"
             },
             "bidirectional": true
         },
@@ -128,8 +127,7 @@
             "states": ["prism", "bar"],
             "triggers": null,
             "timing": {
-                "control": "p2bTween",
-                "easing": "inoutcubic"
+                "control": "p2bTween"
             },
             "bidirectional": true
         }
