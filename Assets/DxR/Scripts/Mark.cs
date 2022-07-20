@@ -49,7 +49,7 @@ namespace DxR
                 this.InitialVisSpecs = activeTransition.InitialVisSpecs;
                 this.FinalVisSpecs = activeTransition.FinalVisSpecs;
                 this.TweeningObservable = activeTransition.TweeningObservable;
-                this.IsReversed = activeTransition.IsReversed;
+                this.Stages = activeTransition.Stages;
                 this.Disposable = disposable;
                 this.MarkIndex = markIndex;
             }
@@ -340,9 +340,26 @@ namespace DxR
 
         protected virtual void InitialiseTweeners(ActiveMarkTransition activeMarkTransition, string channel, string initialValue, string finalValue)
         {
-            activeMarkTransition.TweeningObservable.Subscribe(t => {
-                // Interpolate between the two values
+            // We need to rescale our tweening value from the observable based on any staging that is defined, if any
+            // We access these values now and then use them in the observable later
+            bool tweenRescaled = false;
+            float minTween = 0;
+            float maxTween = 1;
+
+            if (activeMarkTransition.Stages.TryGetValue(channel, out Tuple<float, float> range))
+            {
+                tweenRescaled = true;
+                minTween = range.Item1;
+                maxTween = range.Item2;
+            }
+
+            activeMarkTransition.TweeningObservable.Subscribe(t =>
+            {
                 string interpolatedValue = "";
+
+                // Rescale the tween value if necessary
+                if (tweenRescaled)
+                    t = Utils.NormaliseValue(t, minTween, maxTween, 0, 1);
 
                 // We need to do this properly depending on the data type that we expect for the given channel
                 switch (channel)

@@ -33,7 +33,8 @@ namespace DxR
         {
             public string Name;
             public IObservable<float> TweeningObservable;
-            public bool IsReversed;
+            public Dictionary<string, Tuple<float, float>> Stages;
+            public string Channel;
             public CompositeDisposable Disposable;
             public JSONNode InitialAxisSpecs;
             public JSONNode FinalAxisSpecs;
@@ -42,13 +43,14 @@ namespace DxR
             public Vector3 InitialTranslation;
             public Vector3 FinalTranslation;
 
-            public ActiveAxisTransition(ActiveTransition activeTransition, CompositeDisposable disposable,
+            public ActiveAxisTransition(ActiveTransition activeTransition, string channel, CompositeDisposable disposable,
                                         JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale,
                                         Vector3 initialTranslation, Vector3 finalTranslation)
             {
                 this.Name = activeTransition.Name;
                 this.TweeningObservable = activeTransition.TweeningObservable;
-                this.IsReversed = activeTransition.IsReversed;
+                this.Stages = activeTransition.Stages;
+                this.Channel = channel;
                 this.Disposable = disposable;
                 this.InitialAxisSpecs = initialAxisSpecs;
                 this.FinalAxisSpecs = finalAxisSpecs;
@@ -62,12 +64,12 @@ namespace DxR
 
         #region Morphing functions
 
-        public void InitialiseTransition(ActiveTransition newActiveTransition, JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale)
+        public void InitialiseTransition(ActiveTransition newActiveTransition, string channel, JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale)
         {
-            InitialiseTransition(newActiveTransition, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale, Vector3.zero, Vector3.zero);
+            InitialiseTransition(newActiveTransition, channel, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale, Vector3.zero, Vector3.zero);
         }
 
-        public void InitialiseTransition(ActiveTransition newActiveTransition, JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale, Vector3 initialTranslation, Vector3 finalTranslation)
+        public void InitialiseTransition(ActiveTransition newActiveTransition, string channel, JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale, Vector3 initialTranslation, Vector3 finalTranslation)
         {
             if (activeAxisTransition != null)
                 throw new Exception(string.Format("Vis Morphs: Axis is already undergoing a transition \"{0}\" and cannot apply transition \"{1}\".", activeAxisTransition.Name,  newActiveTransition.Name));
@@ -76,7 +78,7 @@ namespace DxR
             // We will set up separate subscriptions for each tweener
             CompositeDisposable transitionDisposable = new CompositeDisposable();
 
-            activeAxisTransition = new ActiveAxisTransition(newActiveTransition, transitionDisposable, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale, initialTranslation, finalTranslation);
+            activeAxisTransition = new ActiveAxisTransition(newActiveTransition, channel, transitionDisposable, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale, initialTranslation, finalTranslation);
 
             InitialiseTweeners(activeAxisTransition, initialTranslation, finalTranslation);
         }
@@ -120,6 +122,19 @@ namespace DxR
 
         private void InitialiseTweeners(ActiveAxisTransition activeAxisTransition, Vector3 initialTranslation, Vector3 finalTranslation)
         {
+            // We have separate tweeners for each different component of the Axis. However, we might need to rescale the tweening value
+            // if this Axis' channel involves staging. Therefore, we calculate it as a new observable and use it as our new tweening observable
+            if (activeAxisTransition.Stages.TryGetValue(activeAxisTransition.Channel, out Tuple<float, float> range))
+            {
+                float minTween = range.Item1;
+                float maxTween = range.Item2;
+
+                activeAxisTransition.TweeningObservable = activeAxisTransition.TweeningObservable.Select(t =>
+                {
+                    return Utils.NormaliseValue(t, minTween, maxTween, 0, 1);
+                });
+            }
+
             InitialiseTitleTweener(activeAxisTransition);
 
             float initialLength, finalLength;

@@ -15,6 +15,6 @@ namespace DxR.VisMorphs
         public JSONNode InitialInferredVisSpecs;
         public JSONNode FinalInferredVisSpecs;
         public IObservable<float> TweeningObservable;
-        public bool IsReversed;
+        public Dictionary<string, Tuple<float, float>> Stages;
     }
 }

@@ -25,30 +25,6 @@
             }
         },
         {
-            "name": "scatterplot-choro",
-            "mark": "geoshape",
-            "encoding": {
-                "x": {
-                    "field": "Longitude",
-                    "type": "spatial"
-                },
-                "y": {
-                    "field": "Latitude",
-                    "type": "spatial",
-                    "scale": {
-                        "type": "linear",
-                        "domain": [ 15, 75 ]
-                    }
-                },
-                "width": {
-                    "value": 10
-                },
-                "height": {
-                    "value": 10
-                }
-            }
-        },
-        {
             "name": "choropleth",
             "mark": "geoshape",
             "encoding": {
@@ -84,36 +60,25 @@
                 "select": "transform.localPosition.x"
             }
         }, {
-            "name": "sliderStage1",
-            "expression": "normalise(sliderX, 0, 0.5)"
-        }, {
-            "name": "sliderStage2",
-            "expression":"normalise(sliderX, 0.5, 1)"
+            "name": "geoscatterSlider",
+            "expression": "normalise(sliderX, 0, 1)"
         }
     ],
 
     "transitions": [
         {
             "name": "stage1",
-            "states": ["scatterplot", "scatterplot-choro"],
+            "states": ["scatterplot", "choropleth"],
             "triggers": [],
             "timing": {
-                "control": "sliderStage1",
+                "control": "geoscatterSlider",
                 "easing": "inoutcubic"
             },
-            "interrupt": {
-                "control": "reset",
-                "value": "start"
-            },
-            "bidirectional": true
-        },
-        {
-            "name": "stage2",
-            "states": ["scatterplot-choro", "choropleth"],
-            "triggers": [],
-            "timing": {
-                "control": "sliderStage2",
-                "easing": "inoutcubic"
+            "staging": {
+                "x": [0, 0.5],
+                "y": [0, 0.5],
+                "width": [0.5, 1],
+                "height": [0.5, 1]
             },
             "interrupt": {
                 "control": "reset",

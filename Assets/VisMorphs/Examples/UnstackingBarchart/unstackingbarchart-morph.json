@@ -30,39 +30,6 @@
             }
         },
         {
-            "name": "staged",
-            "mark": "cube",
-            "encoding": {
-                "x": {
-                    "type": "nominal"
-                },
-                "y": {
-                    "type": "quantitative"
-                },
-                "height": {
-                    "type": "quantitative"
-                },
-                "yoffset": {
-                    "channel": "color"
-                },
-                "yoffsetpct": {
-                    "value": -0.5
-                },
-                "depth": {
-                    "value": 130
-                },
-                "color": {
-                    "type": "nominal"
-                },
-                "zoffset": {
-                    "channel": "color"
-                },
-                "zoffsetpct": {
-                    "value": -3.5
-                }
-            }
-        },
-        {
             "name": "side by side",
             "mark": "cube",
             "encoding": {
@@ -130,34 +97,24 @@
             "name": "extrudeDistance",
             "expression": "distance(rightHandPos, closestpoint(surfaceCollider, rightHandPos))"
         }, {
-            "name": "tweener1",
-            "expression":"normalise(extrudeDistance, 0.05, 0.15, 0, 1)"
-        }, {
-            "name": "tweener2",
-            "expression":"normalise(extrudeDistance, 0.15, 0.3, 0, 1)"
+            "name": "tweener",
+            "expression":"normalise(extrudeDistance, 0.05, 0.3, 0, 1)"
         }
     ],
 
     "transitions": [
         {
-            "name": "unstacking1",
-            "states": ["stacked", "staged"],
+            "name": "unstacking",
+            "states": ["stacked", "side by side"],
             "triggers": ["isOnSurface", "pinching"],
             "timing": {
-                "control": "tweener1"
+                "control": "tweener"
             },
-            "interrupt": {
-                "control": "reset",
-                "value": "start"
-            },
-            "bidirectional": true
-        },
-        {
-            "name": "unstacking2",
-            "states": ["staged", "side by side"],
-            "triggers": ["isOnSurface", "pinching"],
-            "timing": {
-                "control": "tweener2"
+            "staging": {
+                "z": [0, 0.5],
+                "depth": [0, 0.5],
+                "y": [0.5, 1],
+                "height": [0.5, 1]
             },
             "interrupt": {
                 "control": "reset",

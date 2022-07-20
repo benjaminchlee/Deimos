@@ -204,7 +204,7 @@ namespace DxR
 
         #region Morph specific functions
 
-        public bool ApplyTransition(string transitionName, JSONNode newInitialVisSpecs, JSONNode newFinalVisSpecs, IObservable<float> tweeningObservable, bool isReversed)
+        public bool ApplyTransition(string transitionName, JSONNode newInitialVisSpecs, JSONNode newFinalVisSpecs, IObservable<float> tweeningObservable, Dictionary<string, Tuple<float, float>> stages)
         {
             if (activeTransitions.Keys.Contains(transitionName))
             {
@@ -313,7 +313,7 @@ namespace DxR
                     InitialInferredVisSpecs = newInferredInitialVisSpecs,
                     FinalInferredVisSpecs = newInferredFinalVisSpecs,
                     TweeningObservable = tweeningObservable,
-                    IsReversed = isReversed
+                    Stages = stages
                 };
                 activeTransitions.Add(transitionName, newActiveTransition);
 
@@ -457,7 +457,7 @@ namespace DxR
                     ConstructAndUpdateAxisObject(channel, dummyAxisSpec, ref dummyCE, out axis);
 
                     // Call to initialise transition on this single axis
-                    axis.InitialiseTransition(activeTransition, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale);
+                    axis.InitialiseTransition(activeTransition, channel, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale);
 
                     // Now check for facetwrap
                     if (facetWrapEncodingChange != null)
@@ -538,7 +538,7 @@ namespace DxR
                         // Apply the transition
                         for (int i = 0; i < facetedAxes.Count; i++)
                         {
-                            facetedAxes[i].InitialiseTransition(activeTransition, initialAxisSpecs, finalAxisSpecs,
+                            facetedAxes[i].InitialiseTransition(activeTransition, channel, initialAxisSpecs, finalAxisSpecs,
                                                                 initialScale, finalScale,
                                                                 initialTranslations[i], finalTranslations[i]);
                         }

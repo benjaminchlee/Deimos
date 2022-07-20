@@ -79,6 +79,19 @@ namespace DxR
             // operate by manipulating an array, rather than just a singular value
             if (channel == "width" || channel == "height" || channel == "depth")
             {
+                // We need to rescale our tweening value from the observable based on any staging that is defined, if any
+                // We access these values now and then use them in the observable later
+                bool tweenRescaled = false;
+                float minTween = 0;
+                float maxTween = 1;
+
+                if (activeMarkTransition.Stages.TryGetValue(channel, out Tuple<float, float> range))
+                {
+                    tweenRescaled = true;
+                    minTween = range.Item1;
+                    maxTween = range.Item2;
+                }
+
                 // Initialise our arrays that will be used for tweening between
                 List<float> initialVertexPositions = null;
                 List<float> finalVertexPositions = null;
@@ -93,6 +106,10 @@ namespace DxR
 
                 activeMarkTransition.TweeningObservable.Subscribe(t =>
                 {
+                    // Rescale the tween value if necessary
+                    if (tweenRescaled)
+                        t = Utils.NormaliseValue(t, minTween, maxTween, 0, 1);
+
                     for (int i = 0; i < vertices.Count; i++)
                     {
                         Vector3 vertex = vertices[i];

@@ -669,6 +669,9 @@ namespace DxR.VisMorphs
                                      out initialState,
                                      out finalState);
 
+            // Get the set of stages that are defined in this transition (if any). We pass this onto the Vis
+            Dictionary<string, Tuple<float, float>> stages = GetTransitionStages(transitionSpec, transitionName);
+
             if (DebugStates)
             {
                 // Remove the values node because it is usually way to long to properly print to console
@@ -684,7 +687,7 @@ namespace DxR.VisMorphs
 
             // Call update to final state using a tweening observable
             var tweeningObservable = CreateTweeningObservable(candidateMorph, transitionSpec, isReversed);
-            bool success = parentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservable, isReversed);
+            bool success = parentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservable, stages);
 
             if (success)
             {
@@ -1139,6 +1142,41 @@ namespace DxR.VisMorphs
                         return null;
                     }
             }
+        }
+
+        /// <summary>
+        /// Creates a dictionary of the different stages defined within the given transition.
+        /// The key is the name of the channel (must be unique), the value is a float tuple with two values between 0 to 1 (inclusive)
+        /// Returns an empty dictionary if no stages are defined.
+        /// </summary>
+        private Dictionary<string, Tuple<float, float>> GetTransitionStages(JSONNode transitionSpec, string transitionName)
+        {
+            // Get the set of stages from the transition spec. We pass this onto the Vis when we're done
+            Dictionary<string, Tuple<float, float>> stages = new Dictionary<string, Tuple<float, float>>();
+            if (transitionSpec["staging"] != null)
+            {
+                foreach (var kvp in transitionSpec["staging"])
+                {
+                    if (stages.ContainsKey(kvp.Key))
+                        throw new Exception(string.Format("Vis Morphs: Transition \"{0}\" has the staging channel \"{1}\" multiple times. All stages must be unique.", transitionName, kvp.Key));
+
+                    if (kvp.Value.Count != 2 || !kvp.Value[0].IsNumber || !kvp.Value[1].IsNumber)
+                        throw new Exception(string.Format("Vis Morphs: Transition \"{0}\" has a staging channel \"{1}\" that does not have two numbers in an array.", transitionName, kvp.Key));
+
+                    float initialValue = kvp.Value[0].AsFloat;
+                    float finalValue = kvp.Value[1].AsFloat;
+
+                    if (initialValue < 0 || initialValue > 1 || finalValue < 0 || finalValue > 1)
+                        throw new Exception(string.Format("Vis Morphs: Transition \"{0}\" has a staging channel \"{1}\" that has values not within 0 to 1 (inclusive).", transitionName, kvp.Key));
+
+                    if (initialValue > finalValue)
+                        throw new Exception(string.Format("Vis Morphs: Transition \"{0}\" has a staging channel \"{1}\" with a end value larger than the start value", transitionName, kvp.Key));
+
+                    stages.Add(kvp.Key, new Tuple<float, float>(initialValue, finalValue));
+                }
+            }
+
+            return stages;
         }
 
         private void OnDestroy()
