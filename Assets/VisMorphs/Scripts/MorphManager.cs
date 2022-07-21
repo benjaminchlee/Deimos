@@ -13,7 +13,7 @@ using Microsoft.MixedReality.Toolkit.Input;
 
 namespace DxR.VisMorphs
 {
-    [System.Serializable]
+    [Serializable]
     public class MorphSpecification
     {
         public TextAsset Json;
@@ -428,136 +428,119 @@ namespace DxR.VisMorphs
 
         private static IObservable<dynamic> CreateObservableFromVisSpec(string reference, string selector, Morphable morphable)
         {
-            // Special observables for when surfaces are referenced
-            if (reference == "surface")
+            if (reference != null && reference != "")
             {
-                switch (selector)
+                // Special observables for when surfaces are referenced
+                if (reference == "surface")
                 {
-                    // Emits true if the vis is attached to a surface, otherwise emits false
-                    case "attached":
-                    // For now we just use the same code as for intersecting
-
-                    // Emits true if the Vis is intersecting with any surface, otherwise emits false
-                    case "intersecting":
-                        {
-                            BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
-                            return Observable.EveryUpdate()
-                                .Select(_ =>
-                                {
-                                    var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center),
-                                                                              (boxCollider.size / 2f) + (Vector3.one * 0.05f),
-                                                                              morphable.transform.rotation)
-                                                                  .Where(c => c.gameObject.tag == "Surface");
-                                    return (dynamic)surfaceColliders.Count() > 0;
-                                })
-                                .DistinctUntilChanged();
-                        }
-
-                    // Emits a Vector3 in world space of the collision point between the vis and the largest surface. Does not emit if no collision is found
-                    case "collisionpoint":
-                        {
-                            BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
-                            return Observable.EveryUpdate()
-                                .Select(_ =>
-                                {
-                                    var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center),
-                                                                              (boxCollider.size / 2f) + (Vector3.one * 0.05f),
-                                                                              morphable.transform.rotation)
-                                                                  .Where(c => c.gameObject.tag == "Surface");
-                                    if (surfaceColliders.Count() > 0)
+                    switch (selector)
+                    {
+                        // Emits true if the vis is attached to a surface, otherwise emits false
+                        case "attached":
+                        // For now we just use the same code as for intersecting
+                        // Emits true if the Vis is intersecting with any surface, otherwise emits false
+                        case "intersecting":
+                            {
+                                BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
+                                return Observable.EveryUpdate()
+                                    .Select(_ =>
                                     {
-                                        Collider largestTouchingSurface = surfaceColliders.OrderByDescending(c => c.gameObject.transform.localScale.x * c.gameObject.transform.localScale.y * c.gameObject.transform.localScale.z).First();
-                                        Collider A = boxCollider;
-                                        Collider B = largestTouchingSurface;
-                                        Vector3 ptA = B.ClosestPoint(A.transform.position);
-                                        Vector3 ptB = A.ClosestPoint(B.transform.position);
-                                        Vector3 ptM = ptA + (ptB - ptA) / 2;
-                                        Vector3 closestAtB = B.ClosestPoint(ptM);
-                                        return (dynamic)closestAtB;
-                                    }
-                                    else
+                                        var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center), (boxCollider.size / 2f) + (Vector3.one * 0.05f), morphable.transform.rotation)
+                                                                      .Where(c => c.gameObject.tag == "Surface");
+                                        return (dynamic)surfaceColliders.Count() > 0;
+                                    })
+                                    .DistinctUntilChanged();
+                            }
+
+                        // Emits a Vector3 in world space of the collision point between the vis and the largest surface. Does not emit if no collision is found
+                        case "collisionpoint":
+                            {
+                                BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
+                                return Observable.EveryUpdate()
+                                    .Select(_ =>
                                     {
+                                        var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center), (boxCollider.size / 2f) + (Vector3.one * 0.05f), morphable.transform.rotation)
+                                                                      .Where(c => c.gameObject.tag == "Surface");
+                                        if (surfaceColliders.Count() > 0)
+                                        {
+                                            Collider largestTouchingSurface = surfaceColliders.OrderByDescending(c => c.gameObject.transform.localScale.x * c.gameObject.transform.localScale.y * c.gameObject.transform.localScale.z).First();
+                                            Collider A = boxCollider;
+                                            Collider B = largestTouchingSurface;
+                                            Vector3 ptA = B.ClosestPoint(A.transform.position);
+                                            Vector3 ptB = A.ClosestPoint(B.transform.position);
+                                            Vector3 ptM = ptA + (ptB - ptA) / 2;
+                                            Vector3 closestAtB = B.ClosestPoint(ptM);
+                                            return (dynamic)closestAtB;
+                                        }
                                         return null;
-                                    }
-                                })
-                                .Where(_ => _ != null)
-                                .DistinctUntilChanged();
-                        }
+                                    })
+                                    .Where(_ => _ != null)
+                                    .DistinctUntilChanged();
+                            }
 
-                    // Emis a Vector3 in world space of the closest point on the surface closest to the vis, regardless of whether it is touching or not. Does not emit if there are no surfaces
-                    case "closestpoint":
-                        {
-                            return Observable.EveryUpdate()
-                                .Select(_ =>
-                                {
-                                    var surfaces = GameObject.FindGameObjectsWithTag("Surface");
-                                    var closestPoints = surfaces.Select(surface => surface.GetComponent<Collider>().ClosestPoint(morphable.transform.position))
-                                                   .OrderBy(closestPoint => Vector3.Distance(morphable.transform.position, closestPoint));
-                                    if (closestPoints.Count() > 0)
+                        // Emis a Vector3 in world space of the closest point on the surface closest to the vis, regardless of whether it is touching or not. Does not emit if there are no surfaces
+                        case "closestpoint":
+                            {
+                                return Observable.EveryUpdate()
+                                    .Select(_ =>
                                     {
-                                        return closestPoints.First();
-                                    }
-                                    else
-                                    {
-                                        return (dynamic)null;
-                                    }
-                                })
-                                .Where(_ => _ != null)
-                                .DistinctUntilChanged();
-                        }
+                                        var surfaces = GameObject.FindGameObjectsWithTag("Surface");
+                                        var closestPoints = surfaces.Select(surface => surface.GetComponent<Collider>().ClosestPoint(morphable.transform.position))
+                                                                    .OrderBy(closestPoint => Vector3.Distance(morphable.transform.position, closestPoint));
+                                        return (closestPoints.Count() > 0) ? closestPoints.First() : (dynamic)null;
+                                    })
+                                    .Where(_ => _ != null)
+                                    .DistinctUntilChanged();
+                            }
 
-                    // Emis a Vector3 in world space of the closest point on the surface closest to the vis, regardless of whether it is touching or not. Does not emit if there are no surfaces
-                    case "closestcollider":
-                        {
-                            return Observable.EveryUpdate()
-                                .Select(_ =>
-                                {
-                                    var surfaces = GameObject.FindGameObjectsWithTag("Surface");
-                                    var colliders = GameObject.FindGameObjectsWithTag("Surface").Select(surface => surface.GetComponent<Collider>());
-                                    var closestColliders = colliders.OrderBy(collider => Vector3.Distance(morphable.transform.position, collider.ClosestPoint(morphable.transform.position)));
+                        // Emis a Vector3 in world space of the closest point on the surface closest to the vis, regardless of whether it is touching or not. Does not emit if there are no surfaces
+                        case "closestcollider":
+                            {
+                                return Observable.EveryUpdate()
+                                    .Select(_ =>
+                                    {
+                                        var colliders = GameObject.FindGameObjectsWithTag("Surface").Select(surface => surface.GetComponent<Collider>());
+                                        var closestColliders = colliders.OrderBy(collider => Vector3.Distance(morphable.transform.position, collider.ClosestPoint(morphable.transform.position)));
+                                        return (closestColliders.Count() > 0) ? closestColliders.First() : (dynamic)null;
+                                    })
+                                    .Where(_ => _ != null)
+                                    .DistinctUntilChanged();
+                            }
 
-                                    if (closestColliders.Count() > 0)
+                        // Finds the largest surface that the vis is touching and emits the selected property of the surface (not the vis)
+                        default:
+                            {
+                                BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
+                                return Observable.EveryUpdate()
+                                    .Select(_ =>
                                     {
-                                        return closestColliders.First();
-                                    }
-                                    else
-                                    {
-                                        return (dynamic)null;
-                                    }
-                                })
-                                .Where(_ => _ != null)
-                                .DistinctUntilChanged();
-                        }
-
-                    // Finds the largest surface that the vis is touching and emits the selected property of the surface (not the vis)
-                    default:
-                        {
-                            BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
-                            return Observable.EveryUpdate()
-                                .Select(_ =>
-                                {
-                                    var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center),
-                                                                              (boxCollider.size / 2f) + (Vector3.one * 0.05f),
-                                                                              morphable.transform.rotation)
-                                                                  .Where(c => c.gameObject.tag == "Surface");
-                                    if (surfaceColliders.Count() > 0)
-                                    {
-                                        Collider largestTouchingSurface = surfaceColliders.OrderByDescending(c => c.gameObject.transform.localScale.x * c.gameObject.transform.localScale.y * c.gameObject.transform.localScale.z).First();
-                                        return largestTouchingSurface.GetPropValue(selector);
-                                    }
-                                    else
-                                    {
+                                        var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center), (boxCollider.size / 2f) + (Vector3.one * 0.05f), morphable.transform.rotation)
+                                                                      .Where(c => c.gameObject.tag == "Surface");
+                                        if (surfaceColliders.Count() > 0)
+                                        {
+                                            Collider largestTouchingSurface = surfaceColliders.OrderByDescending(c => c.gameObject.transform.localScale.x * c.gameObject.transform.localScale.y * c.gameObject.transform.localScale.z).First();
+                                            return largestTouchingSurface.GetPropValue(selector);
+                                        }
                                         return null;
-                                    }
-                                })
-                                .Where(_ => _ != null)
-                                .DistinctUntilChanged();
-                        }
+                                    })
+                                    .Where(_ => _ != null)
+                                    .DistinctUntilChanged();
+                            }
+                    }
+                }
+                // Special observables for when the specification is referenced
+                else if (reference.ToLower().StartsWith("spec"))
+                {
+                    // Create an observable which subscribes to the VisUpdated event, and emits the value as specified using the JSON path format (full stops)
+                    return morphable.ParentVis.VisInferredUpdated.AsObservable<Vis, JSONNode>().Select((vis, spec) =>
+                        {
+                            return Utils.GetValueFromJSONNodePath(spec, selector);
+                        })
+                        .StartWith(Utils.GetValueFromJSONNodePath(morphable.ParentVis.GetVisSpecsInferred(), selector))
+                        .Where(_ => _ != null)
+                        .DistinctUntilChanged();
                 }
             }
-
-            if (selector == "")
-                throw new Exception("Vis Morphs: Signal of type vis that do not reference surfaces requires a select expression.");
 
             switch (selector)
             {
@@ -569,6 +552,10 @@ namespace DxR.VisMorphs
                         })
                         .DistinctUntilChanged();
                     }
+
+                case null:
+                case "":
+                    throw new Exception("Vis Morphs: Signal of type vis that do not reference surfaces requires a select expression.");
 
                 default:
                     {

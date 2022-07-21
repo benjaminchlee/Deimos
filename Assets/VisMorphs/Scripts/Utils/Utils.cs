@@ -13,6 +13,7 @@ using UnityEngine;
 using GeoJSON.Net.Converters;
 using GeoJSON.Net.Geometry;
 using GeoJSON.Net.Feature;
+using SimpleJSON;
 
 namespace DxR
 {
@@ -114,6 +115,26 @@ namespace DxR
                 float.Parse(sArray[2]));
 
             return result;
+        }
+
+        public static JSONNode GetValueFromJSONNodePath(JSONNode jsonNode, string path)
+        {
+            try
+            {
+                JSONNode currentNode = jsonNode;
+                var paths = path.Split('.');
+                foreach (var child in paths)
+                {
+                    currentNode = currentNode[child];
+                }
+                return currentNode;
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning(e);
+                return null;
+            }
+
         }
     }
 

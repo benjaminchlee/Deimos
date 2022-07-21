@@ -45,11 +45,8 @@
                 "select": "transform.position"
             }
         }, {
-            "name": "headVisDistance",
-            "expression": "distance(headPosition, visPosition)"
-        }, {
-            "name": "isClose",
-            "expression": "headVisDistance < 1"
+            "name": "isCloseToVis",
+            "expression": "distance(headPosition, visPosition) < 1"
         }, {
             "name": "headDirection",
             "source": {
@@ -78,7 +75,7 @@
         {
             "name": "flatteningX",
             "states": ["unflattened", "flattenedX"],
-            "triggers": ["isLookingSide", "isClose"],
+            "triggers": ["isLookingSide", "isCloseToVis"],
             "timing": {
                 "control": 0.5,
                 "elapsed": "end"
@@ -91,7 +88,7 @@
         {
             "name": "flatteningZ",
             "states": ["unflattened", "flattenedZ"],
-            "triggers": ["isLookingFront", "isClose"],
+            "triggers": ["isLookingFront", "isCloseToVis"],
             "timing": {
                 "control": 0.5,
                 "easing": "easeoutcirc",

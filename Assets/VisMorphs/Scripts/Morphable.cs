@@ -25,11 +25,10 @@ namespace DxR.VisMorphs
         public List<string> CandidateStateNames = new List<string>();
         public List<string> CandidateTransitionNames = new List<string>();
         public List<string> ActiveTransitionNames = new List<string>();
-
         public List<CandidateMorph> CandidateMorphs = new List<CandidateMorph>();
 
-        private Vis parentVis;
-        private JSONNode currentVisSpec;
+        public Vis ParentVis { get; private set; }
+        public JSONNode CurrentVisSpec { get; private set; }
         private bool isInitialised;
         private Dictionary<string, Tuple<Action, int>> queuedTransitionActivations = new Dictionary<string, Tuple<Action, int>>();
         private Dictionary<string, Tuple<Action, int>> queuedTransitionDeactivations = new Dictionary<string, Tuple<Action, int>>();
@@ -68,8 +67,8 @@ namespace DxR.VisMorphs
         {
             if (!isInitialised)
             {
-                parentVis = GetComponent<Vis>();
-                parentVis.VisUpdated.AddListener(VisUpdated);
+                ParentVis = GetComponent<Vis>();
+                ParentVis.VisUpdated.AddListener(VisUpdated);
                 GUID = System.Guid.NewGuid().ToString().Substring(0, 8);
                 isInitialised = true;
             }
@@ -82,8 +81,8 @@ namespace DxR.VisMorphs
             if (!isInitialised)
                 Initialise();
 
-            currentVisSpec = parentVis.GetVisSpecs();
-            VisUpdated(parentVis, currentVisSpec);
+            CurrentVisSpec = ParentVis.GetVisSpecs();
+            VisUpdated(ParentVis, CurrentVisSpec);
         }
 
         /// <summary>
@@ -94,7 +93,7 @@ namespace DxR.VisMorphs
             if (!isInitialised)
                 return;
 
-            currentVisSpec = visSpec;
+            CurrentVisSpec = visSpec;
 
             // Only check if there are no more activations/deactivations to go
             if (queuedTransitionActivations.Count > 0 || queuedTransitionDeactivations.Count > 0)
@@ -228,7 +227,7 @@ namespace DxR.VisMorphs
                 else
                 {
                     // This probably causes issues whereby changing visualisation encodings means that sometimes conditions will no longer be met, but oh well
-                    parentVis.StopTransition(activeTransitionName);
+                    ParentVis.StopTransition(activeTransitionName);
                     ActiveTransitionNames.Remove(activeTransitionName);
                 }
             }
@@ -670,7 +669,7 @@ namespace DxR.VisMorphs
 
             // Generate the initial and final vis states
             JSONNode initialState, finalState;
-            GenerateVisSpecKeyframes(currentVisSpec,
+            GenerateVisSpecKeyframes(CurrentVisSpec,
                                      candidateMorph.Morph.GetStateFromName(transitionSpec["states"][0]),
                                      candidateMorph.Morph.GetStateFromName(transitionSpec["states"][1]),
                                      candidateMorph,
@@ -701,7 +700,7 @@ namespace DxR.VisMorphs
 
             // Call update to final state using a tweening observable
             var tweeningObservable = CreateTweeningObservable(candidateMorph, transitionSpec, isReversed);
-            bool success = parentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservable, easingFunction, stages);
+            bool success = ParentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservable, easingFunction, stages);
 
             if (success)
             {
@@ -728,7 +727,7 @@ namespace DxR.VisMorphs
                 return;
             }
 
-            parentVis.StopTransition(transitionName, goToEnd, true);
+            ParentVis.StopTransition(transitionName, goToEnd, true);
 
             // Unsubscribe to this transition's signals
             candidateMorph.DisposeTransitionSubscriptions(transitionName);
@@ -755,7 +754,7 @@ namespace DxR.VisMorphs
             // If there were transitions in progress, stop all of them
             foreach (string activeMorph in ActiveTransitionNames)
             {
-                parentVis.StopTransition(activeMorph, goToEnd);
+                ParentVis.StopTransition(activeMorph, goToEnd);
             }
             ActiveTransitionNames.Clear();
 
@@ -1196,7 +1195,7 @@ namespace DxR.VisMorphs
         private void OnDestroy()
         {
             Reset();
-            parentVis.VisUpdated.RemoveListener(VisUpdated);
+            ParentVis.VisUpdated.RemoveListener(VisUpdated);
             MorphManager.Instance.ClearMorphableVariables(this);
         }
     }

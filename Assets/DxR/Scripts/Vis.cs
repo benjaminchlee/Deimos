@@ -78,6 +78,11 @@ namespace DxR
         [HideInInspector]
         public VisUpdatedEvent VisUpdated;
 
+        [Serializable]
+        public class VisInferredUpdatedEvent : UnityEvent<Vis, JSONNode> { }
+        [HideInInspector]
+        public VisUpdatedEvent VisInferredUpdated;
+
         private bool isReady = false;
         public bool IsReady { get { return isReady; } }
 
@@ -136,6 +141,11 @@ namespace DxR
             return visSpecs;
         }
 
+        public JSONNode GetVisSpecsInferred()
+        {
+            return visSpecsInferred;
+        }
+
         public int GetNumMarkInstances()
         {
             return markInstances.Count;
@@ -161,7 +171,7 @@ namespace DxR
         /// Currently, deletes everything and reconstructs everything from scratch.
         /// TODO: Only reconstruct newly updated properties.
         /// </summary>
-        private void UpdateVis(bool callUpdateEvent = true)
+        private void UpdateVis(bool callUpdateEvent = true, bool callInferredUpdateEvent = true)
         {
             // We no longer need to delete marks and axes
             DeleteInteractions();
@@ -178,7 +188,10 @@ namespace DxR
             ConstructVis(visSpecsInferred);
 
             if (callUpdateEvent)
-                VisUpdated.Invoke(this, GetVisSpecs());
+                VisUpdated.Invoke(this, visSpecs);
+
+            if (callInferredUpdateEvent)
+                VisUpdated.Invoke(this, visSpecsInferred);
 
             UpdateVisPose(visSpecsInferred);
 
@@ -332,7 +345,7 @@ namespace DxR
             }
         }
 
-        public void StopTransition(string transitionName, bool goToEnd = true, bool commitVisSpecChanges = true)
+        public void StopTransition(string transitionName, bool goToEnd = true, bool commitVisSpecChanges = true, bool callUpdateEvent = false, bool callInferredUpdateEvent = false)
         {
             if (!activeTransitions.ContainsKey(transitionName))
             {
@@ -346,6 +359,12 @@ namespace DxR
             UpdateCollider();
 
             activeTransitions.Remove(transitionName);
+
+            if (callUpdateEvent)
+                VisUpdated.Invoke(this, visSpecs);
+
+            if (callInferredUpdateEvent)
+                VisUpdated.Invoke(this, visSpecsInferred);
         }
 
         private void ApplyTransitionChannelEncodings(ActiveTransition activeTransition)
@@ -2205,14 +2224,14 @@ namespace DxR
             UpdateVis();
         }
 
-        public void UpdateVisSpecsFromJSONNode(JSONNode specs, bool callUpdateEvent = true, bool updateGuiSpecs = true)
+        public void UpdateVisSpecsFromJSONNode(JSONNode specs, bool updateGuiSpecs = true, bool callUpdateEvent = true, bool callInferredUpdateEvent = true)
         {
             visSpecs = specs;
 
             if (enableGUI && updateGuiSpecs)
                 gui.UpdateGUISpecsFromVisSpecs();
 
-            UpdateVis(callUpdateEvent);
+            UpdateVis(callUpdateEvent, callInferredUpdateEvent);
         }
 
         public void UpdateVisSpecsFromTextSpecs()
