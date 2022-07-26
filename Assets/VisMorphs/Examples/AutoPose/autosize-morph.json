@@ -1,0 +1,59 @@
+
+{
+    "states": [
+        {
+            "name": "unscaled",
+            "encoding": {
+                "x": "*",
+                "y": "*"
+            },
+            "width": "*",
+            "height": "*",
+            "depth": "*"
+        },
+        {
+            "name": "scaled",
+            "encoding": {
+                "x": "*",
+                "y": "*"
+            },
+            "width": "other.width * 1.5",
+            "height": "other.height * 1.5",
+            "depth": "other.depth * 1.5"
+        }
+    ],
+
+    "signals": [{
+            "name": "headPosition",
+            "source": {
+                "type": "head",
+                "select": "transform.position"
+            }
+        }, {
+            "name": "visPosition",
+            "source": {
+                "type": "vis",
+                "select": "transform.position"
+            }
+        }, {
+            "name": "isFarFromVis",
+            "expression": "distance(headPosition, visPosition) > 4"
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "scaling",
+            "states": ["unscaled", "scaled"],
+            "triggers": ["isFarFromVis"],
+            "timing": {
+                "control": 0.5,
+                "elapsed": "end"
+            },
+            "interrupt": {
+                "control": "ignore"
+            },
+            "bidirectional": true
+        }
+    ]
+}

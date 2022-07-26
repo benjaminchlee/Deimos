@@ -481,8 +481,10 @@ namespace DxR.VisMorphs
                         return false;
                     }
                 }
-                // Condition 2: the value of this property is defined as a wildcard ("*")
-                else if (statePropertyValue.ToString() == "\"*\"")
+                // Condition 2: the value of this property is defined as a wildcard ("*") or is prefixed with "this." or "other."
+                else if (statePropertyValue == "*" ||
+                        ((string)statePropertyValue).StartsWith("this.") ||
+                        ((string)statePropertyValue).StartsWith("other."))
                 {
                     if (visPropertyValue == null ||
                         (visPropertyValue != null && visPropertyValue.IsNull))
@@ -516,8 +518,8 @@ namespace DxR.VisMorphs
 
                 JSONNode visEncodingValue = visEncodingSpecs[stateEncodingKey];
 
-                /// If the value of this encoding is null, it means that our vis specs should NOT have it
-                /// e.g., "x": null
+                // If the value of this encoding is null, it means that our vis specs should NOT have it
+                // e.g., "x": null
                 if (stateEncodingValue.IsNull)
                 {
                     // If the vis specs does actually have this encoding with a properly defined value, then it fails the check
@@ -525,6 +527,16 @@ namespace DxR.VisMorphs
                     {
                         return false;
                     }
+                }
+                // If the value of this encoding is as a wildcard ("*") or is prefixed with "this." or "other.", it means our vis specs
+                // should at least have this encoding, no matter its contents
+                else if (stateEncodingValue == "*")
+                {
+                    // The vis should have a value for this property. If it doesn't, it fails the check
+                    if (visEncodingValue == null ||
+                        (visEncodingValue != null && visEncodingValue.IsNull))
+                        return false;
+
                 }
                 // Otherwise, we check all of the properties within this property (i.e., field, value, type) to ensure they match
                 else
@@ -799,7 +811,8 @@ namespace DxR.VisMorphs
                 _finalVisSpec = GenerateVisSpecFromStateSpecs(_initialVisSpec, _initialStateSpec, _finalStateSpec, candidateMorph);
 
                 // Replace all of the leaf nodes that reference other values by JSON path or by Signal names with their proper values
-                ReplaceLeafValuesInVisSpec(ref _finalVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
+                // ReplaceLeafValuesInVisSpec(ref _finalVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
+                ResolveLeafValuesInVisSpec(ref _finalVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
 
             }
             else
@@ -807,7 +820,8 @@ namespace DxR.VisMorphs
                 candidateMorph.StoredVisKeyframes[_finalStateSpec["name"].ToString()] = _originalVisSpec;
                 _finalVisSpec = _originalVisSpec;
                 _initialVisSpec = GenerateVisSpecFromStateSpecs(_finalVisSpec, _finalStateSpec, _initialStateSpec, candidateMorph);
-                ReplaceLeafValuesInVisSpec(ref _initialVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
+                // ReplaceLeafValuesInVisSpec(ref _initialVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
+                ResolveLeafValuesInVisSpec(ref _initialVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
             }
 
             // Convert back to SimpleJSON
@@ -1049,9 +1063,156 @@ namespace DxR.VisMorphs
         }
 
         /// <summary>
-        /// This function does two things:
-        /// 1. Replaces all leaf values that are names of signals with said signal's values, in JToken form
+        /// This function does three things:
+        /// 1. Replaces all leaf values that include names of signals with said signal's values, in JToken form
         /// 2. Copies JTokens from one property/encoding to the other using JSON.NET's path format, prefixed with "this." or ".other"
+        /// 3. Evaluates all leaf values that are left as expressions
+        private void ResolveLeafValuesInVisSpec(ref JObject visSpec, JObject initialVisSpec, JObject finalVisSpec, CandidateMorph candidateMorph)
+        {
+            // Get all leaf nodes in the vis specs
+            var descendants = visSpec.Descendants().Where(descendant => !descendant.HasValues);
+
+            List<Tuple<string, JToken>> descendantsToUpdate = new List<Tuple<string, JToken>>();
+
+            // Loop through and resolve each leaf value independently
+            foreach (var descendant in descendants)
+            {
+                // Ignore certain properties
+                if (descendant.Parent.Type == JTokenType.Property)
+                {
+                    string propertyName = ((JProperty)descendant.Parent).Name.ToString();
+                    if (propertyName == "name" || propertyName == "title")
+                        continue;
+                }
+
+                // Split the leaf into individual values. This allows us to resolve instances where multiple JSON path references are used
+                string[] tokens = descendant.ToString().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                for (int i = 0; i < tokens.Length; i++)
+                {
+                    string token = tokens[i];
+
+                    // If this token references another property, resolve it
+                    if (token.StartsWith("this.") || token.StartsWith("other."))
+                    {
+                        // If this token is part of an expression, but it is not of type
+
+                        // We get the value from either the initial or final vis spec depending on the prefix
+                        JObject specToCheck = null;
+                        string sourcePath = "";
+                        if (token.StartsWith("this."))
+                        {
+                            specToCheck = initialVisSpec;
+                            sourcePath = token.Replace("this.", "");
+                        }
+                        else if (token.StartsWith("other."))
+                        {
+                            specToCheck = initialVisSpec;
+                            sourcePath = token.Replace("other.", "");
+                        }
+
+                        JToken sourceValue = specToCheck.SelectToken(sourcePath);
+                        if (sourceValue != null)
+                        {
+                            // Make sure that it and nothing inside of it is also another reference path
+                            // There is probably a slim chance that this returns a false positive. Good enough for our purposes though
+                            if (sourceValue.ToString().Contains("this.") || sourceValue.ToString().StartsWith("other."))
+                            {
+                                throw new Exception(string.Format("Vis Morphs: A JSON path reference in a state specification cannot refer to another property that also has a JSON path reference (i.e., no loops). Error found in {0}.", descendant.Path + "." + descendant.ToString()));
+                            }
+                            // If this isn't the only token in the split, we need to make sure that the data type is correct
+                            else if (tokens.Length > 1)
+                            {
+                                if (sourceValue.Type == JTokenType.Integer || sourceValue.Type == JTokenType.Float || sourceValue.Type == JTokenType.String)
+                                {
+                                    // If the type is correct, replace the token with the new value. We will concatenate these later
+                                    tokens[i] = sourceValue.ToString();
+                                }
+                                else
+                                {
+                                    throw new Exception(string.Format("Vis Morphs: A JSON path reference in a state specification cannot refer to a non string/number value while also using an expression. Error found in:\n{0}", descendant.Path + "." + descendant.ToString()));
+                                }
+                            }
+                            else
+                            {
+                                descendantsToUpdate.Add(new Tuple<string, JToken>(descendant.Path, sourceValue));
+                            }
+                        }
+                        else
+                        {
+                            throw new Exception(string.Format("Vis Morphs: Cound not find property from the JSON path reference \"{0}\"", token));
+                        }
+                    }
+                }
+
+                // If this value has more than one token (i.e., it's an expression)
+                // Note that any values where we replaced the leaf with a JObject would have already been caught, meaning we don't have to worry about it here
+                if (tokens.Length > 1)
+                {
+                    // Rejoin the tokens together. This will be the value set in the spec for now
+                    JToken newValue = new JValue(string.Join(' ', tokens));
+                    descendantsToUpdate.Add(new Tuple<string, JToken>(descendant.Path, newValue));
+                }
+            }
+
+            // Properly update the descendants in the vis spec to resolve JSON path references
+            foreach (var tuple in descendantsToUpdate)
+            {
+                var descendant = visSpec.SelectToken(tuple.Item1).Parent as JProperty;
+                descendant.Value = tuple.Item2;
+            }
+
+            // Now we do the process AGAIN, but this time resolving expressions and converting them to their appropriate JToken formats
+            descendants = visSpec.Descendants().Where(descendant => !descendant.HasValues);
+            descendantsToUpdate = new List<Tuple<string, JToken>>();
+
+            foreach (var descendant in descendants)
+            {
+                // Ignore certain properties
+                if (descendant.Parent.Type == JTokenType.Property)
+                {
+                    string propertyName = ((JProperty)descendant.Parent).Name.ToString();
+                    if (propertyName == "name" || propertyName == "title")
+                        continue;
+                }
+
+                // Check if the descendant is a string. If it's not, then chances are it isn't an expression nor a Signal
+                if (descendant.Type == JTokenType.String)
+                {
+                    // If the descendent has spaces, then there's a reasonably good chance it is an expression. Resolve it
+                    if (descendant.ToString().Contains(' '))
+                    {
+                        // Pass the expression to the expression interpreter to resolve it
+                        // The interpreter should already have the variables for our Signals already stored, meaning that we don't need to pass them onto it
+                        dynamic value = MorphManager.Instance.EvaluateExpression(this, descendant.ToString());
+                        JToken valueJToken = ConvertDynamicValueToJToken(value);
+                        descendantsToUpdate.Add(new Tuple<string, JToken>(descendant.Path, valueJToken));
+                    }
+                    // Otherwise, see if it's a Signal and set its value
+                    else
+                    {
+                        JToken valueJToken = GetJTokenFromSignalName(descendant.ToString(), candidateMorph);
+                        if (valueJToken != null)
+                        {
+                            descendantsToUpdate.Add(new Tuple<string, JToken>(descendant.Path, valueJToken));
+                        }
+                    }
+                }
+            }
+
+            // Properly update the descendants in the vis spec again to resolve expressions and Signal names
+            foreach (var tuple in descendantsToUpdate)
+            {
+                var descendant = visSpec.SelectToken(tuple.Item1).Parent as JProperty;
+                descendant.Value = tuple.Item2;
+            }
+        }
+
+        /// <summary>
+        /// This function does three things:
+        /// 1. Replaces all leaf values that include names of signals with said signal's values, in JToken form
+        /// 2. Copies JTokens from one property/encoding to the other using JSON.NET's path format, prefixed with "this." or ".other"
+        /// 3. Evaluates all leaf values that are left as expressions
         /// </summary>
         private void ReplaceLeafValuesInVisSpec(ref JObject visSpec, JObject initialVisSpec, JObject finalVisSpec, CandidateMorph candidateMorph)
         {
@@ -1118,7 +1279,7 @@ namespace DxR.VisMorphs
             if (observable != null)
             {
                 dynamic value = GetLastValueFromObservable(observable);
-                return ConvertObservableValueToJToken(value);
+                return ConvertDynamicValueToJToken(value);
             }
 
             return null;
@@ -1134,26 +1295,33 @@ namespace DxR.VisMorphs
             return value;
         }
 
-        private JToken ConvertObservableValueToJToken(dynamic value)
+        private JToken ConvertDynamicValueToJToken(dynamic value)
         {
-            switch (value.GetType().ToString())
-            {
-                case "UnityEngine.Vector3":
-                    {
-                        Vector3 vector3 = (Vector3)value;
-                        return new JArray(vector3.x, vector3.y, vector3.z);
-                    }
+            string[] split = value.GetType().ToString().Split('.');
+            string type = split[split.Length - 1].ToLower();
 
-                case "UnityEngine.Quaternion":
-                    {
-                        Quaternion quaternion = (Quaternion)value;
-                        return new JArray(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
-                    }
+            switch (type)
+            {
+                case "string":
+                    string s = value.ToString();
+                    return new JValue(s);
+
+                case "int":
+                case "float":
+                case "double":
+                    float f = (float)value;
+                    return new JValue(f);
+
+                case "vector3":
+                    Vector3 vector3 = (Vector3)value;
+                    return new JArray(vector3.x, vector3.y, vector3.z);
+
+                case "quaternion":
+                    Quaternion quaternion = (Quaternion)value;
+                    return new JArray(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
 
                 default:
-                    {
-                        return null;
-                    }
+                    return null;
             }
         }
 

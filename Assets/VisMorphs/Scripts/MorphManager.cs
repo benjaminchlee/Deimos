@@ -714,9 +714,33 @@ namespace DxR.VisMorphs
             Func<Collider, Vector3, Vector3> closestPoint = (collider, position) => collider.ClosestPoint(position);
             interpreter.SetFunction("closestpoint", closestPoint);
 
+            // Look rotation
+            Func<Vector3, Quaternion> lookRotation1 = (forward) => Quaternion.LookRotation(forward);
+            interpreter.SetFunction("lookrotation", lookRotation1);
+
+            Func<Vector3, Vector3, Quaternion> lookRotation2 = (forward, upwards) => Quaternion.LookRotation(forward, upwards);
+            interpreter.SetFunction("lookrotation", lookRotation2);
+
             // Save this interpreter to the dictionary, matching it to the provided GUID
             Interpreters[guid] = interpreter;
             return interpreter;
+        }
+
+        public dynamic EvaluateExpression(Morphable morphable, string expression)
+        {
+            return EvaluateExpression(morphable.GUID, expression);
+        }
+
+        private static dynamic EvaluateExpression(string guid, string expression)
+        {
+            if (Interpreters.TryGetValue(guid, out Interpreter interpreter))
+            {
+                return interpreter.Eval(expression);
+            }
+            else
+            {
+                throw new Exception(string.Format("Vis Morphs: The expression interpreter for the Morphable with GUID {0} does not exist. This shouldn't happen.", guid));
+            }
         }
 
         #endregion Signals

@@ -3892,6 +3892,9 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
+  VisInferredUpdated:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!4 &215304197
 Transform:
   m_ObjectHideFlags: 0
@@ -5696,7 +5699,7 @@ MonoBehaviour:
   rotateLerpTime: 0.001
   scaleLerpTime: 0.001
   enableConstraints: 0
-  constraintsManager: {fileID: 307809399}
+  constraintsManager: {fileID: 215304193}
   elasticsManager: {fileID: 0}
   onManipulationStarted:
     m_PersistentCalls:
@@ -5793,6 +5796,9 @@ MonoBehaviour:
   verbose: 0
   markInstances: []
   VisUpdated:
+    m_PersistentCalls:
+      m_Calls: []
+  VisInferredUpdated:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &307809403
@@ -11221,6 +11227,9 @@ MonoBehaviour:
   verbose: 0
   markInstances: []
   VisUpdated:
+    m_PersistentCalls:
+      m_Calls: []
+  VisInferredUpdated:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &639472985
@@ -17671,7 +17680,7 @@ MonoBehaviour:
   rotateLerpTime: 0.001
   scaleLerpTime: 0.001
   enableConstraints: 1
-  constraintsManager: {fileID: 982090491}
+  constraintsManager: {fileID: 215304193}
   elasticsManager: {fileID: 0}
   onManipulationStarted:
     m_PersistentCalls:
@@ -17742,6 +17751,9 @@ MonoBehaviour:
   verbose: 0
   markInstances: []
   VisUpdated:
+    m_PersistentCalls:
+      m_Calls: []
+  VisInferredUpdated:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &982090494
@@ -20137,6 +20149,9 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
+  VisInferredUpdated:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!4 &1119035473
 Transform:
   m_ObjectHideFlags: 0
@@ -22221,6 +22236,9 @@ MonoBehaviour:
   verbose: 0
   markInstances: []
   VisUpdated:
+    m_PersistentCalls:
+      m_Calls: []
+  VisInferredUpdated:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &1245073527
@@ -27221,6 +27239,9 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
+  VisInferredUpdated:
+    m_PersistentCalls:
+      m_Calls: []
 --- !u!4 &1512344091
 Transform:
   m_ObjectHideFlags: 0
@@ -27283,7 +27304,7 @@ MonoBehaviour:
   rotateLerpTime: 0.001
   scaleLerpTime: 0.001
   enableConstraints: 1
-  constraintsManager: {fileID: 1512344094}
+  constraintsManager: {fileID: 215304193}
   elasticsManager: {fileID: 0}
   onManipulationStarted:
     m_PersistentCalls:
@@ -37406,6 +37427,8 @@ MonoBehaviour:
     Enabled: 1
   - Json: {fileID: 4900000, guid: 619da201ab8f947419e2b7bc9c45b3ec, type: 3}
     Enabled: 1
+  - Json: {fileID: 4900000, guid: 0a8969e0a3e3b2949b07fd24ab9ad6cb, type: 3}
+    Enabled: 0
 --- !u!1 &2072357991
 GameObject:
   m_ObjectHideFlags: 0

@@ -1,3 +1,4 @@
+
 {
     "states": [
         {
@@ -12,7 +13,7 @@
         },
         {
             "name": "flattenedX",
-            "width": 10,
+            "width": "other.width * 0.5",
             "depth": 500,
             "encoding": {
                 "x": "*",
@@ -23,7 +24,7 @@
         {
             "name": "flattenedZ",
             "width": 500,
-            "depth": 10,
+            "depth": "other.depth * 0.02",
             "encoding": {
                 "x": "*",
                 "y": "*",
@@ -77,7 +78,7 @@
             "states": ["unflattened", "flattenedX"],
             "triggers": ["isLookingSide", "isCloseToVis"],
             "timing": {
-                "control": 0.5,
+                "control": 1,
                 "elapsed": "end"
             },
             "interrupt": {
@@ -90,7 +91,7 @@
             "states": ["unflattened", "flattenedZ"],
             "triggers": ["isLookingFront", "isCloseToVis"],
             "timing": {
-                "control": 0.5,
+                "control": 1,
                 "easing": "easeoutcirc",
                 "elapsed": "end"
             },
