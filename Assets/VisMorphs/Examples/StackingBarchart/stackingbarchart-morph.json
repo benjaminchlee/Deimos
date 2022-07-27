@@ -52,57 +52,45 @@
                 }
             },
             "position": {
-                "value": "collisionPoint"
+                "value": "touchedSurfaceIntersectionPoint"
             },
             "rotation": {
-                "value": "surfaceRotationSideways"
+                "value": "touchedSurfaceRotationRotated"
             }
         }
     ],
 
-    "signals": [{
-            "name": "intersectingSurface",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "intersecting"
-            }
+    "signals": [
+        {
+            "name": "isVisTouchingSurface",
+            "source": "vis",
+            "target": "Surface",
+            "criteria": "touch",
+            "value": "boolean"
         }, {
-            "name": "collisionPoint",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "collisionpoint"
-            }
-        },{
-            "name": "surfaceNormal",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "transform.forward"
-            }
+            "name": "touchedSurfaceIntersectionPoint",
+            "source": "vis",
+            "target": "Surface",
+            "criteria": "touch",
+            "value": "intersection"
         }, {
-            "name": "surfaceRotation",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "transform.rotation"
-            }
+            "name": "touchedSurfaceRotation",
+            "source": "vis",
+            "target": "Surface",
+            "criteria": "touch",
+            "value": "rotation"
         }, {
-            "name": "visDirection",
-            "source": {
-                "type": "vis",
-                "select": "transform.forward"
-            }
+            "name": "touchedSurfaceIntersectionAngle",
+            "source": "vis",
+            "target": "Surface",
+            "criteria": "touch",
+            "value": "angle"
         }, {
-            "name": "intersectionAngle",
-            "expression": "angle(surfaceNormal, visDirection)"
+            "name": "isTouchingSideways",
+            "expression": "60 < touchedSurfaceIntersectionAngle && touchedSurfaceIntersectionAngle < 120"
         }, {
-            "name": "isIntersectingSideways",
-            "expression": "60 < intersectionAngle && intersectionAngle < 120"
-        }, {
-            "name": "surfaceRotationSideways",
-            "expression": "surfaceRotation * euler(0, 90, 0)"
+            "name": "touchedSurfaceRotationRotated",
+            "expression": "touchedSurfaceRotation * euler(0, 90, 0)"
         }
     ],
 
@@ -110,7 +98,7 @@
         {
             "name": "stacking",
             "states": ["3d barchart", "stacked 2d barchart"],
-            "triggers": ["intersectingSurface", "isIntersectingSideways"],
+            "triggers": ["isVisTouchingSurface", "isTouchingSideways"],
             "timing": {
                 "control": 0.75,
                 "easing": "easeoutcirc"

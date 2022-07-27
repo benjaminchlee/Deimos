@@ -24,6 +24,16 @@ namespace DxR.VisMorphs
                 }
             }
 
+            if (GUILayout.Button("Enable All Morphs"))
+            {
+                morphManagerScript.EnableAllMorphs();
+            }
+
+            if (GUILayout.Button("Disable All Morphs"))
+            {
+                morphManagerScript.DisableAllMorphs();
+            }
+
             DrawDefaultInspector();
         }
     }

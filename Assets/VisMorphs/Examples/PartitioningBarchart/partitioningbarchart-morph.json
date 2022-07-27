@@ -53,35 +53,32 @@
                 }
             },
             "position": {
-                "value": "collisionPoint"
+                "value": "touchedSurfaceIntersectionPoint"
             },
             "rotation": {
-                "value": "surfaceRotation"
+                "value": "touchedSurfaceRotation"
             }
         }
     ],
 
     "signals": [{
-            "name": "intersectingSurface",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "intersecting"
-            }
+            "name": "isVisTouchingSurface",
+            "source": "vis",
+            "target": "Surface",
+            "criteria": "touch",
+            "value": "boolean"
         }, {
-            "name": "collisionPoint",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "collisionpoint"
-            }
+            "name": "touchedSurfaceIntersectionPoint",
+            "source": "vis",
+            "target": "Surface",
+            "criteria": "touch",
+            "value": "intersection"
         }, {
-            "name": "surfaceRotation",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "transform.rotation"
-            }
+            "name": "touchedSurfaceRotation",
+            "source": "vis",
+            "target": "Surface",
+            "criteria": "touch",
+            "value": "rotation"
         }
     ],
 
@@ -89,7 +86,7 @@
         {
             "name": "stacked2faceted",
             "states": ["stacked", "faceted"],
-            "triggers": ["intersectingSurface"],
+            "triggers": ["isVisTouchingSurface"],
             "timing": {
                 "control": 0.75,
                 "easing": "easeoutcirc"

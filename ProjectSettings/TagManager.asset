@@ -14,6 +14,9 @@ TagManager:
   - Tip
   - DxRInteractions
   - Surface
+  - DxRMark
+  - DxRAxis
+  - DxRLegend
   layers:
   - Default
   - TransparentFX

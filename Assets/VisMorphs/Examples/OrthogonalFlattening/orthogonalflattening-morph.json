@@ -33,36 +33,20 @@
         }
     ],
 
-    "signals": [{
-            "name": "headPosition",
-            "source": {
-                "type": "head",
-                "select": "transform.position"
-            }
-        }, {
-            "name": "visPosition",
-            "source": {
-                "type": "vis",
-                "select": "transform.position"
-            }
-        }, {
-            "name": "isCloseToVis",
-            "expression": "distance(headPosition, visPosition) < 1"
-        }, {
-            "name": "headDirection",
-            "source": {
-                "type": "head",
-                "select": "transform.forward"
-            }
-        }, {
-            "name": "visDirection",
-            "source": {
-                "type": "vis",
-                "select": "transform.forward"
-            }
+    "signals": [
+        {
+            "name": "headVisDistance",
+            "source": "head",
+            "target": "vis",
+            "value": "closestdistance"
         }, {
             "name": "headVisAngle",
-            "expression": "angle(headDirection, visDirection)"
+            "source": "head",
+            "target": "vis",
+            "value": "angle"
+        }, {
+            "name": "isCloseToVis",
+            "expression": "headVisDistance < 1"
         }, {
             "name": "isLookingFront",
             "expression": "headVisAngle < 20 || 160 < headVisAngle"

@@ -1,0 +1,36 @@
+{
+    "states": [
+        {
+            "name": "uncoloured",
+            "encoding": {
+                "color": null
+            }
+        },
+        {
+            "name": "coloured",
+            "encoding": {
+                "color": {
+                    "value": "red"
+                }
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "CONTROLLER",
+            "source": "controller",
+            "handedness": "right",
+            "target": "mark",
+            "criteria": "point",
+            "value": "position"
+        }, {
+            "name": "MOUSE",
+            "source": "mouse",
+            "handedness": "left",
+            "target": "mark",
+            "criteria": "select",
+            "value": "rotation"
+        }
+    ]
+
+}

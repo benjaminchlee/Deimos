@@ -54,14 +54,8 @@
 
     "signals": [{
             "name": "sliderX",
-            "source": {
-                "type": "gameobject",
-                "ref": "GeoScatterSliderHandle",
-                "select": "transform.localPosition.x"
-            }
-        }, {
-            "name": "geoscatterSlider",
-            "expression": "normalise(sliderX, 0, 1)"
+            "source": "GeoScatterSliderHandle",
+            "value": "transform.localPosition.x"
         }
     ],
 
@@ -71,7 +65,7 @@
             "states": ["scatterplot", "choropleth"],
             "triggers": [],
             "timing": {
-                "control": "geoscatterSlider",
+                "control": "sliderX",
                 "easing": "easeinoutquint"
             },
             "staging": {

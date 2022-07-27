@@ -18,10 +18,9 @@
 
     "signals": [{
             "name": "mousedown",
-            "source": {
-                "type": "mouse",
-                "select": "leftmousedown"
-            }
+            "source": "mouse",
+            "handedness": "left",
+            "value": "press"
         }
     ],
 

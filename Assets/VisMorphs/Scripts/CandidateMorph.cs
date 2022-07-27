@@ -34,7 +34,7 @@ namespace DxR.VisMorphs
         public void SaveLocalSignal(string name, IObservable<dynamic> observable)
         {
             // Make the signal a ReplaySubject which returns the most recently emitted item as soon as it is subscribed to
-            observable = observable.Replay(1).RefCount();
+            observable = observable.Replay(1).RefCount().DistinctUntilChanged();
 
             // Subscribe to both force the signal to behave as a hot observable, and also for debugging purposes
             observable.Subscribe(_ =>

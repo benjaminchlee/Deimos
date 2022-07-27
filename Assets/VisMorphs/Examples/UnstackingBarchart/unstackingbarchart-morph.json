@@ -62,43 +62,28 @@
         }
     ],
 
-    "signals": [{
-            "name": "surfaceCollider",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "closestcollider"
-            }
+    "signals": [
+        {
+            "name": "isVisTouchingSurface",
+            "source": "vis",
+            "target": "Surface",
+            "criteria": "touch",
+            "value": "boolean"
         }, {
-            "name": "rightHandPos",
-            "source": {
-                "type": "hands",
-                "ref": "right",
-                "select": "position"
-            }
+            "name": "isRightHandPinching",
+            "source": "hand",
+            "handedness": "right",
+            "value": "pinch"
         }, {
-            "name": "rightHandPinch",
-            "source": {
-                "type": "hands",
-                "ref": "right",
-                "select": "pinch"
-            }
-        }, {
-            "name": "isOnSurface",
-            "source": {
-                "type": "vis",
-                "ref": "surface",
-                "select": "intersecting"
-            }
-        }, {
-            "name": "pinching",
-            "expression": "rightHandPinch > 0.5 "
-        }, {
-            "name": "extrudeDistance",
-            "expression": "distance(rightHandPos, closestpoint(surfaceCollider, rightHandPos))"
+            "name": "rightHandSurfaceDistance",
+            "source": "hand",
+            "handedness": "right",
+            "target": "Surface",
+            "criteria": "closest",
+            "value": "closestdistance"
         }, {
             "name": "tweener",
-            "expression":"normalise(extrudeDistance, 0.05, 0.35, 0, 1)"
+            "expression":"normalise(rightHandSurfaceDistance, 0.05, 0.35, 0, 1)"
         }
     ],
 
@@ -106,10 +91,10 @@
         {
             "name": "unstacking",
             "states": ["stacked", "side by side"],
-            "triggers": ["isOnSurface", "pinching"],
+            "triggers": ["isVisTouchingSurface", "isRightHandPinching"],
             "timing": {
                 "control": "tweener",
-                "easing": "easeoutbounce"
+                "easing": "easeinoutcirc"
             },
             "staging": {
                 "z": [0, 0.5],

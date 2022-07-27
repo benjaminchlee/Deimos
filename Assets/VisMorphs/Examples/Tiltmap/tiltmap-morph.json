@@ -89,20 +89,12 @@
 
     "signals": [
         {
-            "name": "rotationX",
-            "source": {
-                "type": "vis",
-                "select": "transform.localRotation.eulerAngles.x"
-            }
-        }, {
-            "name": "upVector",
-            "source": {
-                "type": "vis",
-                "select": "transform.up"
-            }
+            "name": "visDirectionUp",
+            "source": "vis",
+            "value": "up"
         }, {
             "name": "tilt",
-            "expression": "angle(vector3(0, 1, 0), upVector)"
+            "expression": "angle(vector3(0, 1, 0), visDirectionUp)"
         }, {
             "name": "c2pTween",
             "expression": "normalise(tilt, 20, 45)"

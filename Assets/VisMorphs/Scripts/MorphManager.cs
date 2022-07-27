@@ -32,6 +32,17 @@ namespace DxR.VisMorphs
         private Dictionary<string, IObservable<dynamic>> GlobalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
         private static CompositeDisposable disposables;
 
+        // private readonly string[] validSignalSources = new string[] { "mouse", "head", "controller", "hand", "vis", "gameobject" };
+        // private readonly string[] validSignalHandedness = new string[] { "any", "left", "right" };
+        // private readonly string[] validSignalTargets = new string[] { "vis", "mark", "axis", "legend", "surface", "none" };
+        // private readonly string[] validSignalCriteria = new string[] { "pointing", "selecting", "touching", "nearby", "closest", "farthest" };
+        // private readonly string[] validSignalValues = new string[] { "position", "rotation", "scale", "direction", "forward", "up", "right", "intersection", "pressed" };
+
+        private static Dictionary<string, IObservable<dynamic>> sharedObservables = new Dictionary<string, IObservable<dynamic>>();
+
+        private static MouseObservablesHelper mouseObservablesHelper;
+        private static MRTKObservablesHelper mrtkObservablesHelper;
+
         private void Awake()
         {
             if (Instance != null && Instance != this)
@@ -128,26 +139,34 @@ namespace DxR.VisMorphs
 
         private void ReadSignalsSpecification(Morph morph, JSONNode morphSpec)
         {
+            // Initialise our helper classes which will create and re-use observables
+            if (mouseObservablesHelper == null)
+            {
+                mouseObservablesHelper = new MouseObservablesHelper();
+                mrtkObservablesHelper = new MRTKObservablesHelper();
+            }
+
             JSONNode signalsSpec = morphSpec["signals"];
             if (signalsSpec != null)
             {
                 foreach (JSONNode signalSpec in signalsSpec.Children)
                 {
-                    string signalName = signalSpec["name"];
-                    if (signalName == null)
-                        throw new Exception("Vis Morphs: All signals need to have a name.");
+                    JSONNode signalSpecInferred = ValidateAndInferSignal(signalSpec);
+
+                    string signalName = signalSpecInferred["name"];
 
                     /// We handle signals differently depending on whether it is a global or local signal
-                    /// Global signals are those that can easily be shared across multiple visualisations (e.g., controller events)
-                    /// Local signals are those that are specific to a visualisation (e.g., its position/rotation)
+                    /// Global signals are those that can easily be shared across multiple visualisations (e.g., controller events with no targets)
+                    /// Local signals are those that are specific to a visualisation and its componnts (e.g., the vis's rotation, a targeted mark)
                     ///     We also consider expressions to be local, at least for now
                     /// This script will handle global signals, but each Morphable will need to create these local signals independently
-                    if (IsSignalGlobal(signalSpec))
+                    if (IsSignalGlobal(signalSpecInferred))
                     {
                         IObservable<dynamic> observable = CreateObservableFromSpec(signalSpec);
                         SaveGlobalSignal(signalName, observable);
                         morph.GlobalSignals.Add(signalSpec);
                     }
+                    /// We store a collection of local signal specs which each Morphable will need to create
                     else
                     {
                         morph.LocalSignals.Add(signalSpec);
@@ -161,18 +180,58 @@ namespace DxR.VisMorphs
         }
 
         /// <summary>
+        /// Checks and validates the base properties of the signal spec. There may be other validation rules specific to some configurations however.
+        /// We allow these to be resolved as the signals are being created
+        /// Returns the inferred signal spec
+        /// </summary>
+        private JSONNode ValidateAndInferSignal(JSONNode signalSpec)
+        {
+            JSONNode signalSpecInferred = signalSpec.Clone();
+
+            // All signals need to have a name
+            if (signalSpec["name"] == null)
+                throw new Exception("Vis Morphs: All signals need to have a name property.");
+
+            // The name cannot be blank
+            if (signalSpec["name"].Value.Trim() == "")
+                throw new Exception("Vis Morphs: Signal names cannot be blank.");
+
+            // Expression signals can only have a name and the "expression" property, and no others
+            if (signalSpec["expression"] != null)
+            {
+                if (signalSpec.Children.Count() > 2)
+                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an expression property but contains other non-expression related properties.", signalSpec["name"]));
+            }
+            // Otherwise it is a regular Signal. Perform checks for this
+            else
+            {
+                // All Signals need to have a source
+                if (signalSpec["source"] == null)
+                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" does not have a source property specified.", signalSpec["name"]));
+            }
+
+            return signalSpecInferred;
+        }
+
+        /// <summary>
         /// Returns true if the signal is global, or false if it is local
         /// </summary>
         private bool IsSignalGlobal(JSONNode signalSpec)
         {
-            // For now, any signal that has to do with hand/controller input is considered global
-            // TODO: Expand this to detect global/local expression-based signals too
-            if (signalSpec["source"] != null &&
-                (signalSpec["source"]["type"] == "hands" || signalSpec["source"]["type"] == "mouse"
-                || signalSpec["source"]["type"] == "controller" || signalSpec["source"]["type"] == "gameobject"))
-                return true;
+            // Expressions are always local
+            if (signalSpec["expression"] != null)
+                return false;
 
-            return false;
+            // The only Signals that are global are those which:
+            //  a. Are not a "Vis" source; and
+            //  b. Don't target anything
+            if (signalSpec["source"] == "vis")
+                return false;
+
+            if (signalSpec["target"] != "none")
+                return false;
+
+            return true;
         }
 
         /// <summary>
@@ -181,10 +240,10 @@ namespace DxR.VisMorphs
         private void SaveGlobalSignal(string name, IObservable<dynamic> observable)
         {
             // Make the signal a ReplaySubject which returns the most recently emitted item as soon as it is subscribed to
-            observable = observable.Replay(1).RefCount();
+            observable = observable.Replay(1).RefCount().DistinctUntilChanged();
 
             // Subscribe to both force the signal to behave as a hot observable, and also for debugging purposes
-            observable.Subscribe(_ =>
+            observable.DistinctUntilChanged().Subscribe(_ =>
             {
                 if (DebugSignals)
                     Debug.Log("Global Signal " + name + ": " + _);
@@ -210,363 +269,585 @@ namespace DxR.VisMorphs
             return null;
         }
 
+        /// <summary>
+        /// Creates an observable based off of a given signal spec.
+        ///
+        /// This function first categorises signals into two types:
+        /// 1. Expression based signals
+        /// 2. Source based signals
+        ///
+        /// Source based signals are then categorised into the following six types:
+        /// 1. Mouse based signals that are targetless (e.g., mouse position, left/mouse button presses)
+        /// 2. Mouse based signals that are targeted (e.g., clicked target)
+        /// 3. Hand based sources that are targetless (e.g., hand position, arbitrary controller button presses)
+        /// 4. Hand based sources that compare themselves to a target (e.g., grabbed object, surface which the hand touched)
+        /// 5. Object based sources that are targetless (e.g., head direction, vis rotation)
+        /// 6. Object based sources that compare themselves to a target (e.g., distance between head and vis, closest surface to vis)
+        ///
+        /// There are a lot of these types for multiple reasons:
+        /// a. Mouse sources are on a two-dimensional plane versus the three-dimensional space of hand and object sources
+        /// b. Hand sources rely on MRTK which is not really user friendly in getting state
+        /// c. Targetless signals involve only one variable whereas targeted involve two
+        ///
+        /// These differences mean that for now it's easier just to separate these out.
+        ///
+        /// TODO: Make this not suck, or at least just make it more modular and cool so that it leverages functional reactive programming concepts more
+        /// </summary>
         public static IObservable<dynamic> CreateObservableFromSpec(JSONNode signalSpec, Morphable morphable = null)
         {
-            if (signalSpec["source"] != null)
+            if (signalSpec["expression"] != null)
             {
-                JSONNode sourceSpec = signalSpec["source"];
-                string sourceType = sourceSpec["type"] ?? "";        // What type of source is this observable?
-                string reference = sourceSpec["ref"] ?? "";          // What is the name of the actual entity to get the value from?
-                string selector = sourceSpec["select"] ?? "";        // What specific value from this entity do we then extract?
-
-                switch (sourceType)
+                if (morphable != null)
                 {
-                    case "mouse":
-                        {
-                            return CreateObservableFromMouseSpec(reference, selector);
-                        }
-                    case "controller":
-                        {
-                            return CreateObservableFromControllerSpec(reference, selector);
-                        }
+                    return CreateObservableFromExpression(signalSpec["expression"], morphable);
+                }
+                else
+                {
+                    return null;
+                }
+            }
 
-                    case "hands":
-                        {
-                            return CreateObservableFromHandSpec(reference, selector);
-                        }
+            string source = signalSpec["source"];
+            string target = signalSpec["target"];
 
-                    case "head":
-                        {
-                            return CreateObservableFromHeadSpec(reference, selector);
-                        }
-
-                    case "gameobject":
-                        {
-                            return CreateObservableFromGameObjectSpec(reference, selector);
-                        }
-
-                    case "vis":
-                        {
-                            // Creating an observable from a vis signal should only be done by a Morphable
-                            if (morphable != null)
-                                return CreateObservableFromVisSpec(reference, selector, morphable);
-                            return null;
-                        }
-
-                    default:
-                        return null;
+            if (source == "mouse")
+            {
+                if (target == null || target == "none")
+                {
+                    return CreateMouseUntargetedObservable(signalSpec, morphable);
+                }
+                else
+                {
+                    return CreateMouseTargetedObservable(signalSpec, morphable);
+                }
+            }
+            else if (source == "controller" || source == "hand")
+            {
+                if (target == null ||target == "none")
+                {
+                    return CreateControllerUntargetedObservable(signalSpec, morphable);
+                }
+                else
+                {
+                    return CreateControllerTargetedObservable(signalSpec, morphable);
                 }
             }
             else
             {
-                // Creating an expression observable from a vis signal should only be done by a Morphable
-                string expression = signalSpec["expression"];
-                if (expression != null && morphable != null)
+                if (target == null ||target == "none")
                 {
-                    return CreateObservableFromExpression(expression, morphable);
+                    return CreateObservableFromObjectTargetless(signalSpec, morphable);
                 }
                 else
                 {
-                    throw new Exception(string.Format("Vis Morphs: Signal {0} needs either a source or expression property.", signalSpec["name"]));
+                    return CreateObservableFromObjectTargeted(signalSpec, morphable);
                 }
             }
         }
 
-        private static IObservable<dynamic> CreateObservableFromMouseSpec(string reference, string selector)
+        public static IObservable<dynamic> CreateMouseUntargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
-            // Mouse signals shouldn't need a reference
-            switch (selector)
+            string handedness = signalSpec["handedness"];
+            string value = signalSpec["value"];
+
+            switch (value)
             {
-                case "leftmousedown":
-                    return Observable.EveryUpdate()
-                        .Select(_ => Input.GetMouseButton(0))
-                        .DistinctUntilChanged()
-                        .Select(_ => (dynamic)_);
-
-                case "rightmousedown":
-                    return Observable.EveryUpdate()
-                        .Select(_ => Input.GetMouseButton(1))
-                        .DistinctUntilChanged()
-                        .Select(_ => (dynamic)_);
-
                 case "position":
-                    throw new NotImplementedException();
+                    return mouseObservablesHelper.GetMousePositionObservable().Select(_ => (dynamic)_);
+
+                case "press":
+                    return mouseObservablesHelper.GetMouseButtonPressed(handedness).Select(_ => (dynamic)_);
+
+                case "click":
+                    return mouseObservablesHelper.GetMouseButtonClicked(handedness).Select(_ => (dynamic)_);
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: Mouse event of selector {0} does not exist.", selector));
+                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is a targetless mouse source with an unsupported value property.", signalSpec["name"]));
             }
         }
 
-        private static IObservable<dynamic> CreateObservableFromControllerSpec(string reference, string selector)
+        public static IObservable<dynamic> CreateMouseTargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
-            Handedness handedness = reference == "left" ? Handedness.Left : reference == "right" ? Handedness.Right : Handedness.Any;
+            string handedness = signalSpec["handedness"];
+            string target = signalSpec["target"];
+            string criteria = signalSpec["criteria"];
+            string value = signalSpec["value"];
 
-            switch (selector)
+            // Get an observable that performs raycasts
+            IObservable<RaycastHit[]> raycastHitObservable = mouseObservablesHelper.GetMouseRaycastHitsObservable();
+            // Filter this raycast hits observable depending on the handedness, target, and criteria
+            IObservable<GameObject> targetObservable = null;
+
+            switch (criteria)
             {
-                case "position":
-                {
-                    return Observable.EveryUpdate()
-                        .Select(_ =>
+                case "touch":
+                    targetObservable = raycastHitObservable.Select(hits =>
                         {
-                            foreach (var controller in CoreServices.InputSystem.DetectedControllers)
-                            {
-                                if (controller.ControllerHandedness == handedness && controller.Visualizer != null)
-                                {
-                                    return (controller.InputSource.Pointers[0] as MonoBehaviour).gameObject;
-                                }
-                            }
-
-                            return null;
-                        })
-                        .Where(_ => _ != null)
-                        .Select(x => (dynamic)x.transform.position)
-                        .StartWith(Vector3.zero);
-                }
-
-                case "rotation":
-                {
-                    return Observable.EveryUpdate()
-                        .Select(_ =>
-                        {
-                            foreach (var controller in CoreServices.InputSystem.DetectedControllers)
-                            {
-                                if (controller.ControllerHandedness == handedness && controller.Visualizer != null)
-                                {
-                                    return (controller.InputSource.Pointers[0] as MonoBehaviour).gameObject;
-                                }
-                            }
-
-                            return null;
-                        })
-                        .Where(_ => _ != null)
-                        .Select(x => (dynamic)x.transform.rotation)
-                        .StartWith(Vector3.zero);
-                }
+                            return hits.Where(hit => hit.collider.transform.tag == target)
+                                    .Where(hit => hit.transform.GetComponentInParent<Morphable>() == morphable) // TODO: This filtering should only be done if the Target is something that is Vis specific (i.e., vis, mark, axis, legend)
+                                    .Select(hit => hit.collider.transform.gameObject).FirstOrDefault();
+                        });
+                    break;
 
                 case "select":
-                case "grip":
-                {
-                    var mrtkInputDown = new ObservableMRTKInputDown(selector, Handedness.Any);
-                    return mrtkInputDown.OnMRTKInputDownAsObservable()
-                                .DistinctUntilChanged()
-                                .Select(_ => (dynamic)_);
-                }
-
-                default:
-                    throw new Exception(string.Format("Vis Morphs: Controller event of select {0} does not exist.", reference));
-            }
-        }
-
-        private static IObservable<dynamic> CreateObservableFromHandSpec(string reference, string selector)
-        {
-            Handedness handedness = reference == "left" ? Handedness.Left : reference == "right" ? Handedness.Right : Handedness.Any;
-
-            switch (selector)
-            {
-                case "pinch":
-                    return Observable.EveryUpdate()
-                        .Select(_ =>
+                    // Get the observable for mouse button presses
+                    IObservable<bool> buttonPressedObservable = mouseObservablesHelper.GetMouseButtonPressed(handedness);
+                    targetObservable = buttonPressedObservable
+                        .WithLatestFrom(raycastHitObservable, (pressed, hits) =>
                         {
-                            if (HandJointUtils.FindHand(handedness) != null)
-                                return (dynamic)HandPoseUtils.CalculateIndexPinch(handedness);
-                            else
-                                return 0;
-                        })
-                        .StartWith(0)
-                        .DistinctUntilChanged();
-
-                case "position":
-                    return Observable.EveryUpdate()
-                        .Select(_ =>
-                        {
-                            foreach (var controller in CoreServices.InputSystem.DetectedControllers)
-                            {
-                                if (controller.ControllerHandedness == Handedness.Right && controller.Visualizer != null)
-                                {
-                                    return (controller.InputSource.Pointers[0] as MonoBehaviour).gameObject;
-                                }
-                            }
+                            if (pressed)
+                                return hits.Where(hit => hit.collider.transform.tag == target)
+                                           .Where(hit => hit.transform.GetComponentInParent<Morphable>() == morphable)
+                                           .Select(hit => hit.collider.transform.gameObject).FirstOrDefault();
 
                             return null;
-                        })
-                        .Where(_ => _ != null)
-                        .Select(x => (dynamic)x.transform.position)
-                        .StartWith(Vector3.zero)
-                        .DistinctUntilChanged();
+                        });
+                    break;
+
+                case "click":
+                    // Get the observable for mouse button is clicked
+                    IObservable<bool> buttonClickedObservable = mouseObservablesHelper.GetMouseButtonClicked(handedness);
+                    targetObservable = buttonClickedObservable
+                        .WithLatestFrom(raycastHitObservable, (clicked, hits) =>
+                        {
+                            if (clicked)
+                                return hits.Where(hit => hit.collider.transform.tag == target)
+                                        .Where(hit => hit.transform.GetComponentInParent<Morphable>() == morphable)
+                                        .Select(hit => hit.collider.transform.gameObject).FirstOrDefault();
+
+                            return null;
+                        });
+                    break;
+
+                case null:
+                    {
+                        // If no criteria is defined, assume that the target is some specific object
+                        GameObject criteriaGameObject = null;
+                        switch (target)
+                        {
+                            case "head":
+                                criteriaGameObject = CameraCache.Main.gameObject;
+                                break;
+                            case "vis":
+                                criteriaGameObject = morphable.gameObject;
+                                break;
+                            default:
+                                criteriaGameObject = GameObject.Find(target);
+                                break;
+                        }
+                        targetObservable = Observable.EveryUpdate().Select(_ => criteriaGameObject);
+                        break;
+                    }
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: Hand event of selector {0} does not exist.", selector));
+                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is a targeted mouse source with an unsupported criteria property.", signalSpec["name"]));
             }
+
+            return CreateValueObservableFromTarget(signalSpec, targetObservable, morphable);
         }
 
-        private static IObservable<dynamic> CreateObservableFromHeadSpec(string reference, string selector)
+        public static IObservable<dynamic> CreateControllerUntargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
-            if (selector == "")
-                throw new Exception("Vis Morphs: Signal of type head requires a select expression.");
+            string source = signalSpec["source"];
+            Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : Handedness.Right;
+            string value = signalSpec["value"];
 
-            switch (selector)
+            switch (value)
             {
+                case "select":
+                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(_ => (dynamic)_);
+
+                case "pinch":
+                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(f => (dynamic)(f > 0.8f));
+
+                case "position":
+                    return mrtkObservablesHelper.GetControllerGameObjectObservable(handedness).Select(controller => (dynamic)controller.transform.position);
+
                 default:
-                    {
-                        return Camera.main.transform.gameObject
-                            .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector))
-                            .DistinctUntilChanged();
-                    }
+                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is a targetless hand or controller source with an unsupported value property.", signalSpec["name"]));
             }
         }
 
-        private static IObservable<dynamic> CreateObservableFromGameObjectSpec(string reference, string selector)
+        public static IObservable<dynamic> CreateControllerTargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
-            if (selector == "")
-                throw new Exception("Vis Morphs: Signal of type gameobject requires a select expression.");
+            Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : Handedness.Right;
+            string target = signalSpec["target"];
+            string criteria = signalSpec["criteria"];
+            string value = signalSpec["value"];
 
-            // Find the referenced gameobject and emit values whenever the selected property has changed
-            return GameObject.Find(reference)
-                .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector))
-                .DistinctUntilChanged();
-        }
-
-        private static IObservable<dynamic> CreateObservableFromVisSpec(string reference, string selector, Morphable morphable)
-        {
-            if (reference != null && reference != "")
+            // Find the target based on the specified target and criteria
+            IObservable<GameObject> targetObservable = null;
+            switch (criteria)
             {
-                // Special observables for when surfaces are referenced
-                if (reference == "surface")
-                {
-                    switch (selector)
+                case "touch":
                     {
-                        // Emits true if the vis is attached to a surface, otherwise emits false
-                        case "attached":
-                        // For now we just use the same code as for intersecting
-                        // Emits true if the Vis is intersecting with any surface, otherwise emits false
-                        case "intersecting":
-                            {
-                                BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
-                                return Observable.EveryUpdate()
-                                    .Select(_ =>
-                                    {
-                                        var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center), (boxCollider.size / 2f) + (Vector3.one * 0.05f), morphable.transform.rotation)
-                                                                      .Where(c => c.gameObject.tag == "Surface");
-                                        return (dynamic)surfaceColliders.Count() > 0;
-                                    })
-                                    .DistinctUntilChanged();
-                            }
-
-                        // Emits a Vector3 in world space of the collision point between the vis and the largest surface. Does not emit if no collision is found
-                        case "collisionpoint":
-                            {
-                                BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
-                                return Observable.EveryUpdate()
-                                    .Select(_ =>
-                                    {
-                                        var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center), (boxCollider.size / 2f) + (Vector3.one * 0.05f), morphable.transform.rotation)
-                                                                      .Where(c => c.gameObject.tag == "Surface");
-                                        if (surfaceColliders.Count() > 0)
-                                        {
-                                            Collider largestTouchingSurface = surfaceColliders.OrderByDescending(c => c.gameObject.transform.localScale.x * c.gameObject.transform.localScale.y * c.gameObject.transform.localScale.z).First();
-                                            Collider A = boxCollider;
-                                            Collider B = largestTouchingSurface;
-                                            Vector3 ptA = B.ClosestPoint(A.transform.position);
-                                            Vector3 ptB = A.ClosestPoint(B.transform.position);
-                                            Vector3 ptM = ptA + (ptB - ptA) / 2;
-                                            Vector3 closestAtB = B.ClosestPoint(ptM);
-                                            return (dynamic)closestAtB;
-                                        }
-                                        return null;
-                                    })
-                                    .Where(_ => _ != null)
-                                    .DistinctUntilChanged();
-                            }
-
-                        // Emis a Vector3 in world space of the closest point on the surface closest to the vis, regardless of whether it is touching or not. Does not emit if there are no surfaces
-                        case "closestpoint":
-                            {
-                                return Observable.EveryUpdate()
-                                    .Select(_ =>
-                                    {
-                                        var surfaces = GameObject.FindGameObjectsWithTag("Surface");
-                                        var closestPoints = surfaces.Select(surface => surface.GetComponent<Collider>().ClosestPoint(morphable.transform.position))
-                                                                    .OrderBy(closestPoint => Vector3.Distance(morphable.transform.position, closestPoint));
-                                        return (closestPoints.Count() > 0) ? closestPoints.First() : (dynamic)null;
-                                    })
-                                    .Where(_ => _ != null)
-                                    .DistinctUntilChanged();
-                            }
-
-                        // Emis a Vector3 in world space of the closest point on the surface closest to the vis, regardless of whether it is touching or not. Does not emit if there are no surfaces
-                        case "closestcollider":
-                            {
-                                return Observable.EveryUpdate()
-                                    .Select(_ =>
-                                    {
-                                        var colliders = GameObject.FindGameObjectsWithTag("Surface").Select(surface => surface.GetComponent<Collider>());
-                                        var closestColliders = colliders.OrderBy(collider => Vector3.Distance(morphable.transform.position, collider.ClosestPoint(morphable.transform.position)));
-                                        return (closestColliders.Count() > 0) ? closestColliders.First() : (dynamic)null;
-                                    })
-                                    .Where(_ => _ != null)
-                                    .DistinctUntilChanged();
-                            }
-
-                        // Finds the largest surface that the vis is touching and emits the selected property of the surface (not the vis)
-                        default:
-                            {
-                                BoxCollider boxCollider = morphable.GetComponent<BoxCollider>();
-                                return Observable.EveryUpdate()
-                                    .Select(_ =>
-                                    {
-                                        var surfaceColliders = Physics.OverlapBox(morphable.transform.TransformPoint(boxCollider.center), (boxCollider.size / 2f) + (Vector3.one * 0.05f), morphable.transform.rotation)
-                                                                      .Where(c => c.gameObject.tag == "Surface");
-                                        if (surfaceColliders.Count() > 0)
-                                        {
-                                            Collider largestTouchingSurface = surfaceColliders.OrderByDescending(c => c.gameObject.transform.localScale.x * c.gameObject.transform.localScale.y * c.gameObject.transform.localScale.z).First();
-                                            return largestTouchingSurface.GetPropValue(selector);
-                                        }
-                                        return null;
-                                    })
-                                    .Where(_ => _ != null)
-                                    .DistinctUntilChanged();
-                            }
+                        IObservable<Collider[]> touchingGameObjectsObservable = mrtkObservablesHelper.GetControllerTouchingGameObjectsObservable(handedness);
+                        targetObservable = touchingGameObjectsObservable.Select(colliders =>
+                        {
+                            return colliders.Where(collider => collider.tag == target)
+                                            .Where(collider => collider.GetComponentInParent<Morphable>() == morphable)
+                                            .Select(collider => collider.gameObject)
+                                            .FirstOrDefault();
+                        });
+                        break;
                     }
-                }
-                // Special observables for when the specification is referenced
-                else if (reference.ToLower().StartsWith("spec"))
-                {
-                    // Create an observable which subscribes to the VisUpdated event, and emits the value as specified using the JSON path format (full stops)
-                    return morphable.ParentVis.VisInferredUpdated.AsObservable<Vis, JSONNode>().Select((vis, spec) =>
-                        {
-                            return Utils.GetValueFromJSONNodePath(spec, selector);
-                        })
-                        .StartWith(Utils.GetValueFromJSONNodePath(morphable.ParentVis.GetVisSpecsInferred(), selector))
-                        .Where(_ => _ != null)
-                        .DistinctUntilChanged();
-                }
-            }
 
-            switch (selector)
-            {
-                case "collider":
+                case "select":
                     {
-                        return Observable.EveryUpdate().Select(_ =>
+                        IObservable<Collider[]> touchingGameObjectsObservable = mrtkObservablesHelper.GetControllerTouchingGameObjectsObservable(handedness);
+                        IObservable<float> selectObservable = mrtkObservablesHelper.GetControllerSelectObservable(handedness).Where(s => s > 0.8f);
+                        targetObservable = selectObservable.WithLatestFrom(touchingGameObjectsObservable, (f, colliders) =>
                         {
-                            return morphable.GetComponent<Collider>();
-                        })
-                        .DistinctUntilChanged();
+                            return colliders.Where(collider => collider.tag == target)
+                                            .Where(collider => collider.GetComponentInParent<Morphable>() == morphable)
+                                            .Select(collider => collider.gameObject)
+                                            .FirstOrDefault();
+                        });
+                        break;
+                    }
+
+                case "point":
+                    {
+                        IObservable<RaycastHit[]> pointingGameObjectsObservable = mrtkObservablesHelper.GetControllerPointingGameObjectsObservable(handedness);
+                        targetObservable = pointingGameObjectsObservable.Select(hits =>
+                        {
+                            return hits.Where(hit => hit.collider.tag == target)
+                                       .Where(hit => hit.transform.GetComponentInParent<Morphable>() == morphable)
+                                       .Select(hit => hit.collider.gameObject)
+                                       .FirstOrDefault();
+                        });
+                        break;
+                    }
+
+                case "closest":
+                    {
+                        IObservable<GameObject[]> proximityGameObjectsObservable = mrtkObservablesHelper.GetControllerProximityGameObjectsObservable(handedness, target);
+                        targetObservable = proximityGameObjectsObservable.Select(gameObjects => gameObjects.FirstOrDefault());
+                        break;
+                    }
+
+                case "farthest":
+                    {
+                        IObservable<GameObject[]> proximityGameObjectsObservable = mrtkObservablesHelper.GetControllerProximityGameObjectsObservable(handedness, target);
+                        targetObservable = proximityGameObjectsObservable.Select(gameObjects => gameObjects.LastOrDefault());
+                        break;
                     }
 
                 case null:
-                case "":
-                    throw new Exception("Vis Morphs: Signal of type vis that do not reference surfaces requires a select expression.");
-
-                default:
                     {
-                    // Use the Vis itself and emit values whenever the selected property has changed
-                    return morphable.gameObject
-                        .ObserveEveryValueChanged(x => (dynamic)x.GetPropValue(selector))
-                        .StartWith(morphable.gameObject.GetPropValue(selector))
-                        .DistinctUntilChanged();
+                        // If no criteria is defined, assume that the target is some specific object
+                        GameObject criteriaGameObject = null;
+                        switch (target)
+                        {
+                            case "head":
+                                criteriaGameObject = CameraCache.Main.gameObject;
+                                break;
+                            case "vis":
+                                criteriaGameObject = morphable.gameObject;
+                                break;
+                            default:
+                                criteriaGameObject = GameObject.Find(target);
+                                break;
+                        }
+                        targetObservable = Observable.EveryUpdate().Select(_ => criteriaGameObject);
+                        break;
                     }
             }
 
+            return CreateComparisonValueObservableFromControllerTarget(signalSpec, mrtkObservablesHelper.GetControllerGameObjectObservable(handedness), targetObservable, morphable);
+        }
+
+
+        public static IObservable<dynamic> CreateComparisonValueObservableFromControllerTarget(JSONNode signalSpec, IObservable<GameObject> controllerObservable, IObservable<GameObject> targetObservable, Morphable morphable = null)
+        {
+            string value = signalSpec["value"];
+
+            switch (value)
+            {
+                case "distance":
+                    return targetObservable.Where(_ => _ != null).WithLatestFrom(controllerObservable, (target, controller) =>
+                        {
+                            return (dynamic)Vector3.Distance(controller.transform.position, target.transform.position);
+                        });
+
+                case "closestdistance":
+                    return targetObservable.Where(_ => _ != null).WithLatestFrom(controllerObservable, (target, controller) =>
+                        {
+                            Collider A = controller.GetComponentInChildren<Collider>();
+                            Collider B = target.GetComponent<Collider>();
+                            Vector3 ptA = B.ClosestPoint(A.transform.position);
+                            return (dynamic)Vector3.Distance(ptA, controller.transform.position);
+                        });
+
+                case "angle":
+                    return targetObservable.Where(_ => _ != null).WithLatestFrom(controllerObservable, (target, controller) =>
+                        {
+                            return (dynamic)Vector3.Angle(controller.transform.forward, target.transform.forward);
+                        });
+
+                case "intersection":
+                    {
+                    return targetObservable.Where(_ => _ != null).WithLatestFrom(controllerObservable, (target, controller) =>
+                        {
+                            Collider A = controller.GetComponentInChildren<Collider>();
+                            Collider B = target.GetComponent<Collider>();
+                            Vector3 ptA = B.ClosestPoint(A.transform.position);
+                            Vector3 ptB = A.ClosestPoint(B.transform.position);
+                            Vector3 ptM = ptA + (ptB - ptA) / 2;
+                            Vector3 closestAtB = B.ClosestPoint(ptM);
+                            return (dynamic)closestAtB;
+                        });
+                    }
+
+                default:
+                    return CreateValueObservableFromTarget(signalSpec, targetObservable, morphable);
+            }
+        }
+
+        public static IObservable<dynamic> CreateObservableFromObjectTargetless(JSONNode signalSpec, Morphable morphable = null)
+        {
+            string source = signalSpec["source"];
+            string value = signalSpec["value"];
+
+            // Since we can't really share observables here, we don't have a helper class
+            GameObject sourceGameObject;
+
+            // Get the source gameobject that is tied to the value specified in "source"
+            // TODO: Maybe force the source property to be "gameobject" to be able to reference arbitrary gameobjects
+            switch (source)
+            {
+                case "head":
+                    sourceGameObject = CameraCache.Main.transform.gameObject;
+                    break;
+                case "vis":
+                    sourceGameObject = morphable.gameObject;
+                    break;
+                default:
+                    sourceGameObject = GameObject.Find(source);
+                    break;
+            }
+
+            if (sourceGameObject == null)
+                throw new Exception(string.Format("Vis Morphs: Could not find any source GameObject with name \"{0}\".", source));
+
+            // Leverage this function to access values from our object
+            return CreateValueObservableFromTarget(signalSpec, Observable.EveryUpdate().Select(_ => sourceGameObject), morphable);
+        }
+
+        public static IObservable<dynamic> CreateObservableFromObjectTargeted(JSONNode signalSpec, Morphable morphable = null)
+        {
+            string source = signalSpec["source"];
+            string target = signalSpec["target"];
+            string criteria = signalSpec["criteria"];
+            string value = signalSpec["value"];
+
+            // TODO: Create a helper class to allow for sharing of common observables for each Morphable
+            GameObject sourceGameObject;
+
+            // Get the source gameobject that is tied to the value specified in "source"
+            switch (source)
+            {
+                case "head":
+                    sourceGameObject = CameraCache.Main.transform.gameObject;
+                    break;
+                case "vis":
+                    sourceGameObject = morphable.gameObject;
+                    break;
+                default:
+                    sourceGameObject = GameObject.Find(source);
+                    break;
+            }
+
+            if (sourceGameObject == null)
+                throw new Exception(string.Format("Vis Morphs: Could not find any source GameObject with name \"{0}\".", source));
+
+            // Find the object that the source is targetting
+            IObservable<GameObject> targetObservable = null;
+            switch (criteria)
+            {
+                case "touch":
+                    {
+                        // Find the collider that is on the source gameobject. This assumes that the collider is at the root object
+                        // TODO: For now we always assume that the collider is a box, make this support other types
+                        BoxCollider collider = sourceGameObject.GetComponent<BoxCollider>();
+                        targetObservable = Observable.EveryUpdate().Select(_ =>
+                            {
+                                Collider[] colliders = Physics.OverlapBox(sourceGameObject.transform.TransformPoint(collider.center),
+                                                                          sourceGameObject.transform.TransformVector(collider.size) / 2f + (Vector3.one * 0.05f),
+                                                                          sourceGameObject.transform.rotation);
+                                return colliders.Where(collider => collider.tag == target)
+                                                .Select(collider => collider.gameObject)
+                                                .FirstOrDefault();
+                            });
+                        break;
+                    }
+
+                case "point":
+                    {
+                        // Do a raycast in the forward direction
+                        // TODO: Allow for this direction to be changed
+                        targetObservable = Observable.EveryUpdate().Select(_ =>
+                            {
+                                RaycastHit[] hits = Physics.RaycastAll(sourceGameObject.transform.position, sourceGameObject.transform.forward);
+
+                                return hits.Where(hit => hit.collider.tag == target)
+                                           .Where(hit => hit.transform.GetComponentInParent<Morphable>() == morphable)
+                                           .Select(hit => hit.collider.gameObject)
+                                           .FirstOrDefault();
+                            });
+                        break;
+                    }
+
+                case null:
+                    {
+                        // If no criteria is defined, assume that the target is some specific object
+                        GameObject criteriaGameObject = null;
+                        switch (target)
+                        {
+                            case "head":
+                                criteriaGameObject = CameraCache.Main.gameObject;
+                                break;
+                            case "vis":
+                                criteriaGameObject = morphable.gameObject;
+                                break;
+                            default:
+                                criteriaGameObject = GameObject.Find(target);
+                                break;
+                        }
+                        targetObservable = Observable.EveryUpdate().Select(_ => criteriaGameObject);
+                        break;
+                    }
+
+                default:
+                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is a targeted object source with an unsupported criteria property.", signalSpec["name"]));
+            }
+
+            return CreateComparisonValueObservableFromObjectTarget(signalSpec, sourceGameObject, targetObservable, morphable);
+        }
+
+        public static IObservable<dynamic> CreateComparisonValueObservableFromObjectTarget(JSONNode signalSpec, GameObject sourceGameObject, IObservable<GameObject> targetObservable, Morphable morphable = null)
+        {
+            string value = signalSpec["value"];
+
+            switch (value)
+            {
+                case "distance":
+                    return targetObservable.Where(_ => _ != null).Select(target => (dynamic)Vector3.Distance(target.transform.position, sourceGameObject.transform.position));
+
+                case "closestdistance":
+                    {
+                        Collider A = sourceGameObject.GetComponentInChildren<Collider>();
+                        if (A != null)
+                        {
+                            return targetObservable.Where(_ => _ != null).Select(target =>
+                                {
+                                    Collider B = target.GetComponent<Collider>();
+                                    Vector3 ptA = B.ClosestPoint(A.transform.position);
+                                    Vector3 ptB = A.ClosestPoint(B.transform.position);
+                                    return (dynamic)Vector3.Distance(ptA, ptB);
+                                });
+                        }
+                        else
+                        {
+                            return targetObservable.Where(_ => _ != null).Select(target =>
+                                {
+                                    Collider B = target.GetComponent<Collider>();
+                                    Vector3 ptA = B.ClosestPoint(sourceGameObject.transform.position);
+                                    return (dynamic)Vector3.Distance(ptA, sourceGameObject.transform.position);
+                                });
+                        }
+                    }
+
+                case "angle":
+                    return targetObservable.Where(_ => _ != null).Select(target => (dynamic)Vector3.Angle(target.transform.forward, sourceGameObject.transform.forward));
+
+                case "intersection":
+                    {
+                        Collider A = sourceGameObject.GetComponent<Collider>();
+                        if (A != null)
+                        {
+                            return targetObservable.Where(_ => _ != null).Select(target =>
+                            {
+                                Collider B = target.GetComponent<Collider>();
+                                Vector3 ptA = B.ClosestPoint(A.transform.position);
+                                Vector3 ptB = A.ClosestPoint(B.transform.position);
+                                Vector3 ptM = ptA + (ptB - ptA) / 2;
+                                Vector3 closestAtB = B.ClosestPoint(ptM);
+                                return (dynamic)closestAtB;
+                            });
+                        }
+                        else
+                        {
+                            return targetObservable.Where(_ => _ != null).Select(target =>
+                            {
+                                Collider B = target.GetComponent<Collider>();
+                                return (dynamic)B.ClosestPoint(sourceGameObject.transform.position);
+                            });
+                        }
+
+                    }
+
+                default:
+                    return CreateValueObservableFromTarget(signalSpec, targetObservable, morphable);
+            }
+        }
+
+        public static IObservable<dynamic> CreateValueObservableFromTarget(JSONNode signalSpec, IObservable<GameObject> targetObservable, Morphable morphable = null)
+        {
+            string target = signalSpec["target"];
+            string value = signalSpec["value"];
+
+            // Certain targets may support unique value types. Check for these first
+            switch (target)
+            {
+                case "mark":
+                case "axis":
+                case "legend":
+                case "surface":
+                    break;
+            }
+
+            // If not, use one of the built-in Unity properties instead
+            switch (value)
+            {
+                case "position":
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.transform.position);
+
+                case "localposition":
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.transform.localPosition);
+
+                case "rotation":
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.transform.rotation);
+
+                case "localrotation":
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.transform.localRotation);
+
+                case "eulerangles":
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.transform.eulerAngles);
+
+                case "localeulerangles":
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.transform.localEulerAngles);
+
+                case "scale":
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.transform.localScale);
+
+                case "forward":
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.transform.forward);
+
+                case "up":
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.transform.up);
+
+                case "right":
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.transform.right);
+
+                case "boolean":
+                    return targetObservable.Select(_ => (dynamic)_ != null);
+
+                // If the specified value does not match one of our pre-defined ones, use reflection to get the property
+                default:
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.GetPropValue(value));
+                    // throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an unsupported value property.", signalSpec["name"]));
+            }
         }
 
         private static IObservable<dynamic> CreateObservableFromExpression(string expression, Morphable morphable)
@@ -769,6 +1050,32 @@ namespace DxR.VisMorphs
         {
             if (Interpreters.ContainsKey(morphable.GUID))
                 Interpreters.Remove(morphable.GUID);
+        }
+
+        public void EnableAllMorphs()
+        {
+            foreach (var morphSpec in MorphJsonSpecifications)
+            {
+                morphSpec.Enabled = true;
+            }
+
+            if (Application.isPlaying)
+            {
+                ReadMorphJsonSpecifications();
+            }
+        }
+
+        public void DisableAllMorphs()
+        {
+            foreach (var morphSpec in MorphJsonSpecifications)
+            {
+                morphSpec.Enabled = false;
+            }
+
+            if (Application.isPlaying)
+            {
+                ReadMorphJsonSpecifications();
+            }
         }
     }
 }

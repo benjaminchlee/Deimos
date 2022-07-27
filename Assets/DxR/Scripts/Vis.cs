@@ -100,7 +100,7 @@ namespace DxR
 
             boxCollider = gameObject.GetComponent<BoxCollider>() != null ? gameObject.GetComponent<BoxCollider>() : gameObject.AddComponent<BoxCollider>();
             rigidbody = gameObject.GetComponent<Rigidbody>() != null ? gameObject.GetComponent<Rigidbody>() : gameObject.AddComponent<Rigidbody>();
-            boxCollider.isTrigger = true;
+            boxCollider.isTrigger = false;
             rigidbody.isKinematic = true;
 
             if (viewParentObject == null || marksParentObject == null)
@@ -1777,8 +1777,9 @@ namespace DxR
 
         private GameObject InstantiateMark(GameObject markPrefab, Transform parentTransform)
         {
-            return Instantiate(markPrefab, parentTransform.position,
-                        parentTransform.rotation, parentTransform);
+            GameObject mark = Instantiate(markPrefab, parentTransform.position, parentTransform.rotation, parentTransform);
+            mark.tag = "DxRMark";
+            return mark;
         }
 
         private void UpdateMarkPrefab()
