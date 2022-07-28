@@ -882,14 +882,8 @@ namespace DxR.VisMorphs
                 // If the specified value does not match one of our pre-defined ones, use reflection to get the property
                 default:
                 {
-                    if (target.GetPropValue(value) != null)
-                    {
-                        return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.GetPropValue(value));
-                    }
-                    else
-                    {
-                        throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an unsupported value property. If using reflection, make sure the path is correct.", signalSpec["name"]));
-                    }
+                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.GetPropValue(value));
+                    // throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an unsupported value property. If using reflection, make sure the path is correct.", signalSpec["name"]));
                 }
             }
         }
