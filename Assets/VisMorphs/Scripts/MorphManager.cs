@@ -22,22 +22,21 @@ namespace DxR.VisMorphs
 
     public class MorphManager : MonoBehaviour
     {
+        public static MorphManager Instance { get; private set; }
+
         public bool DebugSignals;
         public List<MorphSpecification> MorphJsonSpecifications;
 
-        public static MorphManager Instance { get; private set; }
+        public List<Morph> Morphs = new List<Morph>();
         public static Dictionary<string, Interpreter> Interpreters = new Dictionary<string, Interpreter>();
 
-        public List<Morph> Morphs = new List<Morph>();
         private Dictionary<string, IObservable<dynamic>> GlobalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
         private static CompositeDisposable disposables;
 
         private readonly string[] tagNames = new string[] { "DxRVis", "DxRMark", "DxRAxis", "DxRLegend", "Surface" };
-
-        private static Dictionary<string, IObservable<dynamic>> sharedObservables = new Dictionary<string, IObservable<dynamic>>();
-
         private static MouseObservablesHelper mouseObservablesHelper;
         private static MRTKObservablesHelper mrtkObservablesHelper;
+        private static GameObjectObservablesHelper gameObjectObservablesHelper;
 
         private void Awake()
         {
@@ -96,6 +95,8 @@ namespace DxR.VisMorphs
             {
                 morphable.Reset(false);
             }
+
+            gameObjectObservablesHelper.ClearGameObjectObservables();
         }
 
         private void ReadMorphSpecification(JSONNode morphSpec, string morphName)
@@ -140,6 +141,7 @@ namespace DxR.VisMorphs
             {
                 mouseObservablesHelper = new MouseObservablesHelper();
                 mrtkObservablesHelper = new MRTKObservablesHelper();
+                gameObjectObservablesHelper = new GameObjectObservablesHelper();
             }
 
             JSONNode signalsSpec = morphSpec["signals"];
@@ -387,10 +389,10 @@ namespace DxR.VisMorphs
                     return mouseObservablesHelper.GetMousePositionObservable().Select(_ => (dynamic)_);
 
                 case "press":
-                    return mouseObservablesHelper.GetMouseButtonPressed(handedness).Select(_ => (dynamic)_);
+                    return mouseObservablesHelper.GetMouseButtonPressedObservable(handedness).Select(_ => (dynamic)_);
 
                 case "click":
-                    return mouseObservablesHelper.GetMouseButtonClicked(handedness).Select(_ => (dynamic)_);
+                    return mouseObservablesHelper.GetMouseButtonClickedObservable(handedness).Select(_ => (dynamic)_);
 
                 default:
                     throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is a targetless mouse source with an unsupported value property.", signalSpec["name"]));
@@ -422,7 +424,7 @@ namespace DxR.VisMorphs
 
                 case "select":
                     // Get the observable for mouse button presses
-                    IObservable<bool> buttonPressedObservable = mouseObservablesHelper.GetMouseButtonPressed(handedness);
+                    IObservable<bool> buttonPressedObservable = mouseObservablesHelper.GetMouseButtonPressedObservable(handedness);
                     targetObservable = buttonPressedObservable
                         .WithLatestFrom(raycastHitObservable, (pressed, hits) =>
                         {
@@ -437,7 +439,7 @@ namespace DxR.VisMorphs
 
                 case "click":
                     // Get the observable for mouse button is clicked
-                    IObservable<bool> buttonClickedObservable = mouseObservablesHelper.GetMouseButtonClicked(handedness);
+                    IObservable<bool> buttonClickedObservable = mouseObservablesHelper.GetMouseButtonClickedObservable(handedness);
                     targetObservable = buttonClickedObservable
                         .WithLatestFrom(raycastHitObservable, (clicked, hits) =>
                         {
@@ -460,6 +462,7 @@ namespace DxR.VisMorphs
                                 criteriaGameObject = CameraCache.Main.gameObject;
                                 break;
                             case "vis":
+                            case "DxRVis":  // Targets get converted to specific names if they match a tag. This is a workaround for now
                                 criteriaGameObject = morphable.gameObject;
                                 break;
                             default:
@@ -574,6 +577,7 @@ namespace DxR.VisMorphs
                                 criteriaGameObject = CameraCache.Main.gameObject;
                                 break;
                             case "vis":
+                            case "DxRVis":  // Targets get converted to specific names if they match a tag. This is a workaround for now
                                 criteriaGameObject = morphable.gameObject;
                                 break;
                             default:
@@ -640,7 +644,7 @@ namespace DxR.VisMorphs
             string source = signalSpec["source"];
             string value = signalSpec["value"];
 
-            // Since we can't really share observables here, we don't have a helper class
+            // Since we can't really share observables here, we don't use the helper class
             GameObject sourceGameObject;
 
             // Get the source gameobject that is tied to the value specified in "source"
@@ -662,7 +666,7 @@ namespace DxR.VisMorphs
                 throw new Exception(string.Format("Vis Morphs: Could not find any source GameObject with name \"{0}\".", source));
 
             // Leverage this function to access values from our object
-            return CreateValueObservableFromTarget(signalSpec, Observable.EveryUpdate().Select(_ => sourceGameObject), morphable);
+            return CreateValueObservableFromTarget(signalSpec, gameObjectObservablesHelper.GetGameObjectObservable(sourceGameObject), morphable);
         }
 
         public static IObservable<dynamic> CreateObservableFromObjectTargeted(JSONNode signalSpec, Morphable morphable = null)
@@ -698,14 +702,10 @@ namespace DxR.VisMorphs
             {
                 case "touch":
                     {
-                        // Find the collider that is on the source gameobject. This assumes that the collider is at the root object
-                        // TODO: For now we always assume that the collider is a box, make this support other types
-                        BoxCollider collider = sourceGameObject.GetComponent<BoxCollider>();
-                        targetObservable = Observable.EveryUpdate().Select(_ =>
+                        // Get the shared observable for this sourceGameObject
+                        IObservable<Collider[]> overlapBoxObservable = gameObjectObservablesHelper.GetGameObjectOverlapBoxObservable(sourceGameObject);
+                        targetObservable = overlapBoxObservable.Select(colliders =>
                             {
-                                Collider[] colliders = Physics.OverlapBox(sourceGameObject.transform.TransformPoint(collider.center),
-                                                                          sourceGameObject.transform.TransformVector(collider.size) / 2f + (Vector3.one * 0.05f),
-                                                                          sourceGameObject.transform.rotation);
                                 return colliders.Where(collider => collider.tag == target)
                                                 .Select(collider => collider.gameObject)
                                                 .FirstOrDefault();
@@ -715,12 +715,10 @@ namespace DxR.VisMorphs
 
                 case "point":
                     {
-                        // Do a raycast in the forward direction
-                        // TODO: Allow for this direction to be changed
-                        targetObservable = Observable.EveryUpdate().Select(_ =>
+                        // Get the shared observable for this sourceGameObject
+                        IObservable<RaycastHit[]> raycastHitObservable = gameObjectObservablesHelper.GetGameObjectRaycastHitObservable(sourceGameObject);
+                        targetObservable = raycastHitObservable.Select(hits =>
                             {
-                                RaycastHit[] hits = Physics.RaycastAll(sourceGameObject.transform.position, sourceGameObject.transform.forward);
-
                                 return hits.Where(hit => hit.collider.tag == target)
                                            .Where(hit => hit.transform.GetComponentInParent<Morphable>() == morphable)
                                            .Select(hit => hit.collider.gameObject)
@@ -739,13 +737,14 @@ namespace DxR.VisMorphs
                                 criteriaGameObject = CameraCache.Main.gameObject;
                                 break;
                             case "vis":
+                            case "DxRVis":  // Targets get converted to specific names if they match a tag. This is a workaround for now
                                 criteriaGameObject = morphable.gameObject;
                                 break;
                             default:
                                 criteriaGameObject = GameObject.Find(target);
                                 break;
                         }
-                        targetObservable = Observable.EveryUpdate().Select(_ => criteriaGameObject);
+                        targetObservable = gameObjectObservablesHelper.GetGameObjectObservable(criteriaGameObject);
                         break;
                     }
 
@@ -763,7 +762,10 @@ namespace DxR.VisMorphs
             switch (value)
             {
                 case "distance":
-                    return targetObservable.Where(_ => _ != null).Select(target => (dynamic)Vector3.Distance(target.transform.position, sourceGameObject.transform.position));
+                    {
+                        return targetObservable.Where(_ => _ != null)
+                                               .Select(target => (dynamic)Vector3.Distance(target.transform.position, sourceGameObject.transform.position));
+                    }
 
                 case "closestdistance":
                     {
@@ -790,7 +792,10 @@ namespace DxR.VisMorphs
                     }
 
                 case "angle":
-                    return targetObservable.Where(_ => _ != null).Select(target => (dynamic)Vector3.Angle(target.transform.forward, sourceGameObject.transform.forward));
+                    {
+                        return targetObservable.Where(_ => _ != null)
+                                               .Select(target => (dynamic)Vector3.Angle(target.transform.forward, sourceGameObject.transform.forward));
+                    }
 
                 case "intersection":
                     {
@@ -876,8 +881,16 @@ namespace DxR.VisMorphs
 
                 // If the specified value does not match one of our pre-defined ones, use reflection to get the property
                 default:
-                    return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.GetPropValue(value));
-                    // throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an unsupported value property.", signalSpec["name"]));
+                {
+                    if (target.GetPropValue(value) != null)
+                    {
+                        return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.GetPropValue(value));
+                    }
+                    else
+                    {
+                        throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an unsupported value property. If using reflection, make sure the path is correct.", signalSpec["name"]));
+                    }
+                }
             }
         }
 

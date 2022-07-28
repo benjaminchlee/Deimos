@@ -22,7 +22,7 @@ namespace DxR.VisMorphs
             return positionObservable;
         }
 
-        public IObservable<bool> GetMouseButtonPressed(string button)
+        public IObservable<bool> GetMouseButtonPressedObservable(string button)
         {
             IObservable<bool> observable;
 
@@ -49,7 +49,7 @@ namespace DxR.VisMorphs
             return observable;
         }
 
-        public IObservable<bool> GetMouseButtonClicked(string button)
+        public IObservable<bool> GetMouseButtonClickedObservable(string button)
         {
             IObservable<bool> observable;
 

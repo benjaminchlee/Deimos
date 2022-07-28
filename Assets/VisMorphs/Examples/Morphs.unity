@@ -38054,7 +38054,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2dd72b9d3ba807b4aaef095aa0aa1b22, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DebugSignals: 0
+  DebugSignals: 1
   MorphJsonSpecifications:
   - Json: {fileID: 4900000, guid: a26a31d495e6bf748af6a0775f7360ec, type: 3}
     Enabled: 1
