@@ -64,25 +64,25 @@
         {
             "name": "isVisTouchingSurface",
             "source": "vis",
-            "target": "Surface",
+            "target": "surface",
             "criteria": "touch",
             "value": "boolean"
         }, {
             "name": "touchedSurfaceIntersectionPoint",
             "source": "vis",
-            "target": "Surface",
+            "target": "surface",
             "criteria": "touch",
             "value": "intersection"
         }, {
             "name": "touchedSurfaceRotation",
             "source": "vis",
-            "target": "Surface",
+            "target": "surface",
             "criteria": "touch",
             "value": "rotation"
         }, {
             "name": "touchedSurfaceIntersectionAngle",
             "source": "vis",
-            "target": "Surface",
+            "target": "surface",
             "criteria": "touch",
             "value": "angle"
         }, {

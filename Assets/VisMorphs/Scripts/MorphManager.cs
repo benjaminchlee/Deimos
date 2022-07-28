@@ -32,11 +32,7 @@ namespace DxR.VisMorphs
         private Dictionary<string, IObservable<dynamic>> GlobalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
         private static CompositeDisposable disposables;
 
-        // private readonly string[] validSignalSources = new string[] { "mouse", "head", "controller", "hand", "vis", "gameobject" };
-        // private readonly string[] validSignalHandedness = new string[] { "any", "left", "right" };
-        // private readonly string[] validSignalTargets = new string[] { "vis", "mark", "axis", "legend", "surface", "none" };
-        // private readonly string[] validSignalCriteria = new string[] { "pointing", "selecting", "touching", "nearby", "closest", "farthest" };
-        // private readonly string[] validSignalValues = new string[] { "position", "rotation", "scale", "direction", "forward", "up", "right", "intersection", "pressed" };
+        private readonly string[] tagNames = new string[] { "DxRVis", "DxRMark", "DxRAxis", "DxRLegend", "Surface" };
 
         private static Dictionary<string, IObservable<dynamic>> sharedObservables = new Dictionary<string, IObservable<dynamic>>();
 
@@ -162,14 +158,14 @@ namespace DxR.VisMorphs
                     /// This script will handle global signals, but each Morphable will need to create these local signals independently
                     if (IsSignalGlobal(signalSpecInferred))
                     {
-                        IObservable<dynamic> observable = CreateObservableFromSpec(signalSpec);
+                        IObservable<dynamic> observable = CreateObservableFromSpec(signalSpecInferred);
                         SaveGlobalSignal(signalName, observable);
-                        morph.GlobalSignals.Add(signalSpec);
+                        morph.GlobalSignals.Add(signalSpecInferred);
                     }
                     /// We store a collection of local signal specs which each Morphable will need to create
                     else
                     {
-                        morph.LocalSignals.Add(signalSpec);
+                        morph.LocalSignals.Add(signalSpecInferred);
                     }
                 }
             }
@@ -205,9 +201,44 @@ namespace DxR.VisMorphs
             // Otherwise it is a regular Signal. Perform checks for this
             else
             {
-                // All Signals need to have a source
+                // All non-expression Signals need to have a source property
                 if (signalSpec["source"] == null)
                     throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" does not have a source property specified.", signalSpec["name"]));
+
+                // Mouse, hand, and controller sources should have a handedness property
+                if (signalSpec["source"] == "mouse" || signalSpec["source"] == "hand" || signalSpec["source"] == "controller")
+                {
+                    // If the handedness property doesn't exist, infer a new one (default to right hand)
+                    if (signalSpec["handedness"] == null)
+                    {
+                        signalSpecInferred.Add("handedness", "right");
+                    }
+                    // If it does exist, make sure that it is either left or right
+                    // TODO: Make this support "any"
+                    else
+                    {
+                        if (!(signalSpec["handedness"] == "left" || signalSpec["handedness"] == "right"))
+                            throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an invalid handedness, \"{1}\" given.", signalSpec["name"], signalSpec["handedness"]));
+                    }
+                }
+
+                // If a target is defined, check to see if it matches one of the tags and change it to it, in order to account for prefixes and case-sensititivity
+                if (signalSpec["target"] != null)
+                {
+                    string target = signalSpec["target"];
+
+                    foreach (string tag in tagNames)
+                    {
+                        // For now this uses Contains(). This might cause some false positives
+                        if (tag.ToLower().Contains(target))
+                        {
+                            target = tag;
+                            break;
+                        }
+                    }
+
+                    signalSpecInferred["target"] = target;
+                }
             }
 
             return signalSpecInferred;
