@@ -755,7 +755,7 @@ namespace DxR.VisMorphs
         ///
         /// Stops all active transitions if there are any, and resets the Morphable back to a neutral state.
         /// </summary>
-        public void Reset(bool goToEnd = false)
+        public void Reset(bool goToEnd = false, bool checkForMorphs = true)
         {
             // Dispose of all subscriptions
             foreach (CandidateMorph candidateMorph in CandidateMorphs)
@@ -777,7 +777,8 @@ namespace DxR.VisMorphs
             CandidateTransitionNames.Clear();
 
             // Check for morphs again to allow for further morphing without needing to update the vis
-            CheckForMorphs();
+            if (checkForMorphs)
+                CheckForMorphs();
         }
 
         /// <summary>
@@ -1362,7 +1363,7 @@ namespace DxR.VisMorphs
 
         private void OnDestroy()
         {
-            Reset();
+            Reset(checkForMorphs: false);
             ParentVis.VisUpdated.RemoveListener(VisUpdated);
             MorphManager.Instance.ClearMorphableVariables(this);
         }
