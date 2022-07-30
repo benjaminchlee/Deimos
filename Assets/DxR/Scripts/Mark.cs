@@ -347,8 +347,8 @@ namespace DxR
             bool tweenRescaled = false;
             float minTween = 0;
             float maxTween = 1;
-
-            if (activeMarkTransition.Stages.TryGetValue(channel, out Tuple<float, float> range))
+            // We first check for staging for this channel, then fall back on the generic "encoding" stage (if it is specified by the user)
+            if (activeMarkTransition.Stages.TryGetValue(channel, out Tuple<float, float> range) || activeMarkTransition.Stages.TryGetValue("encoding", out range))
             {
                 tweenRescaled = true;
                 minTween = range.Item1;

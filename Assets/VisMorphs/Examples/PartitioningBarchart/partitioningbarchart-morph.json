@@ -88,8 +88,13 @@
             "states": ["stacked", "faceted"],
             "triggers": ["isVisTouchingSurface"],
             "timing": {
-                "control": 0.75,
+                "control": 1.5,
                 "easing": "easeoutcirc"
+            },
+            "staging": {
+                "encoding": [0, 0.65],
+                "position": [0.65, 1],
+                "rotation": [0.65, 1]
             },
             "interrupt": {
                 "control": "ignore"

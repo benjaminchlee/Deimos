@@ -601,6 +601,18 @@ namespace DxR
 
         private void ApplyTransitionPose(ActiveTransition newActiveTransition)
         {
+            ApplyTransitionPosition(newActiveTransition);
+            ApplyTransitionRotation(newActiveTransition);
+
+            // If any of the two had activated, we disable the box collider on this Vis so that things like MRTK can no longer move it
+            if (posePositionChanges != null || poseRotationChanges != null)
+            {
+                boxCollider.enabled = false;
+            }
+        }
+
+        private void ApplyTransitionPosition(ActiveTransition newActiveTransition)
+        {
             // Get the initial and final values for the pose
             Vector3? initialPosition = null;
             Vector3? finalPosition = null;
@@ -650,12 +662,32 @@ namespace DxR
                 if (initialPosition == null)
                     initialPosition = transform.position;
 
+                // We need to rescale our tweening value from the observable based on any staging that is defined, if any
+                // We access these values now and then use them in the observable later
+                bool tweenRescaled = false;
+                float minTween = 0;
+                float maxTween = 1;
+                if (newActiveTransition.Stages.TryGetValue("position", out Tuple<float, float> range))
+                {
+                    tweenRescaled = true;
+                    minTween = range.Item1;
+                    maxTween = range.Item2;
+                }
+
                 // Interpolate
                 posePositionDisposable = newActiveTransition.TweeningObservable.Subscribe(t =>
                 {
+                    // Rescale the tween value if necessary
+                    if (tweenRescaled)
+                        t = Utils.NormaliseValue(t, minTween, maxTween, 0, 1);
+
                     // Apply easing if applicable
                     if (newActiveTransition.EasingFunction != null)
-                        t = newActiveTransition.EasingFunction(0, 1, t);
+                    {
+                        // Only do it if t is inside the accepted ranges, otherwise it returns NaN
+                        if (0 <= t && t <= 1)
+                            t = newActiveTransition.EasingFunction(0, 1, t);
+                    }
 
                     transform.position = Vector3.Lerp(initialPosition.Value, finalPosition.Value, t);
                 });
@@ -663,8 +695,10 @@ namespace DxR
                 // Save our start and end values
                 posePositionChanges = new Tuple<string, Vector3, Vector3>(newActiveTransition.Name, initialPosition.Value, finalPosition.Value);
             }
+        }
 
-
+        private void ApplyTransitionRotation(ActiveTransition newActiveTransition)
+        {
             // Get the initial and final rotation values for the pose
             Quaternion? initialRotation = null;
             Quaternion? finalRotation = null;
@@ -734,12 +768,32 @@ namespace DxR
                 if (initialRotation == null)
                     initialRotation = transform.rotation;
 
+                // We need to rescale our tweening value from the observable based on any staging that is defined, if any
+                // We access these values now and then use them in the observable later
+                bool tweenRescaled = false;
+                float minTween = 0;
+                float maxTween = 1;
+                if (newActiveTransition.Stages.TryGetValue("rotation", out Tuple<float, float> range))
+                {
+                    tweenRescaled = true;
+                    minTween = range.Item1;
+                    maxTween = range.Item2;
+                }
+
                 // Interpolate
                 poseRotationDisposable = newActiveTransition.TweeningObservable.Subscribe(t =>
                 {
+                    // Rescale the tween value if necessary
+                    if (tweenRescaled)
+                        t = Utils.NormaliseValue(t, minTween, maxTween, 0, 1);
+
                     // Apply easing if applicable
                     if (newActiveTransition.EasingFunction != null)
-                        t = newActiveTransition.EasingFunction(0, 1, t);
+                    {
+                        // Only do it if t is inside the accepted ranges, otherwise it returns NaN
+                        if (0 <= t && t <= 1)
+                            t = newActiveTransition.EasingFunction(0, 1, t);
+                    }
 
                     transform.rotation = Quaternion.Lerp(initialRotation.Value, finalRotation.Value, t);
                 });
@@ -747,15 +801,10 @@ namespace DxR
                 // Save our start and end values
                 poseRotationChanges = new Tuple<string, Quaternion, Quaternion>(newActiveTransition.Name, initialRotation.Value, finalRotation.Value);
             }
-
-            // If any of the two had activated, we disable the box collider on this Vis so that things like MRTK can no longer move it
-            if (posePositionChanges != null || poseRotationChanges != null)
-            {
-                boxCollider.enabled = false;
-            }
         }
 
-        public void StopTransitionPose(string transitionName, bool goToEnd)
+
+        private void StopTransitionPose(string transitionName, bool goToEnd)
         {
             if (posePositionChanges != null && posePositionChanges.Item1 == transitionName)
             {

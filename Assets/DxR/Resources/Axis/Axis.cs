@@ -127,7 +127,8 @@ namespace DxR
         {
             // We have separate tweeners for each different component of the Axis. However, we might need to rescale the tweening value
             // if this Axis' channel involves staging. Therefore, we calculate it as a new observable and use it as our new tweening observable
-            if (activeAxisTransition.Stages.TryGetValue(activeAxisTransition.Channel, out Tuple<float, float> range))
+            // We first check for staging for this channel, then fall back on the generic "encoding" stage (if it is specified by the user)
+            if (activeAxisTransition.Stages.TryGetValue(activeAxisTransition.Channel, out Tuple<float, float> range) || activeAxisTransition.Stages.TryGetValue("encoding", out range))
             {
                 float minTween = range.Item1;
                 float maxTween = range.Item2;
