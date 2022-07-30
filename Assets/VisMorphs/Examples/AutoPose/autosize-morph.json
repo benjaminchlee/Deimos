@@ -5,7 +5,8 @@
             "name": "unscaled",
             "encoding": {
                 "x": "*",
-                "y": "*"
+                "y": "*",
+                "z": null
             },
             "width": "*",
             "height": "*",
@@ -13,31 +14,25 @@
         },
         {
             "name": "scaled",
+            "access": false,
             "encoding": {
                 "x": "*",
-                "y": "*"
+                "y": "*",
+                "z": null
             },
-            "width": "other.width * 1.5",
-            "height": "other.height * 1.5",
-            "depth": "other.depth * 1.5"
+            "width": "other.width * 2",
+            "height": "other.height * 2"
         }
     ],
 
     "signals": [{
-            "name": "headPosition",
-            "source": {
-                "type": "head",
-                "select": "transform.position"
-            }
-        }, {
-            "name": "visPosition",
-            "source": {
-                "type": "vis",
-                "select": "transform.position"
-            }
+            "name": "headVisDistance",
+            "source": "head",
+            "target": "vis",
+            "value": "closestdistance"
         }, {
             "name": "isFarFromVis",
-            "expression": "distance(headPosition, visPosition) > 4"
+            "expression": "headVisDistance > 4"
         }
     ],
 

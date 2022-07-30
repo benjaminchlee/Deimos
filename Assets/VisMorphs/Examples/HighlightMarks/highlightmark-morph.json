@@ -8,6 +8,7 @@
         },
         {
             "name": "coloured",
+            "access": false,
             "encoding": {
                 "color": {
                     "value": "red"

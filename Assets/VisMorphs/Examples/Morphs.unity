@@ -5945,7 +5945,7 @@ MonoBehaviour:
   AllowSimultaneousTransitions: 1
   ShowValuesInInspector: 1
   DebugStates: 0
-  DebugTransitionCalls: 1
+  DebugTransitionCalls: 0
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
@@ -38070,7 +38070,7 @@ MonoBehaviour:
     Enabled: 1
   - Json: {fileID: 4900000, guid: 619da201ab8f947419e2b7bc9c45b3ec, type: 3}
     Enabled: 1
-  - Json: {fileID: 4900000, guid: 907928d95ae0696499c13335b347c1c9, type: 3}
+  - Json: {fileID: 4900000, guid: 0a8969e0a3e3b2949b07fd24ab9ad6cb, type: 3}
     Enabled: 1
 --- !u!1 &2072357991
 GameObject:
@@ -40480,7 +40480,7 @@ MonoBehaviour:
       type: 3}
     moveVertical: {fileID: 8557015737124631664, guid: 70b361cf3c037d54896482d1ffd9f999,
       type: 3}
-    moveSpeed: 3
+    moveSpeed: 10
     rotationSensitivity: 1
     roll: {fileID: 8489548663522219587, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}
     pitch: {fileID: 2456286265664290993, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}

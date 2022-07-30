@@ -218,7 +218,7 @@ namespace DxR
 
         #region Morph specific functions
 
-        public bool ApplyTransition(string transitionName, JSONNode newInitialVisSpecs, JSONNode newFinalVisSpecs, IObservable<float> tweeningObservable, Function easingFunction, Dictionary<string, Tuple<float, float>> stages)
+        public bool ApplyTransition(string transitionName, JSONNode newInitialVisSpecs, JSONNode newFinalVisSpecs, Func<IObservable<float>> tweeningObservableCreateFunc, Function easingFunction, Dictionary<string, Tuple<float, float>> stages)
         {
             if (activeTransitions.Keys.Contains(transitionName))
             {
@@ -316,8 +316,9 @@ namespace DxR
             // If the new transition has passed our checks, we can finally pass this onto the marks/axes/etc.
             if (isNewTransitionAllowed)
             {
-                // Annoyingly enough the mark transition functions don't work when the *inferred* specs are passed in
-                // Therefore we make two versions, one with the inferred specs and one without
+                // Only if this transition is allowed to we then create the tweening observable using the Func that was passed as a parameter
+                IObservable<float> tweeningObservable = tweeningObservableCreateFunc();
+
                 ActiveTransition newActiveTransition = new ActiveTransition()
                 {
                     Name = transitionName,

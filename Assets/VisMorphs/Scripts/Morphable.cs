@@ -43,12 +43,15 @@ namespace DxR.VisMorphs
             // Resolve all deactivations first
             if (queuedTransitionDeactivations.Count > 0)
             {
+                // Sort these in order of their priority (stored as item 2 in the tuple)
                 foreach (var kvp in queuedTransitionDeactivations.OrderByDescending(kvp => kvp.Value.Item2).ToList())
                 {
                     Action Deactivation = kvp.Value.Item1;
                     queuedTransitionDeactivations.Remove(kvp.Key);
                     Deactivation();
                 }
+
+                CheckForMorphs();
             }
 
             // Then resolve all activations
@@ -72,8 +75,6 @@ namespace DxR.VisMorphs
                 GUID = System.Guid.NewGuid().ToString().Substring(0, 8);
                 isInitialised = true;
             }
-
-            CheckForMorphs();
         }
 
         public void CheckForMorphs()
@@ -95,7 +96,7 @@ namespace DxR.VisMorphs
 
             CurrentVisSpec = visSpec;
 
-            // Only check if there are no more activations/deactivations to go
+            // Only check if there are no more activations/deactivations to go. This shouldn't be true normally, but it's a good emergency measure
             if (queuedTransitionActivations.Count > 0 || queuedTransitionDeactivations.Count > 0)
             {
                 return;
@@ -104,14 +105,11 @@ namespace DxR.VisMorphs
             // First, we get a list of Morphs which we deem as "candidates"
             // Each object in this list also stores the set of candidate states and transitions which match our current vis spec
             List<CandidateMorph> newCandidateMorphs = new List<CandidateMorph>();
-            GetCandidateMorphs(visSpec, ref newCandidateMorphs);
+            GetCandidateMorphs(visSpec, CandidateMorphs, ref newCandidateMorphs);
 
             // If there were indeed some Morphs which are candidates, we need to create subscriptions to their observables and so on
             if (newCandidateMorphs.Count > 0)
             {
-                // Any morphs that are currently active and that are still valid should be retained. Ones that are no longer valid should be deactivated
-                TransferActiveCandidateMorphsAndTransitions(CandidateMorphs, ref newCandidateMorphs);
-
                 CandidateMorphs = newCandidateMorphs;
 
                 CreateCandidateMorphSignals(ref CandidateMorphs);
@@ -121,8 +119,8 @@ namespace DxR.VisMorphs
                 if (ShowValuesInInspector)
                 {
                     CandidateMorphNames = CandidateMorphs.Select(_ => _.Morph.Name).ToList();
-                    CandidateStateNames = CandidateMorphs.SelectMany(_ => _.CandidateStates).Select(_ => _["name"].ToString()).ToList();
-                    CandidateTransitionNames = CandidateMorphs.SelectMany(_ => _.CandidateTransitions).Select(_ => _.Item1["name"].ToString()).ToList();
+                    CandidateStateNames = CandidateMorphs.Select(_ => _.CandidateState["name"].Value).ToList();
+                    CandidateTransitionNames = CandidateMorphs.SelectMany(_ => _.CandidateTransitions).Select(_ => _.Item1["name"].Value).ToList();
                 }
             }
             // Otherwise, clear all morphs
@@ -148,109 +146,159 @@ namespace DxR.VisMorphs
             }
         }
 
-        private void GetCandidateMorphs(JSONNode visSpec, ref List<CandidateMorph> newCandidateMorphs)
+        /// <summary>
+        /// Populates a list of CandidateMorphs that are valid for the given vis spec.
+        /// This function also retains any ongoing transitions by copying over their observables and keyframes
+        /// This function effectively acts as the state machine, deciding which states the vis can transition to depending on the following:
+        ///     1) Does the vis spec match any of the Morph's state specs?
+        ///     2) Which transitions in the Morph does the above state match?
+        ///     3) Is the state accessible from outside of the Morph?
+        ///     4) Is this Morph already ongoing and is it already in a particular state?
+        /// </summary>
+        private void GetCandidateMorphs(JSONNode visSpec, List<CandidateMorph> oldCandidateMorphs, ref List<CandidateMorph> newCandidateMorphs)
         {
-            // We iterate through all of the states that are defined in the MorphManager, saving those which match this vis
+            // We iterate through all the states that are defined in the MorphManager
+            // Any which match (and also meet other criteria) we save to the list of new candidate Morphs
             foreach (Morph morph in MorphManager.Instance.Morphs)
             {
-                CandidateMorph candidateMorph = null;
-
-                // If this morph has any one of its states matching the vis spec, add it to our list of candidates
-                // We also keep checking, adding every matching state to the candidate morph
-                foreach (JSONNode stateSpec in morph.States)
+                // If this Morph was not already a candidate Morph, we potentially add it as a brand new candidate
+                if (!oldCandidateMorphs.Select(cm => cm.Name).Contains(morph.Name))
                 {
-                    if (CheckSpecsMatch(visSpec, stateSpec))
+                    // Go through all state specs and see if any matches the current Vis spec
+                    foreach (JSONNode stateSpec in morph.States)
                     {
-                        if (candidateMorph == null)
+                        // Since this Morph is brand new, we cannot access any restricted states (i.e., those that can only be access via a transition)
+                        // Therefore we simply skip these
+                        if (stateSpec["access"] != null && stateSpec["access"] == false)
+                            continue;
+
+                        if (CheckSpecsMatch(visSpec, stateSpec))
                         {
-                            candidateMorph = new CandidateMorph(morph);
-                        }
+                            CandidateMorph newCandidateMorph = CreateCandidateMorphFromStateSpec(morph, stateSpec);
+                            newCandidateMorphs.Add(newCandidateMorph);
 
-                        candidateMorph.CandidateStates.Add(stateSpec);
-
-                        // We also keep going through and add all valid transitions starting from this state
-                        string stateName = stateSpec["name"];
-                        foreach (JSONNode transitionSpec in morph.Transitions)
-                        {
-                            JSONArray transitionStateNames = transitionSpec["states"].AsArray;
-
-                            // Add this transition to our list if the first name in the states array matches the input state
-                            if (transitionStateNames[0] == stateName)
-                            {
-                                candidateMorph.CandidateTransitions.Add(new Tuple<JSONNode, bool>(transitionSpec, false));
-                            }
-                            // We can also add it if the second name matches the input AND the transition is set to bidirectional
-                            else if (transitionStateNames[1] == stateName && transitionSpec["bidirectional"])
-                            {
-                                candidateMorph.CandidateTransitions.Add(new Tuple<JSONNode, bool>(transitionSpec, true));
-                            }
+                            // We can only have one candidate state per candidate Morph, hence we break here
+                            break;
                         }
                     }
                 }
+                // If it was a candidate Morph, we handle this process differently, including transferring references
+                else
+                {
+                    // Get the old candidate Morph object
+                    CandidateMorph oldCandidateMorph = oldCandidateMorphs.First(cm => cm.Name == morph.Name);
+                    CandidateMorph newCandidateMorph = null;
 
-                if (candidateMorph != null)
-                    newCandidateMorphs.Add(candidateMorph);
+                    // Check to see if the candidate state in the previous morph is still valid
+                    if (CheckSpecsMatch(visSpec, oldCandidateMorph.CandidateState))
+                    {
+                        // Instead of enumerating through and picking a candidate state, we use this old one
+                        // Note that we are still finding new candidate transitions as these may be outdated
+                        // Any active transitions will still be transferred over from old to new candidate Morph objects
+                        newCandidateMorph = CreateCandidateMorphFromStateSpec(morph, oldCandidateMorph.CandidateState);
+                    }
+                    // If it is no longer valid, we need to find a new candidate state
+                    else
+                    {
+                        // Go through all state specs and see if any matches the current Vis spec
+                        foreach (JSONNode stateSpec in morph.States)
+                        {
+                            // Note that since this Morph is still active, we can access any restricted states without issue (unlike above)
+
+                            if (CheckSpecsMatch(visSpec, stateSpec))
+                            {
+                                newCandidateMorph = CreateCandidateMorphFromStateSpec(morph, stateSpec);
+
+                                // We can only have one candidate state per candidate Morph, hence we break here
+                                break;
+                            }
+                        }
+                    }
+
+                    // If the old candidate Morph is still active (i.e., we have made an accompanying new candidate Morph object)
+                    if (newCandidateMorph != null)
+                    {
+                        newCandidateMorphs.Add(newCandidateMorph);
+
+                        List<string> morphTransitions = morph.Transitions.Select(t => t["name"].Value).ToList();
+                        List<string> newCandidateMorphTransitions = newCandidateMorph.CandidateTransitions.Select(ct => ct.Item1["name"].Value).ToList();
+
+                        // Transfer over all observable and subscription references for any transitions that are still active
+                        bool isTransitionActive = false;
+                        foreach (string activeTransitionName in ActiveTransitionNames.ToList())
+                        {
+                            if (morphTransitions.Contains(activeTransitionName))
+                            {
+                                if (newCandidateMorphTransitions.Contains(activeTransitionName))
+                                {
+                                    var oldTransitionWithSubscriptions = oldCandidateMorph.CandidateTransitionsWithSubscriptions.Single(ct => ct.Item1["name"] == activeTransitionName);
+                                    newCandidateMorph.CandidateTransitionsWithSubscriptions.Add(oldTransitionWithSubscriptions);
+                                    newCandidateMorph.LocalSignalObservables = oldCandidateMorph.LocalSignalObservables;
+                                    isTransitionActive = true;
+                                }
+                                else
+                                {
+                                    // This probably causes issues whereby changing visualisation encodings means that sometimes conditions will no longer be met, but oh well
+                                    ParentVis.StopTransition(activeTransitionName);
+                                    ActiveTransitionNames.Remove(activeTransitionName);
+                                }
+                            }
+                        }
+
+                        // If none of the transitions were actually active, clear all local signals so that we start fresh
+                        if (!isTransitionActive)
+                            oldCandidateMorph.ClearLocalSignals();
+
+                        // Transfer over all keyframes old candidate Morph to the new one
+                        newCandidateMorph.StoredVisKeyframes = oldCandidateMorph.StoredVisKeyframes;
+                    }
+                    // If it is no longer active, kill any active transitions associated with this Morph
+                    else
+                    {
+                        List<string> morphTransitions = morph.Transitions.Select(t => t["name"].Value).ToList();
+
+                        foreach (string activeTransitionName in ActiveTransitionNames.ToList())
+                        {
+                            if (morphTransitions.Contains(activeTransitionName))
+                            {
+                                ParentVis.StopTransition(activeTransitionName);
+                                ActiveTransitionNames.Remove(activeTransitionName);
+                            }
+                        }
+
+                        oldCandidateMorph.ClearLocalSignals();
+                    }
+                }
             }
         }
 
         /// <summary>
-        /// Transfers any transitions that are currently active and still valid from one list of candidate morphs to the other.
-        /// Retains variable references to minimise re-instantiation and performance hits.
-        /// This function will automatically disable any active transitions that are no longer valid.
+        /// Creates a CandidateMorph object. As these can only have a single candidate state, it requires a state spec as a parameter.
+        /// This function also finds all transitions that involve said state
         /// </summary>
-        private void TransferActiveCandidateMorphsAndTransitions(List<CandidateMorph> oldCandidateMorphs, ref List<CandidateMorph> newCandidateMorphs)
+        private CandidateMorph CreateCandidateMorphFromStateSpec(Morph morph, JSONNode stateSpec)
         {
-            List<string> newCandidateMorphNames = newCandidateMorphs.Select(cm => cm.Name).ToList();
-            List<string> newCandidateTransitionNames = newCandidateMorphs.SelectMany(cm => cm.CandidateTransitions).Select(ct => (string)ct.Item1["name"]).ToList();
+            CandidateMorph newCandidateMorph = new CandidateMorph(morph, stateSpec);
 
-            List<string> transferredMorphNames = new List<string>();
-
-            // For each transition which we still have active, copy over all of its variables so that it can continue transitioning without interruption
-            foreach (string activeTransitionName in ActiveTransitionNames.ToList())
+            // We keep going through and add all valid transitions starting from this state
+            string stateName = stateSpec["name"];
+            foreach (JSONNode transitionSpec in morph.Transitions)
             {
-                // If the active transition is in the new list of candidate transitions, transfer its variable references over
-                if (newCandidateTransitionNames.Contains(activeTransitionName))
+                JSONArray transitionStateNames = transitionSpec["states"].AsArray;
+
+                // Add this transition to our list if the first name in the states array matches the input state
+                if (transitionStateNames[0] == stateName)
                 {
-                    // Get the morph that this active transition belongs to and the new morph that we are transfering its variables to
-                    CandidateMorph sourceMorph = oldCandidateMorphs.Single(cm => cm.CandidateTransitions.Select(ct => (string)ct.Item1["name"]).Contains(activeTransitionName));
-                    CandidateMorph targetMorph = newCandidateMorphs.Single(cm => cm.Name == sourceMorph.Name);
-
-                    // Only copy over the equivalent transition and its subscriptions, and the local signal references
-                    Tuple<JSONNode, CompositeDisposable, List<bool>, bool> sourceTransitionWithSubscriptions = sourceMorph.CandidateTransitionsWithSubscriptions.Single(ct => ct.Item1["name"] == activeTransitionName);
-                    targetMorph.CandidateTransitionsWithSubscriptions.Add(sourceTransitionWithSubscriptions);
-                    targetMorph.LocalSignalObservables = sourceMorph.LocalSignalObservables;
-
-                    // Keep track of this old morph, we will not clear its local signals later
-                    transferredMorphNames.Add(sourceMorph.Name);
+                    newCandidateMorph.CandidateTransitions.Add(new Tuple<JSONNode, bool>(transitionSpec, false));
                 }
-                // Otherwise, it means that the conditions of the candidate morph are no longer valid. Force disable it
-                else
+                // We can also add it if the second name matches the input AND the transition is set to bidirectional
+                else if (transitionStateNames[1] == stateName && transitionSpec["bidirectional"])
                 {
-                    // This probably causes issues whereby changing visualisation encodings means that sometimes conditions will no longer be met, but oh well
-                    ParentVis.StopTransition(activeTransitionName);
-                    ActiveTransitionNames.Remove(activeTransitionName);
+                    newCandidateMorph.CandidateTransitions.Add(new Tuple<JSONNode, bool>(transitionSpec, true));
                 }
             }
 
-            // We also copy over all of the stored keyframes from any old morphs to the new morphs, assuming that they are still active
-            // TODO: This is a bit of a naive implementation and will probably break in one or two edge cases, mostly when changes are made
-            //       to a visualisation by the user whilst a transition is in progress
-            foreach (CandidateMorph oldMorph in oldCandidateMorphs)
-            {
-                if (newCandidateMorphNames.Contains(oldMorph.Name))
-                {
-                    newCandidateMorphs.Single(cm => cm.Name == oldMorph.Name).StoredVisKeyframes = oldMorph.StoredVisKeyframes;
-                }
-            }
-
-            // Clear the signals of the old candidate morphs that did not have a single transition transferred
-            foreach (CandidateMorph oldMorph in oldCandidateMorphs)
-            {
-                if (!transferredMorphNames.Contains(oldMorph.Name))
-                {
-                    oldMorph.ClearLocalSignals();
-                }
-            }
+            return newCandidateMorph;
         }
 
         /// <summary>
@@ -457,8 +505,8 @@ namespace DxR.VisMorphs
         {
             foreach (var property in stateSpecs)
             {
-                // Ignore the name and encoding properties
-                if (property.Key == "name" || property.Key == "encoding")
+                // Ignore the name, encoding, and any other Morph specific properties properties
+                if (property.Key == "name" || property.Key == "encoding" || property.Key == "access")
                     continue;
 
                 // We also ignore position and rotation properties
@@ -648,8 +696,13 @@ namespace DxR.VisMorphs
 
             // HACKY WORKAROUND: We need some way to cancel this timer early in case it gets interrupted. For now we just find the composite
             // disposable tied to the transition and the subscription to it. Ideally this should be done alongside with all of the other signals
-            cancellationObservable.Subscribe(_ => DeactivateTransition(candidateMorph, transitionSpec, transitionSpec["name"], goToEnd))
+            string transitionName = transitionSpec["name"];
+            int transitionPriority = transitionSpec["priority"] != null ? transitionSpec["priority"].AsInt : 0;
+            cancellationObservable.Subscribe(_ => queuedTransitionDeactivations.Add(transitionName, new Tuple<Action, int>(() => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd), transitionPriority)))
                 .AddTo(candidateMorph.CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"] == transitionSpec["name"]).Item2);
+
+            // cancellationObservable.Subscribe(_ => DeactivateTransition(candidateMorph, transitionSpec, transitionSpec["name"], goToEnd))
+            //     .AddTo(candidateMorph.CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"] == transitionSpec["name"]).Item2);
 
             return timerObservable;
         }
@@ -711,13 +764,14 @@ namespace DxR.VisMorphs
             }
 
             // Call update to final state using a tweening observable
-            var tweeningObservable = CreateTweeningObservable(candidateMorph, transitionSpec, isReversed);
-            bool success = ParentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservable, easingFunction, stages);
+            // We pass in a Func instead as there is a chance that the transition will not be successfully applied. If this is the case,
+            // then a tweening observable will not be created.
+            Func<IObservable<float>> tweeningObservableCreateFunc = () => { return CreateTweeningObservable(candidateMorph, transitionSpec, isReversed); };
+
+            bool success = ParentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservableCreateFunc, easingFunction, stages);
 
             if (success)
-            {
                 ActiveTransitionNames.Add(transitionName);
-            }
         }
 
         /// <summary>
@@ -725,6 +779,7 @@ namespace DxR.VisMorphs
         ///
         /// Only actually activates the transition at the end of the frame. This is to ensure all Signals have emitted their values before making any changes to the Vis.
         /// This function should be called by adding an anonymous lambda to queuedTransitionActivations in the form () => ActivateTransition(...)
+        /// As such, it is not necessary to call CheckForMorphs in this function, as it will be called automatically at the end of the frame
         /// </summary>
         private void DeactivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, string transitionName, bool goToEnd = true)
         {
@@ -744,10 +799,13 @@ namespace DxR.VisMorphs
             // Unsubscribe to this transition's signals
             candidateMorph.DisposeTransitionSubscriptions(transitionName);
 
+            // Remove this transition from our active transitions
             ActiveTransitionNames.Remove(transitionName);
 
-            // Check for morphs again so that they can seamlessly progress
-            CheckForMorphs();
+            // Change the CandidateState in our CandidateMorph object to the state that this vis has just transitioned to
+            // This allows the next CheckForMorphs to be properly aware of the current state in the theoretical state machine
+            string targetStateName = goToEnd ? transitionSpec["states"][1] : transitionSpec["states"][0];
+            candidateMorph.CandidateState = candidateMorph.Morph.GetStateFromName(targetStateName);
         }
 
         /// <summary>
@@ -812,16 +870,13 @@ namespace DxR.VisMorphs
                 _finalVisSpec = GenerateVisSpecFromStateSpecs(_initialVisSpec, _initialStateSpec, _finalStateSpec, candidateMorph);
 
                 // Replace all of the leaf nodes that reference other values by JSON path or by Signal names with their proper values
-                // ReplaceLeafValuesInVisSpec(ref _finalVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
                 ResolveLeafValuesInVisSpec(ref _finalVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
-
             }
             else
             {
                 candidateMorph.StoredVisKeyframes[_finalStateSpec["name"].ToString()] = _originalVisSpec;
                 _finalVisSpec = _originalVisSpec;
                 _initialVisSpec = GenerateVisSpecFromStateSpecs(_finalVisSpec, _finalStateSpec, _initialStateSpec, candidateMorph);
-                // ReplaceLeafValuesInVisSpec(ref _initialVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
                 ResolveLeafValuesInVisSpec(ref _initialVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
             }
 
@@ -966,7 +1021,7 @@ namespace DxR.VisMorphs
             {
                 // TODO: Currently there's a bandaid fix in place whereby we can't actually remove width/height/depth values from a specification,
                 // otherwise the inference fails and causes the scale object to not calculate the correct range. Fix this later if this causes further issues
-                if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" ||
+                if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" || property.Name == "access" ||
                     property.Name == "name" || property.Name == "title" ||
                     property.Name == "width" || property.Name == "height" || property.Name == "depth")
                     continue;
@@ -1301,17 +1356,52 @@ namespace DxR.VisMorphs
             string[] split = value.GetType().ToString().Split('.');
             string type = split[split.Length - 1].ToLower();
 
+            // NOTE: These are most of the C# built-in types + some Unity types. Add in more if an error was thrown
             switch (type)
             {
-                case "string":
-                    string s = value.ToString();
-                    return new JValue(s);
+                case "boolean":
+                    bool _boolean = (bool)value;
+                    return new JValue(_boolean);
 
-                case "int":
-                case "float":
+                case "byte":
+                    byte _byte = (byte)value;
+                    return new JValue(_byte);
+
+                case "char":
+                    char _char = (char)value;
+                    return new JValue(_char);
+
+                case "decimal":
+                    decimal _decimal = (decimal)value;
+                    return new JValue(_decimal);
+
+                case "single":
+                    float _single = (float)value;
+                    return new JValue(_single);
+
                 case "double":
-                    float f = (float)value;
-                    return new JValue(f);
+                    double _double = (double)value;
+                    return new JValue(_double);
+
+                case "int16":
+                    short _int16 = (short)value;
+                    return new JValue(_int16);
+
+                case "int32":
+                    int _int32 = (int)value;
+                    return new JValue(_int32);
+
+                case "int64":
+                    long _int = (long)value;
+                    return new JValue(_int);
+
+                case "string":
+                    string _string = value.ToString();
+                    return new JValue(_string);
+
+                case "vector2":
+                    Vector2 vector2 = (Vector3)value;
+                    return new JArray(vector2.x, vector2.y);
 
                 case "vector3":
                     Vector3 vector3 = (Vector3)value;
@@ -1322,7 +1412,7 @@ namespace DxR.VisMorphs
                     return new JArray(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
 
                 default:
-                    return null;
+                    throw new Exception(string.Format("Vis Morphs: Could not convert type {0} to a JToken. Please add your type into the switch statement.", value.GetType().ToString()));
             }
         }
 
