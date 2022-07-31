@@ -386,6 +386,10 @@ namespace DxR
                 orient = initialAxisSpecs["orient"];
             }
 
+            // Regardless if we actually do tween the ticks or not, we hide them this frame. This is to ensure that the ticks are only shown
+            // when they are properly updated by the TweenTicks function, rather than flashing the default tick positions
+            SetTickVisibility(false);
+
             if (initialNumTicks == finalNumTicks && isInitialQuantitative && isFinalQuantitative && isInitialShowingTickLabels && isFinalShowingTickLabels)
             {
                 // Delay this tween until the end of frame so that all other observables can run first
@@ -394,11 +398,6 @@ namespace DxR
                     TweenTicks(initialAxisSpecs, finalAxisSpecs, initialScale, finalScale, initialNumTicks, face, orient, t);
                 }).AddTo(activeAxisTransition.Disposable);
             }
-            else
-            {
-                SetTickVisibility(false);
-            }
-
         }
 
         private void TweenTicks(JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale, int tickCount, string face, string orient, float t)

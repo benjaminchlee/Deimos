@@ -702,6 +702,7 @@ namespace DxR.VisMorphs
                 else
                     return 1 - tween;
             })
+                .StartWith(!isReversed ? 0 : 1)
                 .TakeUntil(cancellationObservable);
 
             bool goToEnd = transitionSpec["timing"]["elapsed"] != null ? transitionSpec["timing"]["elapsed"] == "end" : true;
