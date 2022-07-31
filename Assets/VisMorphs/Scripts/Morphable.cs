@@ -556,7 +556,7 @@ namespace DxR.VisMorphs
                 else
                 {
                     if (visPropertyValue == null ||
-                        (visPropertyValue != null && visPropertyValue.ToString() != statePropertyValue.ToString()))
+                        (visPropertyValue != null && (string)visPropertyValue != (string)statePropertyValue))
                         return false;
                 }
             }
@@ -644,7 +644,7 @@ namespace DxR.VisMorphs
                         {
                             // The value in the vis should match the value in the state. If it doesn't it fails the check
                             if (visEncodingPropertyValue == null ||
-                                (visEncodingPropertyValue != null && visEncodingPropertyValue.ToString() != stateEncodingPropertyValue.ToString()))
+                                (visEncodingPropertyValue != null && (string)visEncodingPropertyValue != (string)stateEncodingPropertyValue))
                                 return false;
                         }
                     }

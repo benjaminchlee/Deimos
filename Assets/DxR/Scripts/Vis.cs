@@ -372,7 +372,7 @@ namespace DxR
                 VisUpdated.Invoke(this, visSpecs);
 
             if (callInferredUpdateEvent)
-                VisUpdated.Invoke(this, visSpecsInferred);
+                VisInferredUpdated.Invoke(this, visSpecsInferred);
         }
 
         private void ApplyTransitionChannelEncodings(ActiveTransition activeTransition)
@@ -433,23 +433,22 @@ namespace DxR
                 if (yoffsetpct != null) visSpecs["encoding"].Add("yoffsetpct", yoffsetpct);
                 if (zoffsetpct != null) visSpecs["encoding"].Add("zoffsetpct", zoffsetpct);
 
-                // Copy over view-level properties
-                // We skip over certain properties. Position and rotation are skipped because the Unity transform is technically the ground truth
-                // TODO: For now we just blindly copy over the view-level properties. There should be a better way to do this though
-                foreach (var property in stateVisSpecs)
+                // Copy over view-level properties. As there's not that many of these, we can be lazy and hard code these in
+                // Only for the properties that have changed between initial and final state do we copy
+                JSONNode initialSpec = stoppingTransition.InitialInferredVisSpecs;
+                JSONNode finalSpec = stoppingTransition.FinalInferredVisSpecs;
+                foreach (string property in new string[] { "width", "height", "depth" } )
                 {
-                    if (property.Key == "data" || property.Key == "mark" || property.Key == "encoding"||
-                        property.Key == "name" || property.Key == "title" ||
-                        property.Key == "position" || property.Key == "rotation")
-                        continue;
-
-                    if (visSpecs[property.Key] == null)
+                    if (initialSpec[property].Value != finalSpec[property].Value && stateVisSpecs[property] != null && !stateVisSpecs[property].IsNull)
                     {
-                        visSpecs.Add(property.Key,property.Value);
-                    }
-                    else
-                    {
-                        visSpecs[property.Key] = property.Value;
+                        if (visSpecs[property] == null)
+                        {
+                            visSpecs.Add(property, stateVisSpecs[property].Value);
+                        }
+                        else
+                        {
+                            visSpecs[property] = stateVisSpecs[property].Value;
+                        }
                     }
                 }
             }
