@@ -16,7 +16,7 @@
         },
         {
             "name": "extruded",
-            "access": false,
+            "restrict": true,
             "depth": -500,
             "encoding": {
                 "x": {

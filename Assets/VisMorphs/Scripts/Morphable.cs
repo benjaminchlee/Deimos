@@ -181,9 +181,9 @@ namespace DxR.VisMorphs
                     // Go through all state specs and see if any matches the current Vis spec
                     foreach (JSONNode stateSpec in morph.States)
                     {
-                        // Since this Morph is brand new, we cannot access any restricted states (i.e., those that can only be access via a transition)
+                        // Since this Morph is brand new, we cannot access any restricted states (i.e., those that can only be accessed via a transition)
                         // Therefore we simply skip these
-                        if (stateSpec["access"] != null && stateSpec["access"] == false)
+                        if (stateSpec["restrict"] != null && stateSpec["restrict"] == true)
                             continue;
 
                         if (CheckSpecsMatch(visSpec, stateSpec, morph))
@@ -520,7 +520,7 @@ namespace DxR.VisMorphs
             foreach (var property in stateSpecs)
             {
                 // Ignore the name, encoding, and any other Morph specific properties properties
-                if (property.Key == "name" || property.Key == "encoding" || property.Key == "access")
+                if (property.Key == "name" || property.Key == "encoding" || property.Key == "restrict")
                     continue;
 
                 // We also ignore position and rotation properties
@@ -1056,7 +1056,7 @@ namespace DxR.VisMorphs
             {
                 // TODO: Currently there's a bandaid fix in place whereby we can't actually remove width/height/depth values from a specification,
                 // otherwise the inference fails and causes the scale object to not calculate the correct range. Fix this later if this causes further issues
-                if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" || property.Name == "access" ||
+                if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" || property.Name == "restrict" ||
                     property.Name == "name" || property.Name == "title" ||
                     property.Name == "width" || property.Name == "height" || property.Name == "depth")
                     continue;

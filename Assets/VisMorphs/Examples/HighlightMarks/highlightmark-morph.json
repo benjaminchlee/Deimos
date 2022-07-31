@@ -9,7 +9,7 @@
         },
         {
             "name": "coloured",
-            "access": false,
+            "restrict": true,
             "encoding": {
                 "color": {
                     "value": "red"

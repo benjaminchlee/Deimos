@@ -14,7 +14,7 @@
         },
         {
             "name": "flattenedX",
-            "access": false,
+            "restrict": true,
             "mark": "sphere",
             "width": "other.width * 0.02",
             "depth": 500,
@@ -26,7 +26,7 @@
         },
         {
             "name": "flattenedZ",
-            "access": false,
+            "restrict": true,
             "mark": "sphere",
             "width": 500,
             "depth": "other.depth * 0.02",

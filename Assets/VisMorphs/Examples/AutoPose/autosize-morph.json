@@ -9,12 +9,11 @@
                 "z": null
             },
             "width": "*",
-            "height": "*",
-            "depth": "*"
+            "height": "*"
         },
         {
             "name": "scaled",
-            "access": false,
+            "restrict": true,
             "encoding": {
                 "x": "*",
                 "y": "*",
