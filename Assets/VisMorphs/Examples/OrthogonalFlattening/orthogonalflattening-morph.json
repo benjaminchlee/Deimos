@@ -3,6 +3,7 @@
     "states": [
         {
             "name": "unflattened",
+            "mark": "sphere",
             "width": 500,
             "depth": 500,
             "encoding": {
@@ -13,7 +14,9 @@
         },
         {
             "name": "flattenedX",
-            "width": "other.width * 0.5",
+            "access": false,
+            "mark": "sphere",
+            "width": "other.width * 0.02",
             "depth": 500,
             "encoding": {
                 "x": "*",
@@ -23,6 +26,8 @@
         },
         {
             "name": "flattenedZ",
+            "access": false,
+            "mark": "sphere",
             "width": 500,
             "depth": "other.depth * 0.02",
             "encoding": {

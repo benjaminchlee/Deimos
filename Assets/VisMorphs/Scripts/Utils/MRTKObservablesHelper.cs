@@ -4,7 +4,9 @@ using System.Collections.Generic;
 using UnityEngine;
 using UniRx;
 using Microsoft.MixedReality.Toolkit;
+using Microsoft.MixedReality.Toolkit.UX;
 using System.Linq;
+using TMPro;
 
 namespace DxR.VisMorphs
 {
@@ -18,6 +20,8 @@ namespace DxR.VisMorphs
         private Dictionary<Handedness, IObservable<Collider[]>> touchingGameObjectsObservables = new Dictionary<Handedness, IObservable<Collider[]>>();
         private Dictionary<Handedness, IObservable<RaycastHit[]>> pointingGameObjectsObservables = new Dictionary<Handedness, IObservable<RaycastHit[]>>();
         private Dictionary<Tuple<Handedness, string>, IObservable<GameObject[]>> proximityGameObjectsObservables = new Dictionary<Tuple<Handedness, string>, IObservable<GameObject[]>>();
+        private Dictionary<string, IObservable<string>> toggleMenuObservables = new Dictionary<string, IObservable<string>>();
+        private Dictionary<string, IObservable<bool>> toggleButtonObservables = new Dictionary<string, IObservable<bool>>();
 
         public MRTKObservablesHelper()
         {
@@ -130,6 +134,40 @@ namespace DxR.VisMorphs
                     });
 
                 proximityGameObjectsObservables.Add(key, observable);
+            }
+
+            return observable;
+        }
+
+        public IObservable<string> GetToggleMenuObservable(string menuName)
+        {
+            IObservable<string> observable = null;
+
+            if (!toggleMenuObservables.TryGetValue(menuName, out observable))
+            {
+                ToggleCollection toggleCollection = GameObject.Find(menuName).GetComponentInChildren<ToggleCollection>();
+
+                observable = toggleCollection.OnToggleSelected.AsObservable<int>().Select(idx => toggleCollection.Toggles[idx].GetComponentInChildren<TextMeshPro>().text);
+
+                toggleMenuObservables.Add(menuName, observable);
+            }
+
+            return observable;
+        }
+
+        public IObservable<bool> GetToggleButtonObservable(string buttonName)
+        {
+            IObservable<bool> observable = null;
+
+            if (!toggleButtonObservables.TryGetValue(buttonName, out observable))
+            {
+                PressableButton button = GameObject.Find(buttonName).GetComponentInChildren<PressableButton>();
+
+                IObservable<bool> toggledObservable = button.IsToggled.OnEntered.AsObservable<float>().Select(_ => true);
+                IObservable<bool> detoggledObservable = button.IsToggled.OnExited.AsObservable<float>().Select(_ => false);
+
+                observable = toggledObservable.Merge(detoggledObservable);
+                toggleButtonObservables.Add(buttonName, observable);
             }
 
             return observable;

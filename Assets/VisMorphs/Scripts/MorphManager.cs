@@ -169,6 +169,8 @@ namespace DxR.VisMorphs
                     {
                         morph.LocalSignals.Add(signalSpecInferred);
                     }
+
+                    morph.SignalNames.Add(signalName);
                 }
             }
             else
@@ -256,8 +258,11 @@ namespace DxR.VisMorphs
                 return false;
 
             // The only Signals that are global are those which:
-            //  a. Are not a "Vis" source; and
-            //  b. Don't target anything
+            //  a. Are a UI element; or
+            //  a. Are not a "Vis" source AND don't target anything
+            if (signalSpec["source"] == "togglemenu" || signalSpec["source"] == "togglebutton")
+                return true;
+
             if (signalSpec["source"] == "vis")
                 return false;
 
@@ -309,13 +314,14 @@ namespace DxR.VisMorphs
         /// 1. Expression based signals
         /// 2. Source based signals
         ///
-        /// Source based signals are then categorised into the following six types:
+        /// Source based signals are then categorised into the following seven types:
         /// 1. Mouse based signals that are targetless (e.g., mouse position, left/mouse button presses)
         /// 2. Mouse based signals that are targeted (e.g., clicked target)
         /// 3. Hand based sources that are targetless (e.g., hand position, arbitrary controller button presses)
         /// 4. Hand based sources that compare themselves to a target (e.g., grabbed object, surface which the hand touched)
-        /// 5. Object based sources that are targetless (e.g., head direction, vis rotation)
-        /// 6. Object based sources that compare themselves to a target (e.g., distance between head and vis, closest surface to vis)
+        /// 5. MRTK UI based sources which are always targetless (e.g., button press)
+        /// 6. Object based sources that are targetless (e.g., head direction, vis rotation)
+        /// 7. Object based sources that compare themselves to a target (e.g., distance between head and vis, closest surface to vis)
         ///
         /// There are a lot of these types for multiple reasons:
         /// a. Mouse sources are on a two-dimensional plane versus the three-dimensional space of hand and object sources
@@ -364,6 +370,10 @@ namespace DxR.VisMorphs
                 {
                     return CreateControllerTargetedObservable(signalSpec, morphable);
                 }
+            }
+            else if (source == "togglemenu" || source == "togglebutton")
+            {
+                return CreateUIElementObservable(signalSpec, morphable);
             }
             else
             {
@@ -636,6 +646,24 @@ namespace DxR.VisMorphs
 
                 default:
                     return CreateValueObservableFromTarget(signalSpec, targetObservable, morphable);
+            }
+        }
+
+        public IObservable<dynamic> CreateUIElementObservable(JSONNode signalSpec, Morphable morphable = null)
+        {
+            string source = signalSpec["source"];
+            string target = signalSpec["target"];
+
+            switch (source)
+            {
+                case "togglemenu":
+                    return mrtkObservablesHelper.GetToggleMenuObservable(target);
+
+                case "togglebutton":
+                    return mrtkObservablesHelper.GetToggleButtonObservable(target).Select(_ => (dynamic)_);
+
+                default:
+                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is not a supported source. This should not happen.", signalSpec["name"]));
             }
         }
 

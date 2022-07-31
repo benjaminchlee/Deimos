@@ -1,0 +1,64 @@
+{
+    "states": [
+        {
+            "name": "unextruded",
+            "encoding": {
+                "x": {
+                    "field": "Miles_per_Gallon",
+                    "type": "quantitative"
+                },
+                "y": {
+                    "field": "Weight_in_lbs",
+                    "type": "quantitative"
+                },
+                "z": null
+            }
+        },
+        {
+            "name": "extruded",
+            "access": false,
+            "depth": -500,
+            "encoding": {
+                "x": {
+                    "field": "Miles_per_Gallon",
+                    "type": "quantitative"
+                },
+                "y": {
+                    "field": "Weight_in_lbs",
+                    "type": "quantitative"
+                },
+                "z": {
+                    "field": "selectedExtrusionDimension",
+                    "type": "quantitative"
+                }
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "selectedExtrusionDimension",
+            "source": "togglemenu",
+            "target": "ExtrusionMenu"
+        }, {
+            "name": "extrusionActivationToggle",
+            "source": "togglebutton",
+            "target": "ExtrusionToggle"
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "extrusion",
+            "states": ["unextruded", "extruded"],
+            "triggers": ["extrusionActivationToggle"],
+            "timing": {
+                "control": 0.25,
+                "elapsed": "end"
+            },
+            "interrupt": {
+                "control": "ignore"
+            },
+            "bidirectional": true
+        }
+    ]
+}

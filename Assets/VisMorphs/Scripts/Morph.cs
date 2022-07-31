@@ -12,6 +12,7 @@ namespace DxR.VisMorphs
         public List<JSONNode> GlobalSignals;
         public List<JSONNode> LocalSignals;
         public List<JSONNode> Transitions;
+        public List<string> SignalNames;
 
         public Morph()
         {
@@ -19,6 +20,7 @@ namespace DxR.VisMorphs
             GlobalSignals = new List<JSONNode>();
             LocalSignals = new List<JSONNode>();
             Transitions = new List<JSONNode>();
+            SignalNames = new List<string>();
         }
 
         public JSONNode GetStateFromName(string name)

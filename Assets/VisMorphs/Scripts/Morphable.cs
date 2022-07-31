@@ -172,7 +172,7 @@ namespace DxR.VisMorphs
                         if (stateSpec["access"] != null && stateSpec["access"] == false)
                             continue;
 
-                        if (CheckSpecsMatch(visSpec, stateSpec))
+                        if (CheckSpecsMatch(visSpec, stateSpec, morph))
                         {
                             CandidateMorph newCandidateMorph = CreateCandidateMorphFromStateSpec(morph, stateSpec);
                             newCandidateMorphs.Add(newCandidateMorph);
@@ -190,7 +190,7 @@ namespace DxR.VisMorphs
                     CandidateMorph newCandidateMorph = null;
 
                     // Check to see if the candidate state in the previous morph is still valid
-                    if (CheckSpecsMatch(visSpec, oldCandidateMorph.CandidateState))
+                    if (CheckSpecsMatch(visSpec, oldCandidateMorph.CandidateState, morph))
                     {
                         // Instead of enumerating through and picking a candidate state, we use this old one
                         // Note that we are still finding new candidate transitions as these may be outdated
@@ -205,7 +205,7 @@ namespace DxR.VisMorphs
                         {
                             // Note that since this Morph is still active, we can access any restricted states without issue (unlike above)
 
-                            if (CheckSpecsMatch(visSpec, stateSpec))
+                            if (CheckSpecsMatch(visSpec, stateSpec, morph))
                             {
                                 newCandidateMorph = CreateCandidateMorphFromStateSpec(morph, stateSpec);
 
@@ -496,12 +496,12 @@ namespace DxR.VisMorphs
             return observable;
         }
 
-        private bool CheckSpecsMatch(JSONNode visSpec, JSONNode stateSpec)
+        private bool CheckSpecsMatch(JSONNode visSpec, JSONNode stateSpec, Morph morph)
         {
-            return CheckViewLevelSpecsMatching(visSpec, stateSpec) && CheckEncodingSpecsMatching(visSpec["encoding"], stateSpec["encoding"]);
+            return CheckViewLevelSpecsMatching(visSpec, stateSpec, morph) && CheckEncodingSpecsMatching(visSpec["encoding"], stateSpec["encoding"], morph);
         }
 
-        private bool CheckViewLevelSpecsMatching(JSONNode visSpecs, JSONNode stateSpecs)
+        private bool CheckViewLevelSpecsMatching(JSONNode visSpecs, JSONNode stateSpecs, Morph morph)
         {
             foreach (var property in stateSpecs)
             {
@@ -529,10 +529,10 @@ namespace DxR.VisMorphs
                         return false;
                     }
                 }
-                // Condition 2: the value of this property is defined as a wildcard ("*") or is prefixed with "this." or "other."
+                // Condition 2: the value of this property is defined as a wildcard ("*"), is prefixed with "this." or "other.", or is the name of a Signal
                 else if (statePropertyValue == "*" ||
-                        ((string)statePropertyValue).StartsWith("this.") ||
-                        ((string)statePropertyValue).StartsWith("other."))
+                         ((string)statePropertyValue).StartsWith("this.") || ((string)statePropertyValue).StartsWith("other.") ||
+                         morph.SignalNames.Contains(statePropertyValue))
                 {
                     if (visPropertyValue == null ||
                         (visPropertyValue != null && visPropertyValue.IsNull))
@@ -550,7 +550,7 @@ namespace DxR.VisMorphs
             return true;
         }
 
-        private bool CheckEncodingSpecsMatching(JSONNode visEncodingSpecs, JSONNode stateEncodingSpecs)
+        private bool CheckEncodingSpecsMatching(JSONNode visEncodingSpecs, JSONNode stateEncodingSpecs, Morph morph)
         {
             if (stateEncodingSpecs == null)
                 return true;
@@ -565,7 +565,6 @@ namespace DxR.VisMorphs
                 JSONNode stateEncodingValue = encoding.Value;
 
                 JSONNode visEncodingValue = visEncodingSpecs[stateEncodingKey];
-
                 // If the value of this encoding is null, it means that our vis specs should NOT have it
                 // e.g., "x": null
                 if (stateEncodingValue.IsNull)
@@ -576,9 +575,12 @@ namespace DxR.VisMorphs
                         return false;
                     }
                 }
-                // If the value of this encoding is as a wildcard ("*") or is prefixed with "this." or "other.", it means our vis specs
-                // should at least have this encoding, no matter its contents
-                else if (stateEncodingValue == "*")
+                // If the value of this encoding is as a wildcard ("*"), or is prefixed with "this." or "other.", or is the name of a Signal,
+                // it means our vis specs should at least have this encoding, no matter its contents
+                else if (stateEncodingValue == "*" ||
+                         ((string)stateEncodingValue).StartsWith("this.") || ((string)stateEncodingValue).StartsWith("other.") ||
+                         morph.SignalNames.Contains(stateEncodingValue)
+                         )
                 {
                     // The vis should have a value for this property. If it doesn't, it fails the check
                     if (visEncodingValue == null ||
@@ -605,14 +607,14 @@ namespace DxR.VisMorphs
                                 return false;
                         }
 
-                        /// The value of this property in the state is defined as a wildcard ("*") or is prefixed with "this." or "other."
+                        /// The value of this property in the state is defined as a wildcard ("*"), is prefixed with "this." or "other.", or is the name of a Signal
                         /// e.g.,: "x": {
                         ///          "field": "*"
                         ///          "type": "this.encoding.y.type"
                         ///         }
                         else if (stateEncodingPropertyValue == "*" ||
-                                ((string)stateEncodingPropertyValue).StartsWith("this.") ||
-                                ((string)stateEncodingPropertyValue).StartsWith("other."))
+                                 ((string)stateEncodingPropertyValue).StartsWith("this.") || ((string)stateEncodingPropertyValue).StartsWith("other.") ||
+                                 morph.SignalNames.Contains(stateEncodingPropertyValue))
                         {
                             // The vis should have a value for this property. If it doesn't, it fails the check
                             if (visEncodingPropertyValue == null ||
@@ -870,14 +872,14 @@ namespace DxR.VisMorphs
                 _finalVisSpec = GenerateVisSpecFromStateSpecs(_initialVisSpec, _initialStateSpec, _finalStateSpec, candidateMorph);
 
                 // Replace all of the leaf nodes that reference other values by JSON path or by Signal names with their proper values
-                ResolveLeafValuesInVisSpec(ref _finalVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
+                ResolveLeafValuesInVisSpec(ref _finalVisSpec, _initialVisSpec, _finalVisSpec, _finalStateSpec, candidateMorph);
             }
             else
             {
                 candidateMorph.StoredVisKeyframes[_finalStateSpec["name"].ToString()] = _originalVisSpec;
                 _finalVisSpec = _originalVisSpec;
                 _initialVisSpec = GenerateVisSpecFromStateSpecs(_finalVisSpec, _finalStateSpec, _initialStateSpec, candidateMorph);
-                ResolveLeafValuesInVisSpec(ref _initialVisSpec, _initialVisSpec, _finalVisSpec, candidateMorph);
+                ResolveLeafValuesInVisSpec(ref _initialVisSpec, _initialVisSpec, _finalVisSpec, _initialStateSpec, candidateMorph);
             }
 
             // Convert back to SimpleJSON
@@ -913,6 +915,8 @@ namespace DxR.VisMorphs
         /// A) undefined -> defined: We copy over everything in the stored keyframe spec
         /// B) defined -> undefined: We copy over everything in the stored keyframe spec, but ONLY if it is undefined by omission, rather than by an explicit NULL
         /// C) defined -> defined: We copy over everything in the stored keyframe spec
+        ///
+        /// Note that any leaf values which reference Signals in the state specs will override the changes made by this function, as these override the keyframes
         /// </summary>
         private JObject GenerateVisSpecFromStateSpecs(JObject _visSpec, JObject _initialStateSpec, JObject _finalStateSpec, CandidateMorph candidateMorph)
         {
@@ -1119,14 +1123,33 @@ namespace DxR.VisMorphs
         }
 
         /// <summary>
-        /// This function does three things:
-        /// 1. Replaces all leaf values that include names of signals with said signal's values, in JToken form
-        /// 2. Copies JTokens from one property/encoding to the other using JSON.NET's path format, prefixed with "this." or ".other"
-        /// 3. Evaluates all leaf values that are left as expressions
-        private void ResolveLeafValuesInVisSpec(ref JObject visSpec, JObject initialVisSpec, JObject finalVisSpec, CandidateMorph candidateMorph)
+        /// This function does four things:
+        /// 1. Ensures that all leaf values that were Signals in the final state spec remain as Signals, in order to override any values set from keyframes
+        /// 2. Replaces all leaf values that include names of signals with said signal's values, in JToken form
+        /// 3. Copies JTokens from one property/encoding to the other using JSON.NET's path format, prefixed with "this." or "other."
+        /// 4. Evaluates all leaf values that are left as expressions
+        private void ResolveLeafValuesInVisSpec(ref JObject visSpec, JObject initialVisSpec, JObject finalVisSpec, JObject finalStateSpec, CandidateMorph candidateMorph)
         {
-            // Get all leaf nodes in the vis specs
-            var descendants = visSpec.Descendants().Where(descendant => !descendant.HasValues);
+            /// FUNCTION 1: Ensure leaf values are Signals
+
+            // Get all leaf nodes in the final state spec
+            var descendants = finalStateSpec.Descendants().Where(descendant => !descendant.HasValues);
+
+            // Loop through and see if any of these are a signal
+            foreach (var descendant in descendants)
+            {
+                if (candidateMorph.Morph.SignalNames.Contains(descendant.ToString()))
+                {
+                    // Replace any value in the vis spec with this one
+                    (visSpec.SelectToken(descendant.Path).Parent as JProperty).Value = descendant;
+                }
+            }
+
+            /// FUNCTION 2: Replace Signal leaf values with actual values; and
+            /// FUNCTION 3: Copy JTokens prefixed with this. and other.
+
+            // Get all leaf nodes in the vis spec
+            descendants = visSpec.Descendants().Where(descendant => !descendant.HasValues);
 
             List<Tuple<string, JToken>> descendantsToUpdate = new List<Tuple<string, JToken>>();
 
@@ -1218,6 +1241,8 @@ namespace DxR.VisMorphs
                 descendant.Value = tuple.Item2;
             }
 
+            /// FUNCTION 4: Evaluate expressions
+
             // Now we do the process AGAIN, but this time resolving expressions and converting them to their appropriate JToken formats
             descendants = visSpec.Descendants().Where(descendant => !descendant.HasValues);
             descendantsToUpdate = new List<Tuple<string, JToken>>();
@@ -1235,19 +1260,21 @@ namespace DxR.VisMorphs
                 // Check if the descendant is a string. If it's not, then chances are it isn't an expression nor a Signal
                 if (descendant.Type == JTokenType.String)
                 {
-                    // If the descendent has spaces, then there's a reasonably good chance it is an expression. Resolve it
-                    if (descendant.ToString().Contains(' '))
+                    string descendantString = descendant.ToString();
+
+                    // If the descendent has spaces, and is not the name of a field in the dataset, then there's a reasonably good chance it is an expression. Resolve it
+                    if (descendantString.Contains(' ') && !ParentVis.data.fieldNames.Contains(descendantString))
                     {
                         // Pass the expression to the expression interpreter to resolve it
                         // The interpreter should already have the variables for our Signals already stored, meaning that we don't need to pass them onto it
-                        dynamic value = MorphManager.Instance.EvaluateExpression(this, descendant.ToString());
+                        dynamic value = MorphManager.Instance.EvaluateExpression(this, descendantString);
                         JToken valueJToken = ConvertDynamicValueToJToken(value);
                         descendantsToUpdate.Add(new Tuple<string, JToken>(descendant.Path, valueJToken));
                     }
                     // Otherwise, see if it's a Signal and set its value
                     else
                     {
-                        JToken valueJToken = GetJTokenFromSignalName(descendant.ToString(), candidateMorph);
+                        JToken valueJToken = GetJTokenFromSignalName(descendantString, candidateMorph);
                         if (valueJToken != null)
                         {
                             descendantsToUpdate.Add(new Tuple<string, JToken>(descendant.Path, valueJToken));
@@ -1257,70 +1284,6 @@ namespace DxR.VisMorphs
             }
 
             // Properly update the descendants in the vis spec again to resolve expressions and Signal names
-            foreach (var tuple in descendantsToUpdate)
-            {
-                var descendant = visSpec.SelectToken(tuple.Item1).Parent as JProperty;
-                descendant.Value = tuple.Item2;
-            }
-        }
-
-        /// <summary>
-        /// This function does three things:
-        /// 1. Replaces all leaf values that include names of signals with said signal's values, in JToken form
-        /// 2. Copies JTokens from one property/encoding to the other using JSON.NET's path format, prefixed with "this." or ".other"
-        /// 3. Evaluates all leaf values that are left as expressions
-        /// </summary>
-        private void ReplaceLeafValuesInVisSpec(ref JObject visSpec, JObject initialVisSpec, JObject finalVisSpec, CandidateMorph candidateMorph)
-        {
-            // Get all leaf nodes in the vis specs
-            var descendants = visSpec.Descendants().Where(descendant => !descendant.HasValues);
-
-            // Loop through and find all nodes that reference signals, and calculate their JToken representation
-            List<Tuple<string, JToken>> descendantsToUpdate = new List<Tuple<string, JToken>>();
-            foreach (var descendant in descendants)
-            {
-                string leafValue = descendant.ToString();
-
-                // Function 1: Replace signal names with their values
-                if (!(leafValue.StartsWith("this.") || leafValue.StartsWith("other.")))
-                {
-                    JToken value = GetJTokenFromSignalName(leafValue, candidateMorph);
-                    if (value != null)
-                    {
-                        // Store the path and JToken for us to update after this foreach loop
-                        descendantsToUpdate.Add(new Tuple<string, JToken>(descendant.Path, value));
-                    }
-                }
-                // Function 2: Replace values with full stops with respective value from a different property/encoding
-                else
-                {
-                    // We get the value from either the initial or final vis spec depending on the prefix
-                    JObject specToCheck = null;
-                    string sourcePath = "";
-                    if (leafValue.StartsWith("this."))
-                    {
-                        specToCheck = initialVisSpec;
-                        sourcePath = leafValue.Replace("this.", "");
-                    }
-                    else if (leafValue.StartsWith("other."))
-                    {
-                        specToCheck = initialVisSpec;
-                        sourcePath = leafValue.Replace("other.", "");
-                    }
-
-                    JToken sourceValue = specToCheck.SelectToken(sourcePath);
-                    if (sourceValue != null)
-                    {
-                        descendantsToUpdate.Add(new Tuple<string, JToken>(descendant.Path, sourceValue));
-                    }
-                    else
-                    {
-                        throw new Exception(sourcePath);
-                    }
-                }
-            }
-
-            // Update the descendants
             foreach (var tuple in descendantsToUpdate)
             {
                 var descendant = visSpec.SelectToken(tuple.Item1).Parent as JProperty;
