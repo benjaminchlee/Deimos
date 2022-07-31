@@ -113,7 +113,7 @@
                 "value": "start"
             },
             "bidirectional": true,
-            "disable-grab": true
+            "disablegrab": true
         }
     ]
 }

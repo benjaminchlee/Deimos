@@ -792,7 +792,7 @@ namespace DxR.VisMorphs
                 ActiveTransitionNames.Add(transitionName);
 
                 // If the flag is set to true, then the system will automatically release the grab when the trasition begins
-                if (transitionSpec["disable-grab"] != null && transitionSpec["disable-grab"] == true && objectManipulator != null)
+                if (transitionSpec["disablegrab"] != null && transitionSpec["disablegrab"] == true && objectManipulator != null)
                 {
                     if (objectManipulator.isSelected)
                     {
