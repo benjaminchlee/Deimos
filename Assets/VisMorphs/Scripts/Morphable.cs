@@ -2,6 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.MixedReality.Toolkit.SpatialManipulation;
 using Newtonsoft.Json.Linq;
 using SimpleJSON;
 using UniRx;
@@ -32,6 +33,10 @@ namespace DxR.VisMorphs
         private bool isInitialised;
         private Dictionary<string, Tuple<Action, int>> queuedTransitionActivations = new Dictionary<string, Tuple<Action, int>>();
         private Dictionary<string, Tuple<Action, int>> queuedTransitionDeactivations = new Dictionary<string, Tuple<Action, int>>();
+
+        private ObjectManipulator objectManipulator;
+        private Vector3 restingPosition;
+        private Quaternion restingRotation;
 
         private void Start()
         {
@@ -64,6 +69,14 @@ namespace DxR.VisMorphs
                     Activation();
                 }
             }
+
+            // Store the position and rotation of this GameObject at its resting state (i.e., not being grabbed)
+            // This is so that we can reset its position if we need to release the grab when a transition starts
+            if (objectManipulator != null && !objectManipulator.isSelected)
+            {
+                restingPosition = transform.position;
+                restingRotation = transform.rotation;
+            }
         }
 
         public void Initialise()
@@ -73,6 +86,7 @@ namespace DxR.VisMorphs
                 ParentVis = GetComponent<Vis>();
                 ParentVis.VisUpdated.AddListener(VisUpdated);
                 GUID = System.Guid.NewGuid().ToString().Substring(0, 8);
+                objectManipulator = GetComponent<ObjectManipulator>();
                 isInitialised = true;
             }
         }
@@ -773,7 +787,23 @@ namespace DxR.VisMorphs
             bool success = ParentVis.ApplyTransition(transitionName, initialState, finalState, tweeningObservableCreateFunc, easingFunction, stages);
 
             if (success)
+            {
                 ActiveTransitionNames.Add(transitionName);
+
+                // If the flag is set to true, then the system will automatically release the grab when the trasition begins
+                if (transitionSpec["disable-grab"] != null && transitionSpec["disable-grab"] == true && objectManipulator != null)
+                {
+                    if (objectManipulator.isSelected)
+                    {
+                        // This is obviously using a deprecated function, will need to find the correct way of doing this
+                        objectManipulator.interactionManager.CancelInteractableSelection(objectManipulator);
+
+                        // Force set the position in case it has drifted
+                        transform.position = restingPosition;
+                        transform.rotation = restingRotation;
+                    }
+                }
+            }
         }
 
         /// <summary>

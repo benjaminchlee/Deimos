@@ -36,10 +36,11 @@ namespace DxR.VisMorphs
                 // Find the collider that is on the source gameobject. This assumes that the collider is at the root object
                 // TODO: For now we always assume that the collider is a box, make this support other types
                 BoxCollider collider = go.GetComponent<BoxCollider>();
+                Vector3 extra = new Vector3(0.01f, 0.01f, 0.01f);
                 observable = Observable.EveryUpdate().Select(_ =>
                     {
                         return Physics.OverlapBox(go.transform.TransformPoint(collider.center),
-                                                  go.transform.TransformVector(collider.size) / 2f,
+                                                  go.transform.TransformVector(collider.size) / 2f + extra,
                                                   go.transform.rotation);
                     });
 

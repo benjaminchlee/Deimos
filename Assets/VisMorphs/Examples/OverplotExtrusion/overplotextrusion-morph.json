@@ -51,6 +51,12 @@
             "criteria": "select",
             "value": "boolean"
         }, {
+            "name": "isVisTouchingSurface",
+            "source": "vis",
+            "target": "surface",
+            "criteria": "touch",
+            "value": "boolean"
+        }, {
             "name": "isRightHandPinching",
             "source": "hand",
             "handedness": "right",
@@ -72,14 +78,15 @@
         {
             "name": "overplotExtrusion",
             "states": ["unextruded", "extruded"],
-            "triggers": ["isSelectingMark", "isRightHandPinching"],
+            "triggers": ["isSelectingMark", "isRightHandPinching", "isVisTouchingSurface"],
             "timing": {
                 "control": "tweener"
             },
             "interrupt": {
                 "control": "ignore"
             },
-            "bidirectional": true
+            "bidirectional": true,
+            "disable-grab": true
         }
     ]
 }

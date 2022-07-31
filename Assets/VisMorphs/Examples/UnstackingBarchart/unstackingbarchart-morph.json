@@ -112,7 +112,8 @@
                 "control": "reset",
                 "value": "start"
             },
-            "bidirectional": true
+            "bidirectional": true,
+            "disable-grab": true
         }
     ]
 }

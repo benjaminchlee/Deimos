@@ -502,7 +502,7 @@ namespace DxR.VisMorphs
                     return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(_ => (dynamic)_);
 
                 case "pinch":
-                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(f => (dynamic)(f > 0.8f));
+                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(f => (dynamic)(f > 0.5f));
 
                 case "position":
                     return mrtkObservablesHelper.GetControllerGameObjectObservable(handedness).Select(controller => (dynamic)controller.transform.position);
