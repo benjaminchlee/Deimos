@@ -7,7 +7,7 @@ using System.Linq;
 
 namespace DxR.VisMorphs
 {
-    public class GameObjectObservablesHelper : MonoBehaviour
+    public class GameObjectObservablesHelper
     {
         private Dictionary<GameObject, IObservable<GameObject>> gameObjectObservables = new Dictionary<GameObject, IObservable<GameObject>>();
         private Dictionary<GameObject, IObservable<Collider[]>> overlapBoxObservables = new Dictionary<GameObject, IObservable<Collider[]>>();

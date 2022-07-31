@@ -7,7 +7,7 @@ using System.Linq;
 
 namespace DxR.VisMorphs
 {
-    public class MouseObservablesHelper : MonoBehaviour
+    public class MouseObservablesHelper
     {
         private IObservable<Vector3> positionObservable;
         private Dictionary<string, IObservable<bool>> buttonPressedObservables = new Dictionary<string, IObservable<bool>>();

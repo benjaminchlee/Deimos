@@ -28,15 +28,15 @@ namespace DxR.VisMorphs
         public List<MorphSpecification> MorphJsonSpecifications;
 
         public List<Morph> Morphs = new List<Morph>();
-        public static Dictionary<string, Interpreter> Interpreters = new Dictionary<string, Interpreter>();
+        public Dictionary<string, Interpreter> Interpreters = new Dictionary<string, Interpreter>();
 
         private Dictionary<string, IObservable<dynamic>> GlobalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
-        private static CompositeDisposable disposables;
+        private CompositeDisposable disposables;
 
         private readonly string[] tagNames = new string[] { "DxRVis", "DxRMark", "DxRAxis", "DxRLegend", "Surface" };
-        private static MouseObservablesHelper mouseObservablesHelper;
-        private static MRTKObservablesHelper mrtkObservablesHelper;
-        private static GameObjectObservablesHelper gameObjectObservablesHelper;
+        private MouseObservablesHelper mouseObservablesHelper;
+        private MRTKObservablesHelper mrtkObservablesHelper;
+        private GameObjectObservablesHelper gameObjectObservablesHelper;
 
         private void Awake()
         {
@@ -63,6 +63,14 @@ namespace DxR.VisMorphs
             // Initialise variables
             if (disposables == null)
                 disposables = new CompositeDisposable();
+
+            // Initialise our helper classes which will create and re-use observables
+            if (mouseObservablesHelper == null)
+            {
+                mouseObservablesHelper = new MouseObservablesHelper();
+                mrtkObservablesHelper = new MRTKObservablesHelper();
+                gameObjectObservablesHelper = new GameObjectObservablesHelper();
+            }
 
             foreach (MorphSpecification morphSpecification in MorphJsonSpecifications)
             {
@@ -136,14 +144,6 @@ namespace DxR.VisMorphs
 
         private void ReadSignalsSpecification(Morph morph, JSONNode morphSpec)
         {
-            // Initialise our helper classes which will create and re-use observables
-            if (mouseObservablesHelper == null)
-            {
-                mouseObservablesHelper = new MouseObservablesHelper();
-                mrtkObservablesHelper = new MRTKObservablesHelper();
-                gameObjectObservablesHelper = new GameObjectObservablesHelper();
-            }
-
             JSONNode signalsSpec = morphSpec["signals"];
             if (signalsSpec != null)
             {
@@ -326,7 +326,7 @@ namespace DxR.VisMorphs
         ///
         /// TODO: Make this not suck, or at least just make it more modular and cool so that it leverages functional reactive programming concepts more
         /// </summary>
-        public static IObservable<dynamic> CreateObservableFromSpec(JSONNode signalSpec, Morphable morphable = null)
+        public IObservable<dynamic> CreateObservableFromSpec(JSONNode signalSpec, Morphable morphable = null)
         {
             if (signalSpec["expression"] != null)
             {
@@ -378,7 +378,7 @@ namespace DxR.VisMorphs
             }
         }
 
-        public static IObservable<dynamic> CreateMouseUntargetedObservable(JSONNode signalSpec, Morphable morphable = null)
+        public IObservable<dynamic> CreateMouseUntargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
             string handedness = signalSpec["handedness"];
             string value = signalSpec["value"];
@@ -399,7 +399,7 @@ namespace DxR.VisMorphs
             }
         }
 
-        public static IObservable<dynamic> CreateMouseTargetedObservable(JSONNode signalSpec, Morphable morphable = null)
+        public IObservable<dynamic> CreateMouseTargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
             string handedness = signalSpec["handedness"];
             string target = signalSpec["target"];
@@ -480,7 +480,7 @@ namespace DxR.VisMorphs
             return CreateValueObservableFromTarget(signalSpec, targetObservable, morphable);
         }
 
-        public static IObservable<dynamic> CreateControllerUntargetedObservable(JSONNode signalSpec, Morphable morphable = null)
+        public IObservable<dynamic> CreateControllerUntargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
             string source = signalSpec["source"];
             Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : Handedness.Right;
@@ -502,7 +502,7 @@ namespace DxR.VisMorphs
             }
         }
 
-        public static IObservable<dynamic> CreateControllerTargetedObservable(JSONNode signalSpec, Morphable morphable = null)
+        public IObservable<dynamic> CreateControllerTargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
             Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : Handedness.Right;
             string target = signalSpec["target"];
@@ -593,7 +593,7 @@ namespace DxR.VisMorphs
         }
 
 
-        public static IObservable<dynamic> CreateComparisonValueObservableFromControllerTarget(JSONNode signalSpec, IObservable<GameObject> controllerObservable, IObservable<GameObject> targetObservable, Morphable morphable = null)
+        public IObservable<dynamic> CreateComparisonValueObservableFromControllerTarget(JSONNode signalSpec, IObservable<GameObject> controllerObservable, IObservable<GameObject> targetObservable, Morphable morphable = null)
         {
             string value = signalSpec["value"];
 
@@ -639,7 +639,7 @@ namespace DxR.VisMorphs
             }
         }
 
-        public static IObservable<dynamic> CreateObservableFromObjectTargetless(JSONNode signalSpec, Morphable morphable = null)
+        public IObservable<dynamic> CreateObservableFromObjectTargetless(JSONNode signalSpec, Morphable morphable = null)
         {
             string source = signalSpec["source"];
             string value = signalSpec["value"];
@@ -669,7 +669,7 @@ namespace DxR.VisMorphs
             return CreateValueObservableFromTarget(signalSpec, gameObjectObservablesHelper.GetGameObjectObservable(sourceGameObject), morphable);
         }
 
-        public static IObservable<dynamic> CreateObservableFromObjectTargeted(JSONNode signalSpec, Morphable morphable = null)
+        public IObservable<dynamic> CreateObservableFromObjectTargeted(JSONNode signalSpec, Morphable morphable = null)
         {
             string source = signalSpec["source"];
             string target = signalSpec["target"];
@@ -755,7 +755,7 @@ namespace DxR.VisMorphs
             return CreateComparisonValueObservableFromObjectTarget(signalSpec, sourceGameObject, targetObservable, morphable);
         }
 
-        public static IObservable<dynamic> CreateComparisonValueObservableFromObjectTarget(JSONNode signalSpec, GameObject sourceGameObject, IObservable<GameObject> targetObservable, Morphable morphable = null)
+        public IObservable<dynamic> CreateComparisonValueObservableFromObjectTarget(JSONNode signalSpec, GameObject sourceGameObject, IObservable<GameObject> targetObservable, Morphable morphable = null)
         {
             string value = signalSpec["value"];
 
@@ -828,7 +828,7 @@ namespace DxR.VisMorphs
             }
         }
 
-        public static IObservable<dynamic> CreateValueObservableFromTarget(JSONNode signalSpec, IObservable<GameObject> targetObservable, Morphable morphable = null)
+        public IObservable<dynamic> CreateValueObservableFromTarget(JSONNode signalSpec, IObservable<GameObject> targetObservable, Morphable morphable = null)
         {
             string target = signalSpec["target"];
             string value = signalSpec["value"];
@@ -888,7 +888,7 @@ namespace DxR.VisMorphs
             }
         }
 
-        private static IObservable<dynamic> CreateObservableFromExpression(string expression, Morphable morphable)
+        private IObservable<dynamic> CreateObservableFromExpression(string expression, Morphable morphable)
         {
             // Get the expression interpreter for this morphable. If it does not yet exist, initialise a new one
             Interpreter interpreter;
@@ -982,7 +982,7 @@ namespace DxR.VisMorphs
         /// Each Morphable requires its own interpreter to evaluate expressions, as each one may have variables with the
         /// same name which overlap with one another.
         /// </summary>
-        private static Interpreter InitialiseExpressionInterpreter(string guid)
+        private Interpreter InitialiseExpressionInterpreter(string guid)
         {
             if (Interpreters.ContainsKey(guid))
                 throw new Exception(string.Format("Vis Morphs: There already exists a DynamicExpresso interpreter for the Morphable with guid {0}.", guid));
@@ -1050,7 +1050,7 @@ namespace DxR.VisMorphs
             return EvaluateExpression(morphable.GUID, expression);
         }
 
-        private static dynamic EvaluateExpression(string guid, string expression)
+        private dynamic EvaluateExpression(string guid, string expression)
         {
             if (Interpreters.TryGetValue(guid, out Interpreter interpreter))
             {

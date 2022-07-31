@@ -312,7 +312,7 @@ namespace DxR.VisMorphs
 
                 foreach (JSONNode signalSpec in morph.LocalSignals)
                 {
-                    IObservable<dynamic> observable = MorphManager.CreateObservableFromSpec(signalSpec, this);
+                    IObservable<dynamic> observable = MorphManager.Instance.CreateObservableFromSpec(signalSpec, this);
                     candidateMorph.SaveLocalSignal(signalSpec["name"], observable);
                 }
             }
