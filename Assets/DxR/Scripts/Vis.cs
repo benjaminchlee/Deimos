@@ -136,6 +136,13 @@ namespace DxR
             isReady = true;
         }
 
+        private void Update()
+        {
+            // If there is an active transition, we constantly update the collider such that it matches the Marks, etc.
+            if (activeTransitions.Count > 0)
+                UpdateCollider();
+        }
+
         public JSONNode GetVisSpecs()
         {
             return visSpecs;

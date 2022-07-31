@@ -62,8 +62,14 @@
         }
     ],
 
-    "signals": [
-        {
+    "signals": [{
+            "name": "isSelectingVis",
+            "source": "hand",
+            "handedness": "right",
+            "target": "vis",
+            "criteria": "select",
+            "value": "boolean"
+        }, {
             "name": "isVisTouchingSurface",
             "source": "vis",
             "target": "surface",
@@ -91,7 +97,7 @@
         {
             "name": "unstacking",
             "states": ["stacked", "side by side"],
-            "triggers": ["isVisTouchingSurface", "isRightHandPinching"],
+            "triggers": ["isSelectingVis", "isVisTouchingSurface", "isRightHandPinching"],
             "timing": {
                 "control": "tweener",
                 "easing": "easeinoutcirc"

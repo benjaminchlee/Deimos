@@ -80,7 +80,7 @@ namespace DxR.VisMorphs
                 observable = GetControllerSelectObservable(handedness)
                     .Select(_ =>
                     {
-                        return Physics.OverlapSphere(controller.currentControllerState.position, 0.1f);
+                        return Physics.OverlapSphere(controller.currentControllerState.position, 0.125f);
                     })
                     .StartWith(new Collider[] { });
 

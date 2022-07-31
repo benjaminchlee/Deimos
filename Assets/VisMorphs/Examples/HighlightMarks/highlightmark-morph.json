@@ -2,6 +2,7 @@
     "states": [
         {
             "name": "uncoloured",
+            "mark": "sphere",
             "encoding": {
                 "color": null
             }

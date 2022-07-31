@@ -1,0 +1,85 @@
+{
+    "states": [
+        {
+            "name": "unextruded",
+            "encoding": {
+                "x": {
+                    "field": "alcohol",
+                    "type": "quantitative",
+                    "scale": {
+                        "type": "linear",
+                        "domain": [ 8, 15 ]
+                    }
+                },
+                "y": {
+                    "field": "residual sugar",
+                    "type": "quantitative"
+                },
+                "z": null
+            }
+        },
+        {
+            "name": "extruded",
+            "access": false,
+            "depth": -500,
+            "encoding": {
+                "x": {
+                    "field": "alcohol",
+                    "type": "quantitative",
+                    "scale": {
+                        "type": "linear",
+                        "domain": [ 8, 15 ]
+                    }
+                },
+                "y": {
+                    "field": "residual sugar",
+                    "type": "quantitative"
+                },
+                "z": {
+                    "field": "overplotting",
+                    "type": "quantitative"
+                }
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "isSelectingMark",
+            "source": "hand",
+            "handedness": "right",
+            "target": "mark",
+            "criteria": "select",
+            "value": "boolean"
+        }, {
+            "name": "isRightHandPinching",
+            "source": "hand",
+            "handedness": "right",
+            "value": "pinch"
+        }, {
+            "name": "rightHandSurfaceDistance",
+            "source": "hand",
+            "handedness": "right",
+            "target": "surface",
+            "criteria": "closest",
+            "value": "closestdistance"
+        }, {
+            "name": "tweener",
+            "expression":"normalise(rightHandSurfaceDistance, 0, 0.5, 0, 1)"
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "overplotExtrusion",
+            "states": ["unextruded", "extruded"],
+            "triggers": ["isSelectingMark", "isRightHandPinching"],
+            "timing": {
+                "control": "tweener"
+            },
+            "interrupt": {
+                "control": "ignore"
+            },
+            "bidirectional": true
+        }
+    ]
+}

@@ -1,0 +1,20 @@
+{
+    "mark": "cube",
+    "encoding": {
+      "x": {
+        "field": "alcohol",
+        "type": "quantitative",
+        "scale": {
+            "type": "linear",
+            "domain": [ 8, 15 ]
+        }
+      },
+      "y": {
+        "field": "residual sugar",
+        "type": "quantitative"
+      }
+    },
+    "data": {
+      "url": "WineQualityCombined_t_sne.csv"
+    }
+  }
