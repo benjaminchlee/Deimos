@@ -1,5 +1,5 @@
 {
-    "mark": "cube",
+    "mark": "sphere",
     "encoding": {
       "x": {
         "field": "alcohol",
@@ -12,6 +12,13 @@
       "y": {
         "field": "residual sugar",
         "type": "quantitative"
+      },
+      "color": {
+          "field": "Type",
+          "type": "ordinal",
+          "scale": {
+            "scheme": [ "#d42424", "#fafafa" ]
+          }
       }
     },
     "data": {

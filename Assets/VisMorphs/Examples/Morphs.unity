@@ -17972,12 +17972,15 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   ShowInternalSpecification: 0
-  InputSpecification: "{\r\n    \"mark\": \"cube\",\r\n    \"encoding\": {\r\n     
+  InputSpecification: "{\r\n    \"mark\": \"sphere\",\r\n    \"encoding\": {\r\n     
     \"x\": {\r\n        \"field\": \"alcohol\",\r\n        \"type\": \"quantitative\",\r\n       
     \"scale\": {\r\n            \"type\": \"linear\",\r\n            \"domain\":
     [ 8, 15 ]\r\n        }\r\n      },\r\n      \"y\": {\r\n        \"field\": \"residual
-    sugar\",\r\n        \"type\": \"quantitative\"\r\n      }\r\n    },\r\n    \"data\":
-    {\r\n      \"url\": \"WineQualityCombined_t_sne.csv\"\r\n    }\r\n  }"
+    sugar\",\r\n        \"type\": \"quantitative\"\r\n      },\r\n      \"color\":
+    {\r\n          \"field\": \"Type\",\r\n          \"type\": \"ordinal\",\r\n         
+    \"scale\": {\r\n            \"scheme\": [ \"#d42424\", \"#fafafa\" ]\r\n         
+    }\r\n      }\r\n    },\r\n    \"data\": {\r\n      \"url\": \"WineQualityCombined_t_sne.csv\"\r\n   
+    }\r\n  }"
   InternalSpecification: 
 --- !u!114 &782584195
 MonoBehaviour:
