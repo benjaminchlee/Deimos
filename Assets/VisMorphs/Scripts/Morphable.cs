@@ -183,7 +183,7 @@ namespace DxR.VisMorphs
                     {
                         // Since this Morph is brand new, we cannot access any restricted states (i.e., those that can only be accessed via a transition)
                         // Therefore we simply skip these
-                        if (stateSpec["restrict"] != null && stateSpec["restrict"] == true)
+                        if (stateSpec["restrict"] != null && stateSpec["restrict"].AsBool == true)
                             continue;
 
                         if (CheckSpecsMatch(visSpec, stateSpec, morph))
@@ -217,7 +217,9 @@ namespace DxR.VisMorphs
                         // Go through all state specs and see if any matches the current Vis spec
                         foreach (JSONNode stateSpec in morph.States)
                         {
-                            // Note that since this Morph is still active, we can access any restricted states without issue (unlike above)
+                            // We ignore any restricted states much in the same way as above. Remember that we can only access these states as a result of a transition
+                            if (stateSpec["restrict"] != null && stateSpec["restrict"].AsBool == true)
+                                continue;
 
                             if (CheckSpecsMatch(visSpec, stateSpec, morph))
                             {
