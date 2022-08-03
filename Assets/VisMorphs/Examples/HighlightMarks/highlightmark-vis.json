@@ -1,5 +1,8 @@
 {
     "mark": "sphere",
+    "width": 800,
+    "height": 800,
+    "depth": 800,
     "encoding": {
       "x": {
         "field": "Horsepower",

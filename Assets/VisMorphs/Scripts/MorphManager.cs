@@ -1080,14 +1080,13 @@ namespace DxR.VisMorphs
 
         private dynamic EvaluateExpression(string guid, string expression)
         {
-            if (Interpreters.TryGetValue(guid, out Interpreter interpreter))
+            Interpreter interpreter;
+            if (!Interpreters.TryGetValue(guid, out interpreter))
             {
-                return interpreter.Eval(expression);
+                interpreter = InitialiseExpressionInterpreter(guid);
             }
-            else
-            {
-                throw new Exception(string.Format("Vis Morphs: The expression interpreter for the Morphable with GUID {0} does not exist. This shouldn't happen.", guid));
-            }
+
+            return interpreter.Eval(expression);
         }
 
         #endregion Signals

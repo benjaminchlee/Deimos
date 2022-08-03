@@ -16,6 +16,7 @@ namespace DxR.VisMorphs
     {
         public string GUID;
         public bool AllowSimultaneousTransitions = true;
+
         /// <summary>
         /// Debug variables. These don't actually do anything in the code other than print values to the Unity Inspector
         /// </summary>
@@ -26,21 +27,38 @@ namespace DxR.VisMorphs
         public List<string> CandidateStateNames = new List<string>();
         public List<string> CandidateTransitionNames = new List<string>();
         public List<string> ActiveTransitionNames = new List<string>();
-        public List<CandidateMorph> CandidateMorphs = new List<CandidateMorph>();
 
         public Vis ParentVis { get; private set; }
         public JSONNode CurrentVisSpec { get; private set; }
-        private bool isInitialised;
+
+        /// <summary>
+        /// Transition references
+        /// </summary>
+        public List<CandidateMorph> CandidateMorphs = new List<CandidateMorph>();
         private Dictionary<string, Tuple<Action, int>> queuedTransitionActivations = new Dictionary<string, Tuple<Action, int>>();
         private Dictionary<string, Tuple<Action, int>> queuedTransitionDeactivations = new Dictionary<string, Tuple<Action, int>>();
 
+        private bool isInitialised;
         private ObjectManipulator objectManipulator;
         private Vector3 restingPosition;
         private Quaternion restingRotation;
+        private static readonly string[] inequalityOperations = new string[] { "<", "<=", "=<", ">", "=>", ">=" };
 
         private void Start()
         {
             Initialise();
+        }
+
+        public void Initialise()
+        {
+            if (!isInitialised)
+            {
+                ParentVis = GetComponent<Vis>();
+                ParentVis.VisUpdated.AddListener(VisUpdated);
+                GUID = System.Guid.NewGuid().ToString().Substring(0, 8);
+                objectManipulator = GetComponent<ObjectManipulator>();
+                isInitialised = true;
+            }
         }
 
         private void LateUpdate()
@@ -76,18 +94,6 @@ namespace DxR.VisMorphs
             {
                 restingPosition = transform.position;
                 restingRotation = transform.rotation;
-            }
-        }
-
-        public void Initialise()
-        {
-            if (!isInitialised)
-            {
-                ParentVis = GetComponent<Vis>();
-                ParentVis.VisUpdated.AddListener(VisUpdated);
-                GUID = System.Guid.NewGuid().ToString().Substring(0, 8);
-                objectManipulator = GetComponent<ObjectManipulator>();
-                isInitialised = true;
             }
         }
 
@@ -554,7 +560,16 @@ namespace DxR.VisMorphs
                         (visPropertyValue != null && visPropertyValue.IsNull))
                         return false;
                 }
-                // Condition 3: the value of this property is defined as a specific value
+                // Condition 3: the value of this property is an inequality
+                else if (inequalityOperations.Any(((string)statePropertyValue).StartsWith))
+                {
+                    // Note: This will throw an error if anything but numerical values are used
+                    string expression = (string)visPropertyValue + " " + (string)statePropertyValue;
+                    bool result = MorphManager.Instance.EvaluateExpression(this, expression);
+                    if (result == false)
+                        return false;
+                }
+                // Condition 4: the value of this property is defined as a specific value
                 else
                 {
                     if (visPropertyValue == null ||
@@ -635,6 +650,18 @@ namespace DxR.VisMorphs
                             // The vis should have a value for this property. If it doesn't, it fails the check
                             if (visEncodingPropertyValue == null ||
                                 (visEncodingPropertyValue != null && visEncodingPropertyValue.IsNull))
+                                return false;
+                        }
+
+                        /// This property is "value" (i.e., not field or type) and is an inequality
+                        /// e.g.,: "x": {
+                        ///         "value": "<= 300"
+                        /// }
+                        else if (stateEncodingProperty.Key == "value" && inequalityOperations.Any(((string)stateEncodingPropertyValue).StartsWith))
+                        {
+                            string expression = (string)visEncodingPropertyValue + " " + (string)stateEncodingPropertyValue;
+                            bool result = MorphManager.Instance.EvaluateExpression(this, expression);
+                            if (result == false)
                                 return false;
                         }
 
@@ -831,16 +858,19 @@ namespace DxR.VisMorphs
 
             ParentVis.StopTransition(transitionName, goToEnd, true);
 
+            // Sometimes the reference to the Candidate Morph can change between the time the lambda is created and the time it is executed, therefore we get the reference again
+            candidateMorph = CandidateMorphs.Single(cm => cm.Name == candidateMorph.Name);
+
             // Unsubscribe to this transition's signals
             candidateMorph.DisposeTransitionSubscriptions(transitionName);
-
-            // Remove this transition from our active transitions
-            ActiveTransitionNames.Remove(transitionName);
 
             // Change the CandidateState in our CandidateMorph object to the state that this vis has just transitioned to
             // This allows the next CheckForMorphs to be properly aware of the current state in the theoretical state machine
             string targetStateName = goToEnd ? transitionSpec["states"][1] : transitionSpec["states"][0];
             candidateMorph.CandidateState = candidateMorph.Morph.GetStateFromName(targetStateName);
+
+            // Remove this transition from our active transitions
+            ActiveTransitionNames.Remove(transitionName);
         }
 
         /// <summary>
@@ -1080,7 +1110,8 @@ namespace DxR.VisMorphs
 
             foreach (var property in ((JObject)_finalStateSpec).Properties())
             {
-                if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" || property.Name == "name" || property.Name == "title")
+                if (property.Name == "data" || property.Name == "mark" || property.Name == "encoding" || property.Name == "restrict" ||
+                    property.Name == "name" || property.Name == "title")
                     continue;
 
                 // Ignore any properties that are defined as null, as these were already handled in Step 1

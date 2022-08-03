@@ -4,8 +4,8 @@
         {
             "name": "unflattened",
             "mark": "sphere",
-            "width": 500,
-            "depth": 500,
+            "width": ">= 600",
+            "depth": ">= 600",
             "encoding": {
                 "x": "*",
                 "y": "*",
@@ -17,7 +17,7 @@
             "restrict": true,
             "mark": "sphere",
             "width": "other.width * 0.02",
-            "depth": 500,
+            "depth": "other.depth",
             "encoding": {
                 "x": "*",
                 "y": "*",
@@ -28,7 +28,7 @@
             "name": "flattenedZ",
             "restrict": true,
             "mark": "sphere",
-            "width": 500,
+            "width": "other.width",
             "depth": "other.depth * 0.02",
             "encoding": {
                 "x": "*",
