@@ -65,7 +65,7 @@
     "signals": [{
             "name": "isSelectingVis",
             "source": "hand",
-            "handedness": "right",
+            "handedness": "any",
             "target": "vis",
             "criteria": "select",
             "value": "boolean"
@@ -76,20 +76,20 @@
             "criteria": "touch",
             "value": "boolean"
         }, {
-            "name": "isRightHandPinching",
+            "name": "isHandPinching",
             "source": "hand",
-            "handedness": "right",
+            "handedness": "any",
             "value": "pinch"
         }, {
-            "name": "rightHandSurfaceDistance",
+            "name": "handSurfaceDistance",
             "source": "hand",
-            "handedness": "right",
+            "handedness": "any",
             "target": "surface",
             "criteria": "closest",
             "value": "closestdistance"
         }, {
             "name": "tweener",
-            "expression":"normalise(rightHandSurfaceDistance, 0.05, 0.35, 0, 1)"
+            "expression":"normalise(handSurfaceDistance, 0.05, 0.35, 0, 1)"
         }
     ],
 
@@ -97,7 +97,7 @@
         {
             "name": "unstacking",
             "states": ["stacked", "side by side"],
-            "triggers": ["isSelectingVis", "isVisTouchingSurface", "isRightHandPinching"],
+            "triggers": ["isSelectingVis", "isVisTouchingSurface", "isHandPinching"],
             "timing": {
                 "control": "tweener",
                 "easing": "easeinoutcirc"

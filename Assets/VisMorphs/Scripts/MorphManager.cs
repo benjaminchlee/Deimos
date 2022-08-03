@@ -212,17 +212,16 @@ namespace DxR.VisMorphs
                 // Mouse, hand, and controller sources should have a handedness property
                 if (signalSpec["source"] == "mouse" || signalSpec["source"] == "hand" || signalSpec["source"] == "controller")
                 {
-                    // If the handedness property doesn't exist, infer a new one (default to right hand)
+                    // If the handedness property doesn't exist, infer a new one (default to any hand)
                     if (signalSpec["handedness"] == null)
                     {
-                        signalSpecInferred.Add("handedness", "right");
+                        signalSpecInferred.Add("handedness", "any");
                     }
-                    // If it does exist, make sure that it is either left or right
-                    // TODO: Make this support "any"
+                    // If it does exist, make sure that it is either left, right, or any
                     else
                     {
-                        if (!(signalSpec["handedness"] == "left" || signalSpec["handedness"] == "right"))
-                            throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an invalid handedness, \"{1}\" given.", signalSpec["name"], signalSpec["handedness"]));
+                        if (!(signalSpec["handedness"] == "left" || signalSpec["handedness"] == "right" || signalSpec["handedness"] == "any"))
+                            throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an invalid handedness, \"{1}\" given. Only left, right, and any is supported.", signalSpec["name"], signalSpec["handedness"]));
                     }
                 }
 
@@ -493,7 +492,7 @@ namespace DxR.VisMorphs
         public IObservable<dynamic> CreateControllerUntargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
             string source = signalSpec["source"];
-            Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : Handedness.Right;
+            Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : signalSpec["handedness"] == "right" ? Handedness.Right : Handedness.None;
             string value = signalSpec["value"];
 
             switch (value)
@@ -514,7 +513,7 @@ namespace DxR.VisMorphs
 
         public IObservable<dynamic> CreateControllerTargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
-            Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : Handedness.Right;
+            Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : signalSpec["handedness"] == "right" ? Handedness.Right : Handedness.None;
             string target = signalSpec["target"];
             string criteria = signalSpec["criteria"];
             string value = signalSpec["value"];
