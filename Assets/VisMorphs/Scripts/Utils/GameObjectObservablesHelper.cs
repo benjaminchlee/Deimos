@@ -37,11 +37,11 @@ namespace DxR.VisMorphs
                 // TODO: For now we always assume that the collider is a box, make this support other types
                 BoxCollider collider = go.GetComponent<BoxCollider>();
                 Vector3 extra = new Vector3(0.01f, 0.01f, 0.01f);
-                observable = Observable.EveryUpdate().Select(_ =>
+                observable = Observable.EveryFixedUpdate().Select(_ =>
                     {
-                        return Physics.OverlapBox(go.transform.TransformPoint(collider.center),
-                                                  go.transform.TransformVector(collider.size) / 2f + extra,
-                                                  go.transform.rotation);
+                        return Physics.OverlapBox(collider.transform.TransformPoint(collider.center),
+                                                  Vector3.Scale(go.transform.localScale, collider.size * 0.5f)  + extra,
+                                                  collider.transform.rotation);
                     });
 
                 overlapBoxObservables.Add(go, observable);
@@ -56,7 +56,7 @@ namespace DxR.VisMorphs
 
             if (!raycastHitsObservables.TryGetValue(go, out observable))
             {
-                observable = Observable.EveryUpdate().Select(_ =>
+                observable = Observable.EveryFixedUpdate().Select(_ =>
                     {
                         return Physics.RaycastAll(go.transform.position, go.transform.forward);
                     });

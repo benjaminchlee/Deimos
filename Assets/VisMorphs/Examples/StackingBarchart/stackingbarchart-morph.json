@@ -90,7 +90,7 @@
             "expression": "60 < touchedSurfaceIntersectionAngle && touchedSurfaceIntersectionAngle < 120"
         }, {
             "name": "touchedSurfaceRotationRotated",
-            "expression": "touchedSurfaceRotation * euler(0, 90, 0)"
+            "expression": "touchedSurfaceRotation * euler(0, -90, 0)"
         }
     ],
 
