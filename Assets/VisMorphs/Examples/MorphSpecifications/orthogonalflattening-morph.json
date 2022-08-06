@@ -1,5 +1,8 @@
 
 {
+    "$schema": "../../Schema/morph-schema.json",
+    "name": "Orthogonal Flattening when Close",
+
     "states": [
         {
             "name": "unflattened",

@@ -10,6 +10,8 @@ using UniRx.Triggers;
 using Microsoft.MixedReality.Toolkit.Utilities;
 using Microsoft.MixedReality.Toolkit;
 using Microsoft.MixedReality.Toolkit.Input;
+using Newtonsoft.Json.Linq;
+using Newtonsoft.Json.Schema;
 
 namespace DxR.VisMorphs
 {
@@ -24,11 +26,14 @@ namespace DxR.VisMorphs
     {
         public static MorphManager Instance { get; private set; }
 
+        public TextAsset JSONSchema;
         public bool DebugSignals;
         public List<MorphSpecification> MorphJsonSpecifications;
 
         public List<Morph> Morphs = new List<Morph>();
         public Dictionary<string, Interpreter> Interpreters = new Dictionary<string, Interpreter>();
+
+        private JSchema jSchema;
 
         private Dictionary<string, IObservable<dynamic>> GlobalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
         private CompositeDisposable disposables;
@@ -64,6 +69,7 @@ namespace DxR.VisMorphs
             if (disposables == null)
                 disposables = new CompositeDisposable();
 
+
             // Initialise our helper classes which will create and re-use observables
             if (mouseObservablesHelper == null)
             {
@@ -76,6 +82,10 @@ namespace DxR.VisMorphs
             {
                 if (morphSpecification.Enabled)
                 {
+                    // Validate Morph specifications. If it's not valid, we skip it
+                    if (!ValidateMorphSpecification(morphSpecification.Json))
+                        continue;
+
                     JSONNode morphSpec = JSON.Parse(morphSpecification.Json.text);
                     string morphName = morphSpec["name"] != null ? morphSpec["name"] : morphSpecification.Json.name;
                     ReadMorphSpecification(morphSpec, morphName);
@@ -90,7 +100,7 @@ namespace DxR.VisMorphs
                 }
             }
 
-            Debug.Log(string.Format("Vis Morphs: {0} morphs loaded: {1}", Morphs.Count, string.Join(", ", Morphs.Select(m => m.Name))));
+            Debug.Log(string.Format("Vis Morphs: {0} Morphs loaded: {1}", Morphs.Count, string.Join(", ", Morphs.Select(m => m.Name))));
         }
 
         private void ResetMorphSpecifications()
@@ -123,6 +133,37 @@ namespace DxR.VisMorphs
                         Morphs.Add(newMorph);
                     }
                 }
+            }
+        }
+
+        public void ValidateMorphJsonSpecifications()
+        {
+            bool success = true;
+            foreach (MorphSpecification morphSpecification in MorphJsonSpecifications)
+            {
+                if (!ValidateMorphSpecification(morphSpecification.Json))
+                    success = false;
+            }
+
+            if (success)
+                Debug.Log("Vis Morphs: All Morph Specifications successfully validated.");
+        }
+
+        private bool ValidateMorphSpecification(TextAsset morphJson)
+        {
+            if (jSchema == null)
+                jSchema = JSchema.Parse(JSONSchema.text);
+
+            JObject jObject = JObject.Parse(morphJson.text);
+            IList<string> messages;
+            if (!jObject.IsValid(jSchema, out messages))
+            {
+                Debug.LogError(string.Format("Vis Morphs: Morph Specification {0} failed to validate. Errors found:\n{1}", morphJson.name, string.Join("\n", messages)));
+                return false;
+            }
+            else
+            {
+                return true;
             }
         }
 
@@ -397,7 +438,7 @@ namespace DxR.VisMorphs
             }
             else
             {
-                if (target == null ||target == "none")
+                if (target == null || target == "none")
                 {
                     return CreateObservableFromObjectTargetless(signalSpec, morphable);
                 }

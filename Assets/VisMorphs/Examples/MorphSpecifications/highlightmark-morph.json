@@ -1,4 +1,7 @@
 {
+    "$schema": "../../Schema/morph-schema.json",
+    "name": "Highlight Marks on Left Mouse Click",
+
     "states": [
         {
             "name": "uncoloured",

@@ -1,11 +1,17 @@
-
 {
+    "$schema": "../../Schema/morph-schema.json",
+    "name": "Stacking Barchart when Intersecting Surface",
+
     "states": [
         {
-            "name": "stacked",
+            "name": "3d barchart",
             "encoding": {
                 "x": {
-                    "type": "nominal"
+                    "field": "other.encoding.color.field",
+                    "type": "other.encoding.color.type"
+                },
+                "width": {
+                    "value": 130
                 },
                 "y": {
                     "type": "quantitative"
@@ -17,19 +23,16 @@
                     "value": -0.5
                 },
                 "z": {
-                    "field": "other.encoding.facetwrap.field",
                     "type": "nominal"
-                },
-                "depth": {
-                    "value": 130
                 }
             }
         },
         {
-            "name": "faceted",
+            "name": "stacked 2d barchart",
             "encoding": {
-                "x": {
-                    "type": "nominal"
+                "x": null,
+                "width": {
+                    "value": 10
                 },
                 "y": {
                     "type": "quantitative"
@@ -40,28 +43,28 @@
                 "yoffsetpct": {
                     "value": -0.5
                 },
-                "z": null,
-                "depth": {
-                    "value": 10
+                "z": {
+                    "type": "nominal"
                 },
-                "facetwrap": {
-                    "field": "other.encoding.z.field",
-                    "type": "nominal",
-                    "directions": ["x", "y"],
-                    "spacing": [400, -500],
-                    "size": 2
+                "color": {
+                    "field": "other.encoding.x.field",
+                    "type": "other.encoding.x.type"
+                },
+                "yoffset": {
+                    "channel": "color"
                 }
             },
             "position": {
                 "value": "touchedSurfaceIntersectionPoint"
             },
             "rotation": {
-                "value": "touchedSurfaceRotation"
+                "value": "touchedSurfaceRotationRotated"
             }
         }
     ],
 
-    "signals": [{
+    "signals": [
+        {
             "name": "isVisTouchingSurface",
             "source": "vis",
             "target": "surface",
@@ -79,25 +82,33 @@
             "target": "surface",
             "criteria": "touch",
             "value": "rotation"
+        }, {
+            "name": "touchedSurfaceIntersectionAngle",
+            "source": "vis",
+            "target": "surface",
+            "criteria": "touch",
+            "value": "angle"
+        }, {
+            "name": "isTouchingSideways",
+            "expression": "60 < touchedSurfaceIntersectionAngle && touchedSurfaceIntersectionAngle < 120"
+        }, {
+            "name": "touchedSurfaceRotationRotated",
+            "expression": "touchedSurfaceRotation * euler(0, -90, 0)"
         }
     ],
 
     "transitions": [
         {
-            "name": "stacked2faceted",
-            "states": ["stacked", "faceted"],
-            "trigger": "isVisTouchingSurface",
+            "name": "stacking",
+            "states": ["3d barchart", "stacked 2d barchart"],
+            "trigger": "isVisTouchingSurface && isTouchingSideways",
             "control": {
-                "timing": 1.5,
+                "timing": 0.75,
                 "easing": "easeoutcirc",
                 "interrupted": "ignore"
             },
-            "staging": {
-                "encoding": [0, 0.65],
-                "position": [0.65, 1],
-                "rotation": [0.65, 1]
-            },
-            "bidirectional": true
+            "bidirectional": true,
+            "priority": 1
         }
     ]
 }

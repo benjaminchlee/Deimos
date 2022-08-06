@@ -1,4 +1,7 @@
 {
+    "$schema": "../../Schema/morph-schema.json",
+    "name": "Geoscatter with Slider",
+
     "states": [
         {
             "name": "scatterplot",

@@ -1,4 +1,7 @@
 {
+    "$schema": "../../Schema/morph-schema.json",
+    "name": "Tilt Map Recreated",
+
     "states": [
         {
             "name": "choropleth",

@@ -34,6 +34,11 @@ namespace DxR.VisMorphs
                 morphManagerScript.DisableAllMorphs();
             }
 
+            if (GUILayout.Button("Validate All Morphs"))
+            {
+                morphManagerScript.ValidateMorphJsonSpecifications();
+            }
+
             DrawDefaultInspector();
         }
     }

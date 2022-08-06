@@ -1,0 +1,369 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "URL to a JSON schema for validation and checking of the specification on editors which support it. Unless there have been updates to the schema, the one stored in the Assets/VisMorphs/Schema folder of the Unity project should be used.",
+      "type": "string"
+    },
+    "name": {
+      "type": "string",
+      "description": "The name of this Morph. Mainly used for error reporting by the toolkit. If no name is specified, then the filename will be used instead.",
+      "minLength": 1
+    },
+    "states": {
+      "description": "An array of two or more State specifications. A State specification is essentially part (or the entirety of) a DxR visualisation specification. If a visualisation during runtime matches a State specification listed here, then the visualisation is considered to have reached said State and is a candidate for Transitions stemming from it.\nPlease see the [DxR Grammar Docs](https://sites.google.com/view/dxr-vis/grammar-docs?authuser=0) for valid visualisation properties and values.",
+      "type": "array",
+      "items":
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "The unique name for this State. States are referenced later by name to form transitions between them.",
+              "type": "string",
+              "minLength": 1
+            },
+            "restrict": {
+              "description": "A flag for whether a visualisation at runtime is allowed to match this State directly. In other words, if set to true, then a visualisation can only reach this State via a Transition defined in this Morph.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "name"
+          ]
+        },
+      "minItems": 2
+    },
+    "signals": {
+      "description": "An array of Signals. Signals are streams of data that can be used to control and manipulate Morphs. There are two main types of Signals:\nSource-based Signals stream data values from a source such as hand input, and can be further refined through Targets and Value properties.\nExpression-based Signals allow for arbitrary calculation of data. Other Signals can be used as variables within the expression.\n\nNote that no type safety is enforced with Signals.",
+      "type": "array",
+      "items":
+        {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "description": "The unique name of this Signal. Signals are referenced later by name to be used as part of a Trigger, Timer for Transition control, or even part of other Signals via Expressions (case sensitive).",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "source": {
+                  "description": "The Source of this Signal. Primitive sources are provided via autocomplete. Arbitrary Unity GameObjects can also be referenced via their name.",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "enum": ["mouse", "controller", "hand", "togglemenu", "togglebutton", "vis", "head"]
+                    }
+                  ]
+                },
+                "handedness": {
+                  "description": "The Handedness of the given source. Only used for controller and hand Signals. \"any\" will use the most recently updated hand as its emitted value, meaning that the Signal will behave erratically if both hands are being tracked simultaneously.",
+                  "type": "string",
+                  "enum": ["left", "right", "any"],
+                  "default": "any"
+                },
+                "target": {
+                  "description": "The type of Target that this Signal should try and select. This field is optional.\nTargets allow for some other type of object to be accessed based off the given Source and Criteria (defined as a separate property). For example, a visualisation's marks can be used as a Signal, which is selected via a hand source.\nFor UI-based Sources (i.e., togglemenu and togglebutton), the Target is instead the name of the Unity GameObject that contains the UI script.\nPrimitive targets are provided via autocomplete. As with Source, arbitrary Unity GameObjects can also be referenced via their name",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "enum": ["mark", "axis", "surface", "vis", "head"]
+                    }
+                  ]
+                },
+                "criteria": {
+                  "description": "The Criteria to use when selecting the specified Target. This property is required and will only work for Targets that are of mark, axis, or surface.",
+                  "type": "string",
+                  "enum": ["touch", "point", "select", "closest", "farthest", "click"]
+                },
+                "value": {
+                  "description": "The Value to derive from the Source or Target. Not all Values are valid for all Sources or Targets.\nFor Signals without a Target, valid Values are those which access some property of the given Source (e.g., position, forward, click (mouse sources), pinch (for hand/controller sources)). GameObject values can also be accessed via reflection if desired (e.g., transform.childCount).\nFor Signals with a Target, the same Values can be used. But in addition, Values which derive values from comparisons can be used instead (e.g., distance, intersection). In other words, these work by calculating a value between the Source and Target.",
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "enum": ["position", "localposition", "rotation", "localrotation", "eulerangles", "localeulerangles", "scale", "forward", "up", "right", "boolean", "distance", "closestdistance", "angle", "intersection", "select", "pinch", "press", "click"]
+                    }
+                  ]
+                }
+              },
+              "required": [
+                "name",
+                "source"
+              ],
+              "additionalProperties": false
+            },
+            {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "description": "The unique name of this Signal. Signals are referenced later by name to be used as part of a Trigger, Timer for Transition control, or even part of other Signals via Expressions.",
+                  "type": "string",
+                  "minLength": 1
+                },
+                "expression": {
+                  "description": "A mathematical Expression that is used to determine the emitted value of this Signal. Other Signals can be used as variables via their literal Names (case sensitive).\nCommon mathematical operations are supported, alongside a number of primitive functions (e.g., normalise, distance). Please see the InitialiseExpressionInterpreter() function of MorphManager.cs for a full list of these, or to add your own function if desired.\nNote that as no type safety is enforced, these Signals are prone to errors. Please make sure you are aware of the data types of each Signal that you are referencing.\nAlso note that Expressions can only reference Signals that were created before them (i.e., defined above them in this specification).",
+                  "type": "string",
+                  "minLength": 1
+                }
+              },
+              "required": [
+                "name",
+                "expression"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+    },
+    "transitions": {
+      "description": "An array of Transitions. These connect two States together, and are controled and manipulated via Signals.",
+      "type": "array",
+      "items":
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "description": "The unique name of this Transition. This is mainly used internally to keep track of which Transition is active, but should still be kept uniquely named nonetheless.",
+              "type": "string",
+              "minLength": 1
+            },
+            "states": {
+              "description": "The initial and final States that this Transition connects. These States are referenced by their given Name (case sensitive). The first State is considered the inital and the second State considered the final.",
+              "type": "array",
+              "items": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "string"
+                }
+              ],
+              "minItems": 2,
+              "maxItems": 2,
+              "uniqueItems": true
+            },
+            "trigger": {
+              "description": "A boolean Signal which activates the Transition when it emits true (alongside other requirements).\nThe Signal can either be accessed via its Name (case sensitive), or be declared in-line via a mathematical expression in this property, much in the same way as Expression Signals.\nThe Signal must return a boolean value for this to function correctly.",
+              "type": "string"
+            },
+            "control": {
+              "description": "Control rules to further refine the behaviour of the Transition. If not defined, the Transition will start and finish instantaneously when activated. It is strongly recommended that you do use Control properties.",
+              "type": "object",
+              "properties": {
+                "timing": {
+                  "description": "A Signal or numerical value that determines the timing of the Transition.\nIf the name of a Signal is used, the Transition will tween using the Signal as a t value. This Signal must be numerical and emit values between 0 and 1. It is recommended to use this in conjunction with the normalise() function of Expression Signals.\nIf a numerical value is provided, the Transition will automatically tween between 0 and 1 over the specified duration (in seconds).",
+                  "oneOf": [
+                    {
+                      "type": "number",
+                      "minimum": 0,
+                      "default": 1
+                    },
+                    {
+                      "type": "string"
+                    }
+                  ]
+                },
+                "easing": {
+                  "description": "The Easing function to apply to the Transition. The standard [Easing functions](https://easings.net/) are supported.",
+                  "type": "string",
+                  "enum": ["easeinquad", "easeoutquad", "easeinoutquad", "easeincubic", "easeoutcubic", "easeinoutcubic",
+                           "easeinquart", "easeoutquart", "easeinoutquart", "easeinquint", "easeoutquint", "easeinoutquint",
+                           "easeinsine", "easeoutsine", "easeinoutsine", "easeinexpo", "easeoutexpo", "easeinoutexpo",
+                           "easeincirc", "easeoutcirc", "easeinoutcirc", "linear", "spring", "easeinbounce", "easeoutbounce", "easeinoutbounce",
+                           "easeinback", "easeoutback", "easeinoutback", "easeinelastic", "easeoutelastic", "easeinoutelastic"],
+                  "default": "linear"
+                },
+                "completed": {
+                  "description": "When the Transition is Completed, what state should the Visualisation be set to. By default it will always go to the final state. Setting this to initial will allow the Visualisation to reset back to its original state once complete.",
+                  "type": "string",
+                  "enum": ["initial", "final"],
+                  "default": "final"
+                },
+                "interrupted": {
+                  "description": "If the Transition is interrupted (by the Trigger, if any, returning false whilst the Transition is active), what should hppaen. If set to initial or final, the Visualisation will immediately jump to that state. If set to ignore, the Transition will continue to progress until it reaches its natural conclusion.",
+                  "type": "string",
+                  "enum": ["initial", "final", "ignore"],
+                  "default": "final"
+                }
+              },
+              "additionalProperties": false
+            },
+            "staging": {
+              "description": "Staging to apply to the Transition.\nStaging is defined on a per-property basis. Only properties that have staging specified here will actually be staged, with the rest being unaffected.\nPer each property, an array of start and end value must be provided. These should be within the range of 0 to 1 and be in ascending order. If, for example, a range of [0.25, 0.5] is given, that property will only animate between the 25% and 50% points of the Transition, regardless of its length.\nIn order to stage all encodings at once, the \"encoding\" property can be used, with any explictly defined properties taking priority.",
+              "type": "object",
+              "properties": {
+                "x": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "y": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "z": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "width": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "height": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "depth": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "size": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "color": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "opacity": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "encoding": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "position": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                },
+                "rotation": {
+                  "type": "array",
+                  "items": {
+                    "type": "number",
+                    "minimum": 0,
+                    "maximum": 1
+                  },
+                  "minItems": 2,
+                  "maxItems": 2,
+                  "default": [0, 1]
+                }
+              },
+              "minProperties": 1,
+              "additionalProperties": false
+            },
+            "bidirectional": {
+              "description": "Determines whether this Transition can start and end in the reverse direction. This is particularly useful for Transitions which can be undone or reversed.",
+              "type": "boolean",
+              "default": false
+            },
+            "priority": {
+              "description": "Determines priority of execution in cases where multiple Transitions from multiple Morphs are applied to a Visualisation at the exact same time. This is particularly useful for when the simultaneous Transitions conflict with one another. A Transition with the higher Priority number will activate first. If Transitions have the same priority, they will be executed in a pseudo-random order.",
+              "type": "number",
+              "default": 0
+            },
+            "disablegrab": {
+              "description": "Determines if any grab action by MRTK should be disabled when this Transition begins. This is particularly useful for when the Trigger requires that the user perform a selection gesture on the Visualisation, but the Visualisation should not be grabbed. This feature is currently a buggy and will cause the Visualisation to snap back after being grabbed.",
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "states"
+          ]
+        },
+      "minItems": 1
+    }
+  },
+  "required": [
+    "states",
+    "signals",
+    "transitions"
+  ]
+}

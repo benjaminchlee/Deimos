@@ -1,4 +1,7 @@
 {
+    "$schema": "../../Schema/morph-schema.json",
+    "name": "Unstacking Barchart when Intersecting Surface",
+
     "states": [
         {
             "name": "stacked",
@@ -101,7 +104,7 @@
             "control": {
                 "timing": "tweener",
                 "easing": "easeinoutcirc",
-                "interrupted": "start"
+                "interrupted": "initial"
             },
             "staging": {
                 "z": [0, 0.5],
@@ -112,6 +115,5 @@
             "bidirectional": true,
             "disablegrab": true
         }
-
     ]
 }
