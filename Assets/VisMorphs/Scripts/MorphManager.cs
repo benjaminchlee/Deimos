@@ -110,73 +110,94 @@ namespace DxR.VisMorphs
         private void ReadMorphSpecification(JSONNode morphSpec, string morphName)
         {
             // We need to initialise three separate things: states, signals, and transitions
+            // If any one of them fails (by returning a false value), we do not store it to the Morphs array
             Morph newMorph = new Morph();
             newMorph.Name = morphName;
 
-            ReadStatesSpecification(newMorph, morphSpec);
-            ReadSignalsSpecification(newMorph, morphSpec);
-            ReadTransitionsSpecification(newMorph, morphSpec);
-
-            Morphs.Add(newMorph);
+            if (ReadStatesSpecification(newMorph, morphSpec))
+            {
+                if (ReadSignalsSpecification(newMorph, morphSpec))
+                {
+                    if (ReadTransitionsSpecification(newMorph, morphSpec))
+                    {
+                        Morphs.Add(newMorph);
+                    }
+                }
+            }
         }
 
         #region States
 
-        private void ReadStatesSpecification(Morph morph, JSONNode morphSpec)
+        private bool ReadStatesSpecification(Morph morph, JSONNode morphSpec)
         {
             JSONNode statesSpec = morphSpec["states"];
-            if (statesSpec != null)
+
+            if (statesSpec == null)
             {
-                foreach (JSONNode stateSpec in statesSpec.Children)
-                {
-                    morph.States.Add(stateSpec);
-                }
+                Debug.LogError(string.Format("Vis Morphs: The Morph {0} does not have any State specifications. At least two are required for Morphs to properly function. Skipping...", morph.Name));
+                return false;
             }
-            else
+            else if (statesSpec.Children.Count() <= 1)
             {
-                Debug.LogWarning(string.Format("Vis Morphs: No state specification has been provided for Morph {0}. Is this correct?", morph.Name));
+                Debug.LogError(string.Format("Vis Morphs: The Morph {0} has less than two State specifications. At least two are required for Morphs to properly function. Skipping...", morph.Name));
+                return false;
             }
+
+            foreach (JSONNode stateSpec in statesSpec.Children)
+            {
+                morph.States.Add(stateSpec);
+            }
+
+            return true;
         }
 
         #endregion States
 
         #region Signals
 
-        private void ReadSignalsSpecification(Morph morph, JSONNode morphSpec)
+        private bool ReadSignalsSpecification(Morph morph, JSONNode morphSpec)
         {
             JSONNode signalsSpec = morphSpec["signals"];
+
             if (signalsSpec != null)
             {
-                foreach (JSONNode signalSpec in signalsSpec.Children)
+                try
                 {
-                    JSONNode signalSpecInferred = ValidateAndInferSignal(signalSpec);
-
-                    string signalName = signalSpecInferred["name"];
-
-                    /// We handle signals differently depending on whether it is a global or local signal
-                    /// Global signals are those that can easily be shared across multiple visualisations (e.g., controller events with no targets)
-                    /// Local signals are those that are specific to a visualisation and its componnts (e.g., the vis's rotation, a targeted mark)
-                    ///     We also consider expressions to be local, at least for now
-                    /// This script will handle global signals, but each Morphable will need to create these local signals independently
-                    if (IsSignalGlobal(signalSpecInferred))
+                    foreach (JSONNode signalSpec in signalsSpec.Children)
                     {
-                        IObservable<dynamic> observable = CreateObservableFromSpec(signalSpecInferred);
-                        SaveGlobalSignal(signalName, observable);
-                        morph.GlobalSignals.Add(signalSpecInferred);
-                    }
-                    /// We store a collection of local signal specs which each Morphable will need to create
-                    else
-                    {
-                        morph.LocalSignals.Add(signalSpecInferred);
-                    }
+                        JSONNode signalSpecInferred = ValidateAndInferSignal(signalSpec);
 
-                    morph.SignalNames.Add(signalName);
+                        string signalName = signalSpecInferred["name"];
+
+                        /// We handle signals differently depending on whether it is a global or local signal
+                        /// Global signals are those that can easily be shared across multiple visualisations (e.g., controller events with no targets)
+                        /// Local signals are those that are specific to a visualisation and its componnts (e.g., the vis's rotation, a targeted mark)
+                        ///     We also consider expressions to be local, at least for now
+                        /// This script will handle global signals, but each Morphable will need to create these local signals independently
+                        if (IsSignalGlobal(signalSpecInferred))
+                        {
+                            IObservable<dynamic> observable = CreateObservableFromSpec(signalSpecInferred);
+                            SaveGlobalSignal(signalName, observable);
+                            morph.GlobalSignals.Add(signalSpecInferred);
+                        }
+                        /// We store a collection of local signal specs which each Morphable will need to create
+                        else
+                        {
+                            morph.LocalSignals.Add(signalSpecInferred);
+                        }
+
+                        morph.SignalNames.Add(signalName);
+                    }
+                }
+                catch (Exception e)
+                {
+                    Debug.LogError(e);
+                    Debug.LogError(string.Format("Vis Morphs: The Morph {0} returned an error while parsing Signals. Skipping...", morph.Name));
+                    return false;
                 }
             }
-            else
-            {
-                Debug.LogWarning(string.Format("Vis Morphs: No signal specification has been provided for Morph {0}. Is this correct?", morph.Name));
-            }
+
+            return true;
         }
 
         /// <summary>
@@ -1092,20 +1113,22 @@ namespace DxR.VisMorphs
 
         #region Transitions
 
-        private void ReadTransitionsSpecification(Morph morph, JSONNode morphSpec)
+        private bool ReadTransitionsSpecification(Morph morph, JSONNode morphSpec)
         {
             JSONNode transitionsSpec = morphSpec["transitions"];
-            if (transitionsSpec != null)
+
+            if (transitionsSpec == null)
             {
-                foreach (JSONNode transitionSpec in transitionsSpec.Children)
-                {
-                    morph.Transitions.Add(transitionSpec);
-                }
+                Debug.LogError(string.Format("Vis Morphs: The Morph {0} does not have any Transition specifications. At least one is required for Morphs to properly function. Skipping...", morph.Name));
+                return false;
             }
-            else
+
+            foreach (JSONNode transitionSpec in transitionsSpec.Children)
             {
-                Debug.LogWarning(string.Format("Vis Morphs: No transition specification has been provided for Morph {0}. Is this correct?", morph.Name));
+                morph.Transitions.Add(transitionSpec);
             }
+
+            return true;
         }
 
         #endregion Transitions

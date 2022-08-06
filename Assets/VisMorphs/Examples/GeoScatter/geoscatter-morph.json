@@ -64,8 +64,8 @@
             "name": "stage1",
             "states": ["scatterplot", "choropleth"],
             "triggers": [],
-            "timing": {
-                "control": "sliderX",
+            "control": {
+                "timing": "sliderX",
                 "easing": "easeinoutquint"
             },
             "staging": {
@@ -73,10 +73,6 @@
                 "y": [0, 0.5],
                 "width": [0.5, 1],
                 "height": [0.5, 1]
-            },
-            "interrupt": {
-                "control": "reset",
-                "value": "start"
             },
             "bidirectional": true
         }

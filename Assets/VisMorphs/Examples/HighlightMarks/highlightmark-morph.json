@@ -31,12 +31,9 @@
             "name": "uncoloured2coloured",
             "states": ["uncoloured", "coloured"],
             "triggers": ["mousedown"],
-            "timing": {
-                "control": 0.25,
-                "elapsed": "end"
-            },
-            "interrupt": {
-                "control": "ignore"
+            "control": {
+                "timing": 0.25,
+                "interrupted": "ignore"
             },
             "bidirectional": true
         }

@@ -87,17 +87,15 @@
             "name": "stacked2faceted",
             "states": ["stacked", "faceted"],
             "triggers": ["isVisTouchingSurface"],
-            "timing": {
-                "control": 1.5,
-                "easing": "easeoutcirc"
+            "control": {
+                "timing": 1.5,
+                "easing": "easeoutcirc",
+                "interrupted": "ignore"
             },
             "staging": {
                 "encoding": [0, 0.65],
                 "position": [0.65, 1],
                 "rotation": [0.65, 1]
-            },
-            "interrupt": {
-                "control": "ignore"
             },
             "bidirectional": true
         }

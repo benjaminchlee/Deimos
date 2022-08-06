@@ -79,11 +79,9 @@
             "name": "overplotExtrusion",
             "states": ["unextruded", "extruded"],
             "triggers": ["isSelectingMark", "isRightHandPinching", "isVisTouchingSurface"],
-            "timing": {
-                "control": "tweener"
-            },
-            "interrupt": {
-                "control": "ignore"
+            "control": {
+                "timing": "tweener",
+                "interrupted": "ignore"
             },
             "bidirectional": true,
             "disablegrab": true

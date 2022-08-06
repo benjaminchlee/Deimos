@@ -109,8 +109,8 @@
             "name": "c2p",
             "states": ["choropleth", "prism"],
             "triggers": null,
-            "timing": {
-                "control": "c2pTween"
+            "control": {
+                "timing": "c2pTween"
             },
             "bidirectional": true
         },
@@ -118,8 +118,8 @@
             "name": "p2b",
             "states": ["prism", "bar"],
             "triggers": null,
-            "timing": {
-                "control": "p2bTween"
+            "control": {
+                "timing": "p2bTween"
             },
             "bidirectional": true
         }

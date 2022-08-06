@@ -99,12 +99,10 @@
             "name": "stacking",
             "states": ["3d barchart", "stacked 2d barchart"],
             "triggers": ["isVisTouchingSurface", "isTouchingSideways"],
-            "timing": {
-                "control": 0.75,
-                "easing": "easeoutcirc"
-            },
-            "interrupt": {
-                "control": "ignore"
+            "control": {
+                "timing": 0.75,
+                "easing": "easeoutcirc",
+                "interrupted": "ignore"
             },
             "bidirectional": true,
             "priority": 1

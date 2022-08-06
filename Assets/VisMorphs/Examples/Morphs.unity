@@ -429,6 +429,7 @@ GameObject:
   - component: {fileID: 25287600}
   - component: {fileID: 25287599}
   - component: {fileID: 25287598}
+  - component: {fileID: 25287604}
   - component: {fileID: 25287603}
   - component: {fileID: 25287602}
   m_Layer: 0
@@ -743,6 +744,22 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   autoConstraintSelection: 1
   selectedConstraints: []
+--- !u!114 &25287604
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 25287597}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8541886cbf353c945b3ceed1cff565d1, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  UseLocalPosition: 0
+  LockX: 0
+  LockY: 1
+  LockZ: 1
 --- !u!1 &32972631
 GameObject:
   m_ObjectHideFlags: 0
@@ -48415,7 +48432,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2dd72b9d3ba807b4aaef095aa0aa1b22, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  DebugSignals: 1
+  DebugSignals: 0
   MorphJsonSpecifications:
   - Json: {fileID: 4900000, guid: a26a31d495e6bf748af6a0775f7360ec, type: 3}
     Enabled: 1

@@ -98,19 +98,16 @@
             "name": "unstacking",
             "states": ["stacked", "side by side"],
             "triggers": ["isSelectingVis", "isVisTouchingSurface", "isHandPinching"],
-            "timing": {
-                "control": "tweener",
-                "easing": "easeinoutcirc"
+            "control": {
+                "timing": "tweener",
+                "easing": "easeinoutcirc",
+                "interrupted": "start"
             },
             "staging": {
                 "z": [0, 0.5],
                 "depth": [0, 0.5],
                 "y": [0.5, 1],
                 "height": [0.5, 1]
-            },
-            "interrupt": {
-                "control": "reset",
-                "value": "start"
             },
             "bidirectional": true,
             "disablegrab": true

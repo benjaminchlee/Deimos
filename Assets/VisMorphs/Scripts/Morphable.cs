@@ -368,10 +368,10 @@ namespace DxR.VisMorphs
 
                     // We now actually create the subscriptions themselves
                     // If this Transition is using a Predicate as a tweener, we subscribe to it such that the Transition only actually begins if this tweener returns a value between 0 and 1 (exclusive)
-                    if (transitionSpec["timing"] != null && transitionSpec["timing"]["control"] != null)
+                    if (transitionSpec["control"] != null && transitionSpec["control"]["timing"] != null)
                     {
                         // Get the observable associated with the tweener signal. Check both the global and local signals for it
-                        string tweenerName = transitionSpec["timing"]["control"];
+                        string tweenerName = transitionSpec["control"]["timing"];
                         var observable = GetLocalOrGlobalSignal(tweenerName, candidateMorph);
 
                         if (observable != null)
@@ -473,18 +473,28 @@ namespace DxR.VisMorphs
                                         if (ActiveTransitionNames.Contains(transitionName) && !queuedTransitionDeactivations.ContainsKey(transitionName))
                                         {
                                             bool goToEnd = false;
+
                                             // The transition spec provides additional rules for what to do when the transition is interrupted
-                                            if (transitionSpec["interrupt"]["control"] != null)
+                                            if (transitionSpec["control"]["interrupted"] != null)
                                             {
-                                                // If the control is set to "ignore", it means we ignore this call to disable. Return out of this function
-                                                if (transitionSpec["interrupt"]["control"] == "ignore")
+                                                // If the value is set to "ignore", it means we ignore this call to disable. Return out of this function
+                                                if (transitionSpec["control"]["interrupted"] == "ignore")
                                                 {
                                                     return;
                                                 }
-                                                // If the control is set to "reset", we reset the transition back to either the initial or final state, depending on what is specified
-                                                else if (transitionSpec["interrupt"]["control"] == "reset")
+                                                // If the value is set to either initial or final, we reset it to the respective direction
+                                                else if (transitionSpec["control"]["interrupted"] == "initial")
                                                 {
-                                                    goToEnd = transitionSpec["interrupt"]["value"] == "end";
+                                                    goToEnd = false;
+                                                }
+                                                else if (transitionSpec["control"]["interrupted"] == "final")
+                                                {
+                                                    goToEnd = true;
+                                                }
+                                                else if (transitionSpec["control"]["interrupted"] == "revert")
+                                                {
+                                                    // TODO: Create a new tweener which interpolates the transition by reversing it
+                                                    throw new NotImplementedException();
                                                 }
                                             }
 
@@ -495,7 +505,7 @@ namespace DxR.VisMorphs
                             }
                             else
                             {
-                                throw new Exception(string.Format("Vis Morphs: Trigger with name {0} cannot be found.", triggerNames[k]));
+                                throw new Exception(string.Format("Vis Morphs: Morph {0} cannot find any Trigger with the name {1}.", candidateMorph.Name, triggerNames[k]));
                             }
                         }
                     }
@@ -685,28 +695,34 @@ namespace DxR.VisMorphs
 
         private IObservable<float> CreateTweeningObservable(CandidateMorph candidateMorph, JSONNode transitionSpec, bool isReversed)
         {
-            JSONNode timingSpecs = transitionSpec["timing"];
+            JSONNode controlSpec = transitionSpec["control"];
 
-            // If no timing specs are given, we just use a generic timer
-            if (timingSpecs == null)
+            // If no control spec is given, the transition will activate and finish pretty much immediately. We create a timer to 0 seconds to emulate this
+            if (controlSpec == null)
             {
-                return CreateTimerObservable(candidateMorph, transitionSpec, 1);
+                return CreateTimerObservable(candidateMorph, transitionSpec, 0f, isReversed);
+            }
+            // If the control spec is given, but no timing value is provided, we also have it start and finish immediately
+            else if (controlSpec["timing"] == null)
+            {
+                return CreateTimerObservable(candidateMorph, transitionSpec, 0f, isReversed);
             }
             else
             {
-                // Otherwise, if the name of the control corresponds with a parameter, use that instead
-                string timerName = timingSpecs["control"];
-                var observable = MorphManager.Instance.GetGlobalSignal(timerName);
-                if (observable == null) observable = candidateMorph.GetLocalSignal(timerName);
-
-                if (timerName != null && observable != null)
+                // If the name of the control corresponds with a parameter, use that instead
+                IObservable<dynamic> observable = GetLocalOrGlobalSignal(controlSpec["timing"], candidateMorph);
+                if (observable != null)
                 {
                     return observable.Select(_ => (float)_);
                 }
                 // Otherwise, use the time provided in the specification
+                else if (controlSpec["timing"].IsNumber)
+                {
+                    return CreateTimerObservable(candidateMorph, transitionSpec, controlSpec["timing"], isReversed);
+                }
                 else
                 {
-                    return CreateTimerObservable(candidateMorph, transitionSpec, timingSpecs["control"], isReversed);
+                    throw new Exception(string.Format("Vis Morphs: Morph {0} either canot find a timing Signal with the name {1}, or it is not a number.", candidateMorph.Name, controlSpec["timing"]));
                 }
             }
         }
@@ -716,7 +732,7 @@ namespace DxR.VisMorphs
         /// By default, the value will increment starting from 0 and automatically termating at 1. If isReversed is set to true, then this will be
         /// inversed, starting at 1 and terminating at 0.
         /// </summary>
-        private IObservable<float> CreateTimerObservable(CandidateMorph candidateMorph, JSONNode transitionSpec, float duration, bool isReversed = false)
+        private IObservable<float> CreateTimerObservable(CandidateMorph candidateMorph, JSONNode transitionSpec, float duration, bool isReversed)
         {
             float startTime = Time.time;
 
@@ -734,7 +750,11 @@ namespace DxR.VisMorphs
                 .StartWith(!isReversed ? 0 : 1)
                 .TakeUntil(cancellationObservable);
 
-            bool goToEnd = transitionSpec["timing"]["elapsed"] != null ? transitionSpec["timing"]["elapsed"] == "end" : true;
+            bool goToEnd = true;
+            if (transitionSpec["control"] != null && transitionSpec["control"]["completed"] != null)
+            {
+                goToEnd = transitionSpec["control"]["completed"] == "final";
+            }
 
             // If the transition is reversed, "end" actually means the initial state, therefore we flip this boolean
             if (isReversed)
@@ -747,9 +767,6 @@ namespace DxR.VisMorphs
             cancellationObservable.Subscribe(_ => queuedTransitionDeactivations.Add(transitionName, new Tuple<Action, int>(() => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd), transitionPriority)))
                 .AddTo(candidateMorph.CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"] == transitionSpec["name"]).Item2);
 
-            // cancellationObservable.Subscribe(_ => DeactivateTransition(candidateMorph, transitionSpec, transitionSpec["name"], goToEnd))
-            //     .AddTo(candidateMorph.CandidateTransitionsWithSubscriptions.Single(cts => cts.Item1["name"] == transitionSpec["name"]).Item2);
-
             return timerObservable;
         }
 
@@ -759,22 +776,22 @@ namespace DxR.VisMorphs
         /// Only actually activates the transition at the end of the frame. This is to ensure all Signals have emitted their values before making any changes to the Vis.
         /// This function should be called by adding an anonymous lambda to queuedTransitionActivations in the form () => ActivateTransition(...)
         /// </summary>
-        private void ActivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, string transitionName, bool isReversed = false)
+        private void ActivateTransition(CandidateMorph candidateMorph, JSONNode transitionSpec, string transitionName, bool isReversed)
         {
             if (DebugTransitionCalls)
             {
-                Debug.Log(string.Format("Vis Morphs: Transition \"{0}\" called Activate function.", transitionName));
+                Debug.Log(string.Format("Vis Morphs: Transition {0} called Activate function.", transitionName));
             }
 
             if (ActiveTransitionNames.Contains(transitionName))
             {
-                Debug.LogError(string.Format("Vis Morphs: Transition \"{0}\" tried to activate, but it is already active.", transitionName));
+                Debug.LogError(string.Format("Vis Morphs: Transition {0} tried to activate, but it is already active.", transitionName));
                 return;
             }
 
             if (ActiveTransitionNames.Count > 0 && !AllowSimultaneousTransitions)
             {
-                Debug.LogWarning(string.Format("Vis Morphs: Transition \"{0}\" could not be applied as there is already a transition active, and the AllowSimultaneousTransitions flag is set to false.", transitionName));
+                Debug.LogWarning(string.Format("Vis Morphs: Transition {0} could not be applied as there is already a transition active, and the AllowSimultaneousTransitions flag is set to false.", transitionName));
                 return;
             }
 
@@ -790,7 +807,7 @@ namespace DxR.VisMorphs
 
             // Get the easing function which we will apply to this transition (if any). If no easing function is defined, we don't set the easing function
             // as we don't want to have to calculate the linear function when we don't need to
-            Ease ease = (transitionSpec["timing"]["easing"] != null) ? EasingFunction.GetEaseFromString(transitionSpec["timing"]["easing"]) : Ease.Linear;
+            Ease ease = (transitionSpec["control"]["easing"] != null) ? EasingFunction.GetEaseFromString(transitionSpec["control"]["easing"]) : Ease.Linear;
             Function easingFunction = (ease != Ease.Linear) ? EasingFunction.GetEasingFunction(ease) : null;
 
             // Get the set of stages that are defined in this transition (if any). We pass this onto the Vis
@@ -805,8 +822,8 @@ namespace DxR.VisMorphs
                     _initialState["data"].Remove("values");
                 if (_finalState["data"]["values"] != null)
                     _finalState["data"].Remove("values");
-                Debug.Log(string.Format("Vis Morphs: Initial state specification for transition \"{0}\":\n{1}", transitionName, _initialState.ToString()));
-                Debug.Log(string.Format("Vis Morphs: Final state specification for transition \"{0}\":\n{1}", transitionName, _finalState.ToString()));
+                Debug.Log(string.Format("Vis Morphs: Initial state specification for transition {0}:\n{1}", transitionName, _initialState.ToString()));
+                Debug.Log(string.Format("Vis Morphs: Final state specification for transition {0}:\n{1}", transitionName, _finalState.ToString()));
             }
 
             // Call update to final state using a tweening observable
@@ -847,12 +864,12 @@ namespace DxR.VisMorphs
         {
             if (DebugTransitionCalls)
             {
-                Debug.Log(string.Format("Vis Morphs: Transition \"{0}\" called Deactivate function.", transitionName));
+                Debug.Log(string.Format("Vis Morphs: Transition {0} called Deactivate function.", transitionName));
             }
 
             if (!ActiveTransitionNames.Contains(transitionName))
             {
-                Debug.LogError(string.Format("Vis Morphs: Transition \"{0}\" tried to deactivate, but it is not active in the first place", transitionName));
+                Debug.LogError(string.Format("Vis Morphs: Transition {0} tried to deactivate, but it is not active in the first place", transitionName));
                 return;
             }
 

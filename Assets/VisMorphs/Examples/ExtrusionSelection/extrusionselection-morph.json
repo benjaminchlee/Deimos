@@ -51,12 +51,9 @@
             "name": "extrusion",
             "states": ["unextruded", "extruded"],
             "triggers": ["extrusionActivationToggle"],
-            "timing": {
-                "control": 0.25,
-                "elapsed": "end"
-            },
-            "interrupt": {
-                "control": "ignore"
+            "control": {
+                "timing": 0.25,
+                "interrupted": "ignore"
             },
             "bidirectional": true
         }

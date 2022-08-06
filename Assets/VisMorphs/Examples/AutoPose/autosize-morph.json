@@ -40,12 +40,9 @@
             "name": "scaling",
             "states": ["unscaled", "scaled"],
             "triggers": ["isFarFromVis"],
-            "timing": {
-                "control": 0.5,
-                "elapsed": "end"
-            },
-            "interrupt": {
-                "control": "ignore"
+            "control": {
+                "timing": 0.5,
+                "interrupted": "ignore"
             },
             "bidirectional": true
         }

@@ -44,12 +44,9 @@
             "name": "rotating",
             "states": ["unrotated", "rotated"],
             "triggers": ["isFarFromVis"],
-            "timing": {
-                "control": 0.5,
-                "elapsed": "end"
-            },
-            "interrupt": {
-                "control": "ignore"
+            "control": {
+                "timing": 0.5,
+                "interrupted": "ignore"
             },
             "bidirectional": true
         }
