@@ -4432,8 +4432,8 @@ GameObject:
   m_Component:
   - component: {fileID: 215304197}
   - component: {fileID: 215304196}
-  - component: {fileID: 215304195}
   - component: {fileID: 215304194}
+  - component: {fileID: 215304195}
   - component: {fileID: 215304190}
   - component: {fileID: 215304199}
   - component: {fileID: 215304198}
@@ -4490,7 +4490,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 0
+  JSONSpecification: {fileID: 0}
   InputSpecification: "{\r\n    \"name\": \"3d barchart\",\r\n    \"width\": 600,\r\n   
     \"height\": 400,\r\n    \"depth\": 300,\r\n    \"mark\": \"cube\",\r\n    \"encoding\":
     {\r\n        \"x\": {\r\n            \"field\": \"Class\",\r\n            \"type\":
@@ -4527,7 +4527,10 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
-  VisInferredUpdated:
+  VisUpdatedExpanded:
+    m_PersistentCalls:
+      m_Calls: []
+  VisUpdatedInferred:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &215304197
@@ -6901,8 +6904,8 @@ GameObject:
   m_Component:
   - component: {fileID: 307809403}
   - component: {fileID: 307809402}
-  - component: {fileID: 307809401}
   - component: {fileID: 307809400}
+  - component: {fileID: 307809401}
   - component: {fileID: 307809396}
   - component: {fileID: 307809405}
   - component: {fileID: 307809404}
@@ -6959,7 +6962,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 0
+  JSONSpecification: {fileID: 0}
   InputSpecification: "{\r\n    \"name\": \"3d barchart\",\r\n    \"width\": 300,\r\n   
     \"height\": 400,\r\n    \"depth\": 600,\r\n    \"mark\": \"cube\",\r\n    \"encoding\":
     {\r\n        \"x\": {\r\n            \"field\": \"Survived\",\r\n           
@@ -6997,7 +7000,10 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
-  VisInferredUpdated:
+  VisUpdatedExpanded:
+    m_PersistentCalls:
+      m_Calls: []
+  VisUpdatedInferred:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &307809403
@@ -14651,8 +14657,8 @@ GameObject:
   m_Component:
   - component: {fileID: 639472985}
   - component: {fileID: 639472984}
-  - component: {fileID: 639472983}
   - component: {fileID: 639472986}
+  - component: {fileID: 639472983}
   m_Layer: 0
   m_Name: Vis_GeoScatter
   m_TagString: DxRVis
@@ -14672,7 +14678,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 0
+  JSONSpecification: {fileID: 0}
   InputSpecification: "{\r\n    \"width\": 800,\r\n    \"height\": 500,\r\n    \"mark\":
     \"geoshape\",\r\n    \"encoding\": {\r\n        \"x\": {\r\n            \"field\":
     \"Population\",\r\n            \"type\": \"quantitative\"\r\n        },\r\n       
@@ -14704,7 +14710,10 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
-  VisInferredUpdated:
+  VisUpdatedExpanded:
+    m_PersistentCalls:
+      m_Calls: []
+  VisUpdatedInferred:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &639472985
@@ -17930,8 +17939,8 @@ GameObject:
   m_Component:
   - component: {fileID: 782584196}
   - component: {fileID: 782584195}
-  - component: {fileID: 782584194}
   - component: {fileID: 782584193}
+  - component: {fileID: 782584194}
   - component: {fileID: 782584192}
   - component: {fileID: 782584198}
   - component: {fileID: 782584197}
@@ -17988,7 +17997,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 0
+  JSONSpecification: {fileID: 0}
   InputSpecification: "{\r\n    \"mark\": \"sphere\",\r\n    \"encoding\": {\r\n     
     \"x\": {\r\n        \"field\": \"alcohol\",\r\n        \"type\": \"quantitative\",\r\n       
     \"scale\": {\r\n            \"type\": \"linear\",\r\n            \"domain\":
@@ -18020,7 +18029,10 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
-  VisInferredUpdated:
+  VisUpdatedExpanded:
+    m_PersistentCalls:
+      m_Calls: []
+  VisUpdatedInferred:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &782584196
@@ -22851,8 +22863,8 @@ GameObject:
   m_Component:
   - component: {fileID: 982090494}
   - component: {fileID: 982090493}
-  - component: {fileID: 982090492}
   - component: {fileID: 982090487}
+  - component: {fileID: 982090492}
   - component: {fileID: 982090488}
   - component: {fileID: 982090496}
   - component: {fileID: 982090498}
@@ -22910,7 +22922,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 0
+  JSONSpecification: {fileID: 0}
   InputSpecification: "{\r\n    \"width\": 800,\r\n    \"height\": 500,\r\n    \"depth\":
     -500,\r\n    \"mark\": \"geoshape\",\r\n    \"encoding\": {\r\n        \"x\":
     {\r\n            \"field\": \"Longitude\",\r\n            \"type\": \"spatial\"\r\n       
@@ -22943,7 +22955,10 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
-  VisInferredUpdated:
+  VisUpdatedExpanded:
+    m_PersistentCalls:
+      m_Calls: []
+  VisUpdatedInferred:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &982090494
@@ -26223,8 +26238,8 @@ GameObject:
   m_Component:
   - component: {fileID: 1119035473}
   - component: {fileID: 1119035472}
-  - component: {fileID: 1119035471}
   - component: {fileID: 1119035474}
+  - component: {fileID: 1119035471}
   m_Layer: 0
   m_Name: Vis_HighlightMarksOnClick
   m_TagString: DxRVis
@@ -26244,7 +26259,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 0
+  JSONSpecification: {fileID: 0}
   InputSpecification: "{\r\n    \"mark\": \"sphere\",\r\n    \"width\": 800,\r\n   
     \"height\": 800,\r\n    \"depth\": 800,\r\n    \"encoding\": {\r\n      \"x\":
     {\r\n        \"field\": \"Horsepower\",\r\n        \"type\": \"quantitative\"\r\n     
@@ -26274,7 +26289,10 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
-  VisInferredUpdated:
+  VisUpdatedExpanded:
+    m_PersistentCalls:
+      m_Calls: []
+  VisUpdatedInferred:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &1119035473
@@ -26596,8 +26614,8 @@ GameObject:
   m_Component:
   - component: {fileID: 1125866021}
   - component: {fileID: 1125866020}
-  - component: {fileID: 1125866019}
   - component: {fileID: 1125866018}
+  - component: {fileID: 1125866019}
   - component: {fileID: 1125866017}
   m_Layer: 0
   m_Name: Vis_ExtrusionMenu
@@ -26652,7 +26670,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 0
+  JSONSpecification: {fileID: 0}
   InputSpecification: "{\r\n    \"mark\": \"sphere\",\r\n    \"encoding\": {\r\n     
     \"x\": {\r\n        \"field\": \"Miles_per_Gallon\",\r\n        \"type\": \"quantitative\"\r\n     
     },\r\n      \"y\": {\r\n        \"field\": \"Weight_in_lbs\",\r\n        \"type\":
@@ -26680,7 +26698,10 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
-  VisInferredUpdated:
+  VisUpdatedExpanded:
+    m_PersistentCalls:
+      m_Calls: []
+  VisUpdatedInferred:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &1125866021
@@ -29373,8 +29394,8 @@ GameObject:
   m_Component:
   - component: {fileID: 1245073527}
   - component: {fileID: 1245073526}
-  - component: {fileID: 1245073525}
   - component: {fileID: 1245073524}
+  - component: {fileID: 1245073525}
   - component: {fileID: 1245073531}
   - component: {fileID: 1245073533}
   - component: {fileID: 1245073532}
@@ -29418,7 +29439,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 0
+  JSONSpecification: {fileID: 0}
   InputSpecification: "{\r\n    \"name\": \"3d barchart\",\r\n    \"width\": 300,\r\n   
     \"height\": 400,\r\n    \"depth\": 600,\r\n    \"mark\": \"cube\",\r\n    \"encoding\":
     {\r\n        \"x\": {\r\n            \"field\": \"Sex\",\r\n            \"type\":
@@ -29457,7 +29478,10 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
-  VisInferredUpdated:
+  VisUpdatedExpanded:
+    m_PersistentCalls:
+      m_Calls: []
+  VisUpdatedInferred:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &1245073527
@@ -35772,8 +35796,8 @@ GameObject:
   m_Component:
   - component: {fileID: 1512344091}
   - component: {fileID: 1512344090}
-  - component: {fileID: 1512344089}
   - component: {fileID: 1512344088}
+  - component: {fileID: 1512344089}
   - component: {fileID: 1512344094}
   - component: {fileID: 1512344093}
   - component: {fileID: 1512344092}
@@ -35817,7 +35841,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  ShowInternalSpecification: 1
+  JSONSpecification: {fileID: 0}
   InputSpecification: "{\r\n    \"name\": \"stacked 2d barchart\",\r\n    \"width\":
     300,\r\n    \"height\": 600,\r\n    \"mark\": \"cube\",\r\n    \"encoding\":
     {\r\n        \"x\": {\r\n            \"field\": \"Survived\",\r\n           
@@ -35856,7 +35880,10 @@ MonoBehaviour:
   VisUpdated:
     m_PersistentCalls:
       m_Calls: []
-  VisInferredUpdated:
+  VisUpdatedExpanded:
+    m_PersistentCalls:
+      m_Calls: []
+  VisUpdatedInferred:
     m_PersistentCalls:
       m_Calls: []
 --- !u!4 &1512344091

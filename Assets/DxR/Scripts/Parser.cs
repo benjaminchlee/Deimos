@@ -14,9 +14,7 @@ namespace DxR
         static string dataBaseDir = "/DxRData/";
 
         /// <summary>
-        ///  Read specifications in JSON file specified by specsFilename as
-        ///  well as data file (if needed) and expand to a JSONNode scene specs with the
-        ///  data represented as a JSON object.
+        ///  Read specifications in JSON file specified by specsFilename without any further changes.
         /// </summary>
         public void Parse(string specsFilename, out JSONNode visSpecs)
         {
@@ -27,8 +25,6 @@ namespace DxR
             {
                 CreateEmptyTemplateSpecs(specsFilename, ref visSpecs);
             }
-
-            ExpandDataSpecs(ref visSpecs);
         }
 
         /// <summary>
@@ -48,8 +44,6 @@ namespace DxR
                 emptySpecs.Add("data", dataSpecs);
                 emptySpecs.Add("mark", new JSONString(DxR.Vis.UNDEFINED));
             }
-
-            ExpandDataSpecs(ref visSpecs);
         }
 
         private void CreateEmptyTemplateSpecs(string specsFilename, ref JSONNode visSpecs)
@@ -65,21 +59,28 @@ namespace DxR
             System.IO.File.WriteAllText(GetFullSpecsPath(specsFilename), emptySpecs.ToString(2));
         }
 
-        private void ExpandDataSpecs(ref JSONNode visSpecs)
+        /// <summary>
+        /// Expands a given vis specs to include its data values in-line.
+        /// </summary>
+        public void ExpandDataSpecs(ref JSONNode visSpecs)
         {
             if (visSpecs["data"].Value == DxR.Vis.UNDEFINED || visSpecs["data"]["url"].Value == DxR.Vis.UNDEFINED) return;
 
             if (visSpecs["data"]["url"] != null)
             {
-                if(visSpecs["data"]["url"].Value == "inline")
+                if (visSpecs["data"]["url"].Value == "inline")
                 {
                     return;
                 }
 
                 visSpecs["data"].Add("values", CreateValuesSpecs(visSpecs["data"]["url"]));
-            } else if(visSpecs["data"]["values"] != null)
+            }
+            else if (visSpecs["data"]["values"] != null)
             {
-                visSpecs["data"].Add("url", new JSONString("inline"));
+                if (visSpecs["data"]["url"] == null)
+                {
+                    visSpecs["data"].Add("url", new JSONString("inline"));
+                }
             }
 
             // TODO: Do some checks.

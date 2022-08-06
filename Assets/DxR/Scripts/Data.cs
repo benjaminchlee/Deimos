@@ -9,7 +9,6 @@ namespace DxR
     public class Data
     {
         public string url;
-        public string src;
         public List<Dictionary<string, string>> values;
         public List<string> fieldNames;
         public List<List<List<IPosition>>> polygons; // List 1: Each element corresponds to a feature (i.e., a data row)

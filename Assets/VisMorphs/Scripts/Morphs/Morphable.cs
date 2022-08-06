@@ -54,7 +54,7 @@ namespace DxR.VisMorphs
             if (!isInitialised)
             {
                 ParentVis = GetComponent<Vis>();
-                ParentVis.VisUpdated.AddListener(VisUpdated);
+                ParentVis.VisUpdatedExpanded.AddListener(VisUpdated);
                 GUID = System.Guid.NewGuid().ToString().Substring(0, 8);
                 objectManipulator = GetComponent<ObjectManipulator>();
                 isInitialised = true;
@@ -102,7 +102,7 @@ namespace DxR.VisMorphs
             if (!isInitialised)
                 Initialise();
 
-            CurrentVisSpec = ParentVis.GetVisSpecs();
+            CurrentVisSpec = ParentVis.GetVisSpecsExpanded();
             VisUpdated(ParentVis, CurrentVisSpec);
         }
 
@@ -1027,7 +1027,8 @@ namespace DxR.VisMorphs
                     // Otherwise just add whatever value that was in the final spec
                     else
                     {
-                        _newVisSpec["encoding"][encoding.Name]?.Parent.Remove();
+                        if (_newVisSpec["encoding"][encoding.Name] != null && _newVisSpec["encoding"][encoding.Name].Parent != null)
+                            _newVisSpec["encoding"][encoding.Name].Parent.Remove();
                         ((JObject)_newVisSpec["encoding"]).Add(encoding);
                     }
                 }

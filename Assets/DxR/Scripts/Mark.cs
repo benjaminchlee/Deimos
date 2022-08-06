@@ -771,10 +771,8 @@ namespace DxR
 
         #region Inference functions
 
-        public void Infer(Data data, JSONNode specsOrig, out JSONNode specs, string specsFilename)
+        public void Infer(Data data, ref JSONNode specs, string specsFilename)
         {
-            specs = specsOrig.Clone();
-
             // Go through each channel and infer the missing specs.
             foreach (KeyValuePair<string, JSONNode> kvp in specs["encoding"].AsObject)
             {

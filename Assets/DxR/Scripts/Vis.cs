@@ -48,7 +48,8 @@ namespace DxR
         private bool IsLinked = false;                                          // Link to other vis object for interaction.
         private string data_name = null;
 
-        private JSONNode visSpecs;                                              // Vis specs that is synced w/ the inferred vis specs and vis.
+        private JSONNode visSpecs;                                              // The original vis specs as provided by the user
+        private JSONNode visSpecsExpanded;                                      // An expanded version of the vis specs with the data stored in-line. This is a separate variable as the in-line data can be very heavy
         private JSONNode visSpecsInferred;                                      // This is the inferred vis specs and is ultimately used for construction.
 
         private GameObject parentObject = null;                         // Parent game object for all generated objects associated to vis.
@@ -77,11 +78,10 @@ namespace DxR
         public class VisUpdatedEvent : UnityEvent<Vis, JSONNode> { }
         [HideInInspector]
         public VisUpdatedEvent VisUpdated;
-
-        [Serializable]
-        public class VisInferredUpdatedEvent : UnityEvent<Vis, JSONNode> { }
         [HideInInspector]
-        public VisUpdatedEvent VisInferredUpdated;
+        public VisUpdatedEvent VisUpdatedExpanded;
+        [HideInInspector]
+        public VisUpdatedEvent VisUpdatedInferred;
 
         private bool isReady = false;
         public bool IsReady { get { return isReady; } }
@@ -89,7 +89,11 @@ namespace DxR
         private void Awake()
         {
             if (VisUpdated == null)
+            {
                 VisUpdated = new VisUpdatedEvent();
+                VisUpdatedExpanded = new VisUpdatedEvent();
+                VisUpdatedInferred = new VisUpdatedEvent();
+            }
 
             // Initialize objects:
             parentObject = gameObject;
@@ -143,9 +147,61 @@ namespace DxR
                 UpdateCollider();
         }
 
+        /// <summary>
+        /// Update the visualization based on the current visSpecs object (whether updated from GUI or text editor).
+        /// </summary>
+        private void UpdateVis(bool callUpdateEvent = true)
+        {
+            DeleteInteractions();                                   // Delete old GameObjects that we cannot update
+            DeleteLegends();                                        // No longer deletes marks and axes
+
+            UpdateMarkPrefab(visSpecs);                             // Update the mark prefab in case it has changed
+            UpdateVisConfig(ref visSpecs);                          // Update the vis spec to include width, height, and depth values
+            ExpandVisSpecs(visSpecs, out visSpecsExpanded);         // Expand the vis spec to include in-line data values
+            UpdateVisData(ref visSpecsExpanded);                    // Create our data object based on the in-line data values
+
+            InferVisSpecs(visSpecsExpanded, out visSpecsInferred);  // Infer the rest of the vis properties
+
+            ConstructVis(visSpecsInferred);                         // Construct the vis based on the inferred spec
+            UpdateVisPose(visSpecsInferred);                        // Update the vis pose based on the inferred spec (position, rotation)
+            UpdateCollider();                                       // Update the collider on this vis
+
+            if (callUpdateEvent)                                    // Call update events to listeners
+            {
+                VisUpdated.Invoke(this, visSpecs);
+                VisUpdatedExpanded.Invoke(this, visSpecsExpanded);
+                VisUpdatedInferred.Invoke(this, visSpecsInferred);
+            }
+        }
+
+        private void ConstructVis(JSONNode specs)
+        {
+            CreateChannelEncodingObjects(specs, ref channelEncodings);  // Create the ChannelEncoding objects that marks use to update themselves
+            ConstructAndUpdateMarkInstances();                          // Construct new marks if they don't exist, or update existing ones
+            ApplyChannelEncodings();                                    // Apply the channel encodings to these marks
+            ConstructInteractions(specs);                               // Construct DxR interactions before axes and legends
+            ConstructAndUpdateAxes(specs, ref channelEncodings);        // Construct new axes if they don't exist, or update existing ones
+            ConstructLegends(specs);                                    // Construct new legends
+        }
+
+        private void InitTooltip()
+        {
+            GameObject tooltipPrefab = Resources.Load("Tooltip/Tooltip") as GameObject;
+            if(tooltipPrefab != null)
+            {
+                tooltip = Instantiate(tooltipPrefab, parentObject.transform);
+                tooltip.SetActive(false);
+            }
+        }
+
         public JSONNode GetVisSpecs()
         {
             return visSpecs;
+        }
+
+        public JSONNode GetVisSpecsExpanded()
+        {
+            return visSpecsExpanded;
         }
 
         public JSONNode GetVisSpecsInferred()
@@ -161,66 +217,6 @@ namespace DxR
         public bool GetIsLinked()
         {
             return IsLinked;
-        }
-
-        private void InitTooltip()
-        {
-            GameObject tooltipPrefab = Resources.Load("Tooltip/Tooltip") as GameObject;
-            if(tooltipPrefab != null)
-            {
-                tooltip = Instantiate(tooltipPrefab, parentObject.transform);
-                tooltip.SetActive(false);
-            }
-        }
-
-        /// <summary>
-        /// Update the visualization based on the current visSpecs object (whether updated from GUI or text editor).
-        /// Currently, deletes everything and reconstructs everything from scratch.
-        /// TODO: Only reconstruct newly updated properties.
-        /// </summary>
-        private void UpdateVis(bool callUpdateEvent = true, bool callInferredUpdateEvent = true)
-        {
-            // We no longer need to delete marks and axes
-            DeleteInteractions();
-            DeleteLegends();
-
-            UpdateVisConfig();
-
-            UpdateVisData();
-
-            UpdateMarkPrefab();
-
-            InferVisSpecs(visSpecs, out visSpecsInferred);
-
-            ConstructVis(visSpecsInferred);
-
-            if (callUpdateEvent)
-                VisUpdated.Invoke(this, visSpecs);
-
-            if (callInferredUpdateEvent)
-                VisUpdated.Invoke(this, visSpecsInferred);
-
-            UpdateVisPose(visSpecsInferred);
-
-            UpdateCollider();
-        }
-
-        private void ConstructVis(JSONNode specs)
-        {
-            CreateChannelEncodingObjects(specs, ref channelEncodings);
-
-            // New: Updates existing mark instances, or creates new ones if they do not yet exist
-            ConstructAndUpdateMarkInstances();
-
-            ApplyChannelEncodings();
-
-            // Interactions need to be constructed before axes and legends
-            ConstructInteractions(specs);
-
-            // New: Updates existing axes instances, or creates new ones if they do not yet exist
-            ConstructAndUpdateAxes(specs, ref channelEncodings);
-
-            ConstructLegends(specs);
         }
 
         #region Morph specific functions
@@ -353,7 +349,7 @@ namespace DxR
             }
         }
 
-        public void StopTransition(string transitionName, bool goToEnd = true, bool commitVisSpecChanges = true, bool callUpdateEvent = false, bool callInferredUpdateEvent = false)
+        public void StopTransition(string transitionName, bool goToEnd = true, bool commitVisSpecChanges = true, bool callUpdateEvent = false)
         {
             if (!activeTransitions.ContainsKey(transitionName))
             {
@@ -370,9 +366,6 @@ namespace DxR
 
             if (callUpdateEvent)
                 VisUpdated.Invoke(this, visSpecs);
-
-            if (callInferredUpdateEvent)
-                VisInferredUpdated.Invoke(this, visSpecsInferred);
         }
 
         private void ApplyTransitionChannelEncodings(ActiveTransition activeTransition)
@@ -451,6 +444,14 @@ namespace DxR
                         }
                     }
                 }
+
+                // Update our expanded specs
+                visSpecsExpanded = visSpecs.Clone();
+                visSpecsExpanded["data"] = visSpecsInferred["data"];
+
+                // Call the update function for the updated specs. This is a bit finnicky as the Morphable script relies on VisUpdatedExpanded and not this one
+                // While each function looks pretty much identical they are used for different purposes altogether. Code smell I know
+                VisUpdated.Invoke(this, visSpecs);
             }
         }
 
@@ -863,60 +864,39 @@ namespace DxR
             return dataList;
         }
 
-        private void UpdateVisData()
+        private void UpdateVisData(ref JSONNode visSpecs)
         {
-            bool dataChanged = true;
-            string dataString = "";
-            JSONNode valuesSpecs = null;
+            bool dataChanged = false;
 
-            if(visSpecs["data"]["url"] != "inline")
+            // If we don't have a data object created, we always create one
+            if (data == null)
             {
-                string dataFilename = Parser.GetFullDataPath(visSpecs["data"]["url"].Value);
-                dataString = Parser.GetStringFromFile(dataFilename);
-
-                // Don't parse this data string if it is the same as the one that is currently used for the existing data
-                // This is basically the same code from Parser.CreateValuesSpecs
-                if (data != null && data.src == dataString)
+                dataChanged = true;
+            }
+            // If we have a data object already created, we do a check to make sure that we don't needlessly recreate it over and over if the data is the same
+            else if (data != null)
+            {
+                // Inline data should be fairly easy to load. Always reload the data in this situation
+                if (visSpecs["data"]["url"] == "inline")
                 {
-                    dataChanged = false;
+                    dataChanged = true;
                 }
-                else
+                // For data referenced by url, if the url has changed then we update the data
+                else if (visSpecs["data"]["url"] != data.url)
                 {
-                    string ext = Path.GetExtension(dataFilename);
-                    if (ext == ".json")
-                    {
-                        valuesSpecs = JSON.Parse(dataString);
-                    }
-                    else if (ext == ".csv")
-                    {
-                        valuesSpecs = JSON.ParseCSV(dataString);
-                    }
-                    else
-                    {
-                        throw new Exception("Cannot load file type" + ext);
-                    }
-
-                    visSpecs["data"].Add("values", valuesSpecs);
-                    data_name = visSpecs["data"]["url"];
+                    dataChanged = true;
                 }
             }
-            else
-            {
-                valuesSpecs = visSpecs["data"]["values"];
-                dataString = valuesSpecs.ToString();
-
-                if (data != null && data.src == dataString)
-                    dataChanged = false;
-            }
-
-            if (verbose) Debug.Log("Data update " + dataString);
 
             // Only update the vis data when it is either not yet defined, or if it has changed
             if (!dataChanged)
                 return;
 
+            JSONNode valuesSpecs = visSpecs["data"]["values"];
             data = new Data();
-            data.src = dataString;
+            data.url = visSpecs["data"]["url"];
+
+            if (verbose) Debug.Log("Data update " + valuesSpecs.ToString());
 
             // Data gets parsed differently depending if its in a standard or geoJSON format
             if (!IsDataGeoJSON(valuesSpecs))
@@ -1153,13 +1133,20 @@ namespace DxR
 
         #region Vis specification functions
 
+        private void ExpandVisSpecs(JSONNode newVisSpecs, out JSONNode newVisSpecsExpanded)
+        {
+            newVisSpecsExpanded = newVisSpecs.Clone();
+            parser.ExpandDataSpecs(ref newVisSpecsExpanded);
+        }
+
         private void InferVisSpecs(JSONNode newVisSpecs, out JSONNode newVisSpecsInferred)
         {
             if (markPrefab != null)
             {
-                markPrefab.GetComponent<Mark>().Infer(data, newVisSpecs, out newVisSpecsInferred, visSpecsURL);
+                newVisSpecsInferred = newVisSpecs.Clone();
+                markPrefab.GetComponent<Mark>().Infer(data, ref newVisSpecsInferred, visSpecsURL);
 
-                if(enableSpecsExpansion)
+                if (enableSpecsExpansion)
                 {
                     JSONNode visSpecsToWrite = JSON.Parse(visSpecsInferred.ToString());
                     if (visSpecs["data"]["url"] != null && visSpecs["data"]["url"] != "inline")
@@ -1186,7 +1173,7 @@ namespace DxR
             }
         }
 
-        private void UpdateVisConfig()
+        private void UpdateVisConfig(ref JSONNode visSpecs)
         {
             if (visSpecs["title"] != null)
             {
@@ -1838,7 +1825,7 @@ namespace DxR
             return mark;
         }
 
-        private void UpdateMarkPrefab()
+        private void UpdateMarkPrefab(JSONNode visSpecs)
         {
             string markType = visSpecs["mark"].Value;
             markPrefab = LoadMarkPrefab(markType);
@@ -2281,14 +2268,14 @@ namespace DxR
             UpdateVis();
         }
 
-        public void UpdateVisSpecsFromJSONNode(JSONNode specs, bool updateGuiSpecs = true, bool callUpdateEvent = true, bool callInferredUpdateEvent = true)
+        public void UpdateVisSpecsFromJSONNode(JSONNode specs, bool updateGuiSpecs = true, bool callUpdateEvent = true)
         {
             visSpecs = specs;
 
             if (enableGUI && updateGuiSpecs)
                 gui.UpdateGUISpecsFromVisSpecs();
 
-            UpdateVis(callUpdateEvent, callInferredUpdateEvent);
+            UpdateVis(callUpdateEvent);
         }
 
         public void UpdateVisSpecsFromTextSpecs()
