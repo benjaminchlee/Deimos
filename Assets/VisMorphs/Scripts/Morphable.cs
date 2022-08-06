@@ -366,6 +366,9 @@ namespace DxR.VisMorphs
                     // We create a boolean that will track whether or not this transition is based on a timer
                     bool isTimerUsed = true;
 
+                    // Create another boolean which tracks whether we actually created any subscriptions
+                    bool wereSubscriptionsCreated = false;
+
                     // We now actually create the subscriptions themselves
                     // If this Transition is using a Predicate as a tweener, we subscribe to it such that the Transition only actually begins if this tweener returns a value between 0 and 1 (exclusive)
                     if (transitionSpec["control"] != null && transitionSpec["control"]["timing"] != null)
@@ -405,6 +408,8 @@ namespace DxR.VisMorphs
                                     }
                                 }
                             }).AddTo(disposables);
+
+                            wereSubscriptionsCreated = true;
                         }
                     }
 
@@ -502,12 +507,23 @@ namespace DxR.VisMorphs
                                         }
                                     }
                                 }).AddTo(disposables);
+
+                                wereSubscriptionsCreated = true;
                             }
                             else
                             {
                                 throw new Exception(string.Format("Vis Morphs: Morph {0} cannot find any Trigger with the name {1}.", candidateMorph.Name, triggerNames[k]));
                             }
                         }
+                    }
+
+                    // If no subscriptions have been created at all (the result of no triggers and signal-based timer being used), immediately activate the transition
+                    // Of course, this will cause undesirable effects with transitions automatically being applied and applied if no triggers are in place to gate these state transitions
+                    if (!wereSubscriptionsCreated)
+                    {
+                        // This will likely cause bugs when this transition tries to activate but can't due to conflicting encodings. There's currently no mechanism to keep trying and activate
+                        // the transition if it fails, so this will only call once and once only, unless subscriptions were to be generated again
+                        queuedTransitionActivations.Add(transitionName, new Tuple<Action, int>(() => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed), transitionPriority));
                     }
 
                     candidateMorph.CandidateTransitionsWithSubscriptions.Add(new Tuple<JSONNode, CompositeDisposable, List<bool>, bool>(
