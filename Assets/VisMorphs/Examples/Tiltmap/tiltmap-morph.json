@@ -108,7 +108,6 @@
         {
             "name": "c2p",
             "states": ["choropleth", "prism"],
-            "triggers": null,
             "control": {
                 "timing": "c2pTween"
             },
@@ -117,7 +116,6 @@
         {
             "name": "p2b",
             "states": ["prism", "bar"],
-            "triggers": null,
             "control": {
                 "timing": "p2bTween"
             },

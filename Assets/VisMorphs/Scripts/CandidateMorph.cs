@@ -14,7 +14,7 @@ namespace DxR.VisMorphs
         public Morph Morph;
         public JSONNode CandidateState;
         public List<Tuple<JSONNode, bool>> CandidateTransitions;
-        public List<Tuple<JSONNode, CompositeDisposable, List<bool>, bool>> CandidateTransitionsWithSubscriptions;
+        public List<Tuple<JSONNode, CompositeDisposable, bool[], bool>> CandidateTransitionsWithSubscriptions;
         public Dictionary<string, IObservable<dynamic>> LocalSignalObservables;
         public CompositeDisposable Disposables;
         public Dictionary<string, JObject> StoredVisKeyframes;
@@ -25,7 +25,7 @@ namespace DxR.VisMorphs
             Morph = morph;
             CandidateState = candidateState;
             CandidateTransitions = new List<Tuple<JSONNode, bool>>();
-            CandidateTransitionsWithSubscriptions = new List<Tuple<JSONNode, CompositeDisposable, List<bool>, bool>>();
+            CandidateTransitionsWithSubscriptions = new List<Tuple<JSONNode, CompositeDisposable, bool[], bool>>();
             LocalSignalObservables = new Dictionary<string, IObservable<dynamic>>();
             Disposables = new CompositeDisposable();
             StoredVisKeyframes = new Dictionary<string, JObject>();

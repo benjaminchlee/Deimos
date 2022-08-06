@@ -50,7 +50,7 @@
         {
             "name": "extrusion",
             "states": ["unextruded", "extruded"],
-            "triggers": ["extrusionActivationToggle"],
+            "trigger": "extrusionActivationToggle",
             "control": {
                 "timing": 0.25,
                 "interrupted": "ignore"

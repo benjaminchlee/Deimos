@@ -78,7 +78,7 @@
         {
             "name": "overplotExtrusion",
             "states": ["unextruded", "extruded"],
-            "triggers": ["isSelectingMark", "isRightHandPinching", "isVisTouchingSurface"],
+            "trigger": "isSelectingMark && isRightHandPinching && isVisTouchingSurface",
             "control": {
                 "timing": "tweener",
                 "interrupted": "ignore"

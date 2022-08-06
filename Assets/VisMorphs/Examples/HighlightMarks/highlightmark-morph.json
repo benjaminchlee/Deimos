@@ -30,7 +30,7 @@
         {
             "name": "uncoloured2coloured",
             "states": ["uncoloured", "coloured"],
-            "triggers": ["mousedown"],
+            "trigger": "mousedown",
             "control": {
                 "timing": 0.25,
                 "interrupted": "ignore"

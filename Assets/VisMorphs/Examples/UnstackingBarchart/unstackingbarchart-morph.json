@@ -97,7 +97,7 @@
         {
             "name": "unstacking",
             "states": ["stacked", "side by side"],
-            "triggers": ["isSelectingVis", "isVisTouchingSurface", "isHandPinching"],
+            "trigger": "isSelectingVis && isVisTouchingSurface && isHandPinching",
             "control": {
                 "timing": "tweener",
                 "easing": "easeinoutcirc",
@@ -112,5 +112,6 @@
             "bidirectional": true,
             "disablegrab": true
         }
+
     ]
 }

@@ -65,7 +65,7 @@
         {
             "name": "flatteningX",
             "states": ["unflattened", "flattenedX"],
-            "triggers": ["isLookingSide", "isCloseToVis"],
+            "trigger": "isLookingSide && isCloseToVis",
             "control": {
                 "timing": 1,
                 "easing": "easeoutcirc",
@@ -76,14 +76,11 @@
         {
             "name": "flatteningZ",
             "states": ["unflattened", "flattenedZ"],
-            "triggers": ["isLookingFront", "isCloseToVis"],
+            "trigger": "isLookingFront && isCloseToVis",
             "control": {
                 "timing": 1,
                 "easing": "easeoutcirc",
                 "interrupted": "ignore"
-            },
-            "interrupt": {
-                "control": "ignore"
             },
             "bidirectional": true
         }

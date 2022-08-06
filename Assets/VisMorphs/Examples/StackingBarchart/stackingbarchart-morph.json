@@ -98,7 +98,7 @@
         {
             "name": "stacking",
             "states": ["3d barchart", "stacked 2d barchart"],
-            "triggers": ["isVisTouchingSurface", "isTouchingSideways"],
+            "trigger": "isVisTouchingSurface && isTouchingSideways",
             "control": {
                 "timing": 0.75,
                 "easing": "easeoutcirc",

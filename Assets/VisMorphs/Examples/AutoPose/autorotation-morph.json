@@ -43,7 +43,7 @@
         {
             "name": "rotating",
             "states": ["unrotated", "rotated"],
-            "triggers": ["isFarFromVis"],
+            "trigger": "isFarFromVis",
             "control": {
                 "timing": 0.5,
                 "interrupted": "ignore"

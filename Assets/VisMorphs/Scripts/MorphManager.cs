@@ -936,7 +936,7 @@ namespace DxR.VisMorphs
             }
         }
 
-        private IObservable<dynamic> CreateObservableFromExpression(string expression, Morphable morphable)
+        public IObservable<dynamic> CreateObservableFromExpression(string expression, Morphable morphable)
         {
             // Get the expression interpreter for this morphable. If it does not yet exist, initialise a new one
             Interpreter interpreter;

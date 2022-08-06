@@ -39,7 +39,7 @@
         {
             "name": "scaling",
             "states": ["unscaled", "scaled"],
-            "triggers": ["isFarFromVis"],
+            "trigger": "isFarFromVis",
             "control": {
                 "timing": 0.5,
                 "interrupted": "ignore"

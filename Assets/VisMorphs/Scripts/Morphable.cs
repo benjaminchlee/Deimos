@@ -352,58 +352,52 @@ namespace DxR.VisMorphs
                     Tuple<JSONNode, bool> candidateTransition = candidateMorph.CandidateTransitions[j];
                     JSONNode transitionSpec = candidateTransition.Item1;
                     string transitionName = transitionSpec["name"];
-                    int transitionPriority = transitionSpec["priority"] != null ? transitionSpec["priority"].AsInt : 0;
 
                     // If this candidate transition already has a version with subscriptions, skip it (caused by an old transition being transferred)
                     if (candidateMorph.CandidateTransitionsWithSubscriptions.Select(cts => (string)cts.Item1["name"]).Contains(transitionName))
                         continue;
 
-                    // Create the data structures which we need to store information regarding each of these candidate transitions with subscriptions
-                    CompositeDisposable disposables = new CompositeDisposable();    // A container object to hold all of the observable subscriptions. We call Dispose() on this object when the subscriptions are no longer needed
-                    List<bool> boolList = new List<bool>();                         // A list of booleans which will be modified by later observables. The transition begins when all booleans are true
-                    bool isReversed = candidateTransition.Item2;                    // Whether the transition is reversed
-
-                    // We create a boolean that will track whether or not this transition is based on a timer
-                    bool isTimerUsed = true;
-
-                    // Create another boolean which tracks whether we actually created any subscriptions
-                    bool wereSubscriptionsCreated = false;
+                    // Create our variables
+                    CompositeDisposable disposables = new CompositeDisposable();        // Container object that holds all of our subscriptions so we can mass unsubscribe when the transition is no longer active
+                    bool isReversed = candidateTransition.Item2;        // Whether the transition is operating in the reverse direction
+                    bool[] boolArray = new bool[] { true, true };       // Bools for our two conditions: the timer and the trigger. If both are true, then the transition activates. This is in an array in order for it to be passable by reference
+                    int transitionPriority = transitionSpec["priority"] != null ? transitionSpec["priority"].AsInt : 0;     // The priority of the transition in case of race conditions. If none is defind, defaults to 0
+                    bool isTimerUsed = true;                            // Tracks whether or not this transition is based on a timer. Required to properly set up reverse transitions
+                    bool wereSubscriptionsCreated = false;              // Tracks whether or not any subscriptions were even created. Used for when no timer or trigger is defined in the specification
 
                     // We now actually create the subscriptions themselves
-                    // If this Transition is using a Predicate as a tweener, we subscribe to it such that the Transition only actually begins if this tweener returns a value between 0 and 1 (exclusive)
+                    // If this Transition is using a Signal as a tweener, we subscribe to it such that the Transition only actually begins if this tweener returns a value between 0 and 1 (exclusive)
                     if (transitionSpec["control"] != null && transitionSpec["control"]["timing"] != null)
                     {
-                        // Get the observable associated with the tweener signal. Check both the global and local signals for it
+                        // Get the observable associated with the tweener signal
                         string tweenerName = transitionSpec["control"]["timing"];
-                        var observable = GetLocalOrGlobalSignal(tweenerName, candidateMorph);
-
+                        IObservable<dynamic> observable = GetLocalOrGlobalSignal(tweenerName, candidateMorph);
                         if (observable != null)
                         {
+                            boolArray[0] = false;
                             isTimerUsed = false;
 
-                            boolList.Add(false);
-                            // Delay subscription until end of frame so that all signals can be subscribed to
+                            // Delay subscription until end of frame so that the Trigger subscription can be made
                             observable.DelayFrameSubscription(0, FrameCountType.EndOfFrame).Subscribe(f =>
                             {
-                                boolList[0] = 0 < f && f < 1;
+                                boolArray[0] = 0 < f && f < 1;
 
-                                // If all of the predicates for this Transition returned true...
-                                if (!boolList.Contains(false))
+                                // Check to see if both the timer and trigger have returned true
+                                if (boolArray[0] && boolArray[1])
                                 {
-                                    // AND this morph is not currently active, we can then formally activate the Transition
+                                    // If this morph is not currently active, we can then formally activate the Transition
                                     if (!ActiveTransitionNames.Contains(transitionName) && !queuedTransitionActivations.ContainsKey(transitionName))
                                     {
                                         queuedTransitionActivations.Add(transitionName, new Tuple<Action, int>(() => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed), transitionPriority));
                                     }
                                 }
+                                // Otherwise, end the transition if it is already active
                                 else
                                 {
-                                    // Otherwise, if this Tweener has now reached either end of the tweening range, end the transition
                                     if (ActiveTransitionNames.Contains(transitionName) && !queuedTransitionDeactivations.ContainsKey(transitionName))
                                     {
-                                        // If the tweening value is 1 or more, the Vis should rest at the final state
+                                        // If the tweening value is 1 or more, the Vis should rest at the final state, otherwise it rests at the initial state
                                         bool goToEnd = f >= 1;
-
                                         queuedTransitionDeactivations.Add(transitionName, new Tuple<Action, int>(() => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd), transitionPriority));
                                     }
                                 }
@@ -413,108 +407,65 @@ namespace DxR.VisMorphs
                         }
                     }
 
-                    // If this observable uses a timer, we want to accommodate the reverse transition. Therefore, the transition should start if all triggers
-                    // return FALSE, rather than remain true, as they will already be true by the time the forward transition finishes
-                    // This boolean helps us reverse the required truthiness
+                    // If this observable uses a timer, we want to accommodate the reverse transition. Therefore, the transition should start if the trigger
+                    // returns false rather than true, as it will already be true by the time the forward transition finishes. This boolean helps us reverse the required truthiness
                     bool useReverseTrigger = isTimerUsed && isReversed;
 
-                    // Subscribe to the rest of the Triggers. If no triggers are defined, then we can just skip this process entirely
-                    var triggerNames = transitionSpec["triggers"];
-                    if (triggerNames != null)
+                    if (transitionSpec["trigger"] != null)
                     {
-                        for (int k = 0; k < triggerNames.Count; k++)
+                        // Set default starting value so that our transition doesn't immediately start in reverse transitions
+                        boolArray[1] = useReverseTrigger;
+
+                        IObservable<dynamic> triggerObservable = MorphManager.Instance.CreateObservableFromExpression(transitionSpec["trigger"], this);
+                        triggerObservable.DelayFrameSubscription(0, FrameCountType.EndOfFrame).Subscribe(b =>
                         {
-                            // Set the index that will be used to then modify the boolean in our boolArray
-                            int index = boolList.Count;
+                            if (useReverseTrigger)
+                                b = !b;
 
-                            // Set the default value of the bool list. This is to ensure that it doesn't immediately call an activation signal before at least one signal has resolved
-                            // For standard transitions, all of the booleans start as false
-                            // For reverse transitions, all of the booleans start as true
-                            boolList.Add(useReverseTrigger);
+                            boolArray[1] = b;
 
-                            // Get the name of the trigger. If it has an ! in front of it, we inverse its value
-                            string triggerName = triggerNames[k];
-                            bool triggerInversed = triggerName.StartsWith("!");
-                            if (triggerInversed) triggerName = triggerName.Remove(0, 1);      // Remove the ! from the name now
-
-                            // Get the corresponding Signal observable by using its name, casting it to a boolean
-                            var observable = GetLocalOrGlobalSignal(triggerName, candidateMorph);
-
-                            if (observable != null)
+                            // Check to see if both the timer and trigger have returned true
+                            if (boolArray[0] && boolArray[1])
                             {
-                                IObservable<bool> triggerObservable;
-
-                                // Inverse if necessary
-                                if (!triggerInversed)
-                                    triggerObservable = observable.Select(x => (bool)x);
-                                else
-                                    triggerObservable = observable.Select(x => (bool)!x);
-
-                                triggerObservable.DelayFrameSubscription(0, FrameCountType.EndOfFrame).Subscribe(b =>
+                                // If this morph is not currently active, we can then formally activate the Transition
+                                if (!ActiveTransitionNames.Contains(transitionName) && !queuedTransitionActivations.ContainsKey(transitionName))
                                 {
-                                    boolList[index] = b;
-
-                                    // Determine whether or not our list of booleans and triggers have met the conditions necessary to trigger the transition
-                                    // This is only applicable for transitions that use timers
-                                    // For forward transitions, ALL booleans in the list need to be true
-                                    // For reverse transitions, at least one of the booleans in the list needs to be false
-                                    bool triggersMet = false;
-                                    if (!useReverseTrigger)
-                                        triggersMet = !boolList.Contains(false);
-                                    else
-                                        triggersMet = boolList.Contains(false);
-
-                                    if (triggersMet)
-                                    {
-                                        // AND this morph is not currently active, we can then formally activate the Transition
-                                        if (!ActiveTransitionNames.Contains(transitionName) && !queuedTransitionActivations.ContainsKey(transitionName))
-                                        {
-                                            queuedTransitionActivations.Add(transitionName, new Tuple<Action, int>(() => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed), transitionPriority));
-                                        }
-                                    }
-                                    else
-                                    {
-                                        // Otherwise, if this Transition WAS active but now no longer meets the trigger conditions,
-                                        if (ActiveTransitionNames.Contains(transitionName) && !queuedTransitionDeactivations.ContainsKey(transitionName))
-                                        {
-                                            bool goToEnd = false;
-
-                                            // The transition spec provides additional rules for what to do when the transition is interrupted
-                                            if (transitionSpec["control"]["interrupted"] != null)
-                                            {
-                                                // If the value is set to "ignore", it means we ignore this call to disable. Return out of this function
-                                                if (transitionSpec["control"]["interrupted"] == "ignore")
-                                                {
-                                                    return;
-                                                }
-                                                // If the value is set to either initial or final, we reset it to the respective direction
-                                                else if (transitionSpec["control"]["interrupted"] == "initial")
-                                                {
-                                                    goToEnd = false;
-                                                }
-                                                else if (transitionSpec["control"]["interrupted"] == "final")
-                                                {
-                                                    goToEnd = true;
-                                                }
-                                                else if (transitionSpec["control"]["interrupted"] == "revert")
-                                                {
-                                                    // TODO: Create a new tweener which interpolates the transition by reversing it
-                                                    throw new NotImplementedException();
-                                                }
-                                            }
-
-                                            queuedTransitionDeactivations.Add(transitionName, new Tuple<Action, int>(() => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd), transitionPriority));
-                                        }
-                                    }
-                                }).AddTo(disposables);
-
-                                wereSubscriptionsCreated = true;
+                                    queuedTransitionActivations.Add(transitionName, new Tuple<Action, int>(() => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed), transitionPriority));
+                                }
                             }
+                            // Otherwise, end the transition if it is already active
                             else
                             {
-                                throw new Exception(string.Format("Vis Morphs: Morph {0} cannot find any Trigger with the name {1}.", candidateMorph.Name, triggerNames[k]));
+                                if (ActiveTransitionNames.Contains(transitionName) && !queuedTransitionDeactivations.ContainsKey(transitionName))
+                                {
+                                    bool goToEnd = false;
+
+                                    // The transition spec provides additional rules for what to do when the transition is interrupted
+                                    if (transitionSpec["control"]["interrupted"] != null)
+                                    {
+                                        // If the value is set to "ignore", it means we ignore this call to disable. Return out of this function
+                                        if (transitionSpec["control"]["interrupted"] == "ignore")
+                                        {
+                                            return;
+                                        }
+                                        // If the value is set to either initial or final, we reset it to the respective direction
+                                        else if (transitionSpec["control"]["interrupted"] == "initial" || transitionSpec["control"]["interrupted"] == "final")
+                                        {
+                                            goToEnd = transitionSpec["control"]["interrupted"] == "final";
+                                        }
+                                        else if (transitionSpec["control"]["interrupted"] == "revert")
+                                        {
+                                            // TODO: Create a new tweener which interpolates the transition by reversing it
+                                            throw new NotImplementedException();
+                                        }
+                                    }
+
+                                    queuedTransitionDeactivations.Add(transitionName, new Tuple<Action, int>(() => DeactivateTransition(candidateMorph, transitionSpec, transitionName, goToEnd), transitionPriority));
+                                }
                             }
-                        }
+                        }).AddTo(disposables);
+
+                        wereSubscriptionsCreated = true;
                     }
 
                     // If no subscriptions have been created at all (the result of no triggers and signal-based timer being used), immediately activate the transition
@@ -526,10 +477,10 @@ namespace DxR.VisMorphs
                         queuedTransitionActivations.Add(transitionName, new Tuple<Action, int>(() => ActivateTransition(candidateMorph, transitionSpec, transitionName, isReversed), transitionPriority));
                     }
 
-                    candidateMorph.CandidateTransitionsWithSubscriptions.Add(new Tuple<JSONNode, CompositeDisposable, List<bool>, bool>(
+                    candidateMorph.CandidateTransitionsWithSubscriptions.Add(new Tuple<JSONNode, CompositeDisposable, bool[], bool>(
                         transitionSpec,
                         disposables,
-                        boolList,
+                        boolArray,
                         isReversed
                     ));
                 }

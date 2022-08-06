@@ -63,7 +63,6 @@
         {
             "name": "stage1",
             "states": ["scatterplot", "choropleth"],
-            "triggers": [],
             "control": {
                 "timing": "sliderX",
                 "easing": "easeinoutquint"

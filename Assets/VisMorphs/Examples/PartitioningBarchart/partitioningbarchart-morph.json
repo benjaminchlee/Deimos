@@ -86,7 +86,7 @@
         {
             "name": "stacked2faceted",
             "states": ["stacked", "faceted"],
-            "triggers": ["isVisTouchingSurface"],
+            "trigger": "isVisTouchingSurface",
             "control": {
                 "timing": 1.5,
                 "easing": "easeoutcirc",
