@@ -51,7 +51,7 @@
                     "field": "other.encoding.z.field",
                     "type": "nominal",
                     "directions": ["x", "y"],
-                    "spacing": [400, -500],
+                    "spacing": ["this.width + 150", "this.height + 150"],
                     "size": 2
                 }
             },

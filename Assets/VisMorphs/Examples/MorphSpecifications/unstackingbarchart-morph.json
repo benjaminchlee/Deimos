@@ -8,7 +8,6 @@
             "mark": "cube",
             "encoding": {
                 "x": {
-                    "field": "Survived",
                     "type": "nominal"
                 },
                 "y": {
@@ -18,7 +17,8 @@
                     "type": "quantitative"
                 },
                 "yoffset": {
-                    "channel": "color"
+                    "field": "other.encoding.zoffset.field",
+                    "type": "other.encoding.zoffset.type"
                 },
                 "yoffsetpct": {
                     "value": -0.5
@@ -56,7 +56,8 @@
                     "type": "nominal"
                 },
                 "zoffset": {
-                    "channel": "color"
+                    "field": "other.encoding.yoffset.field",
+                    "type": "other.encoding.yoffset.type"
                 },
                 "zoffsetpct": {
                     "value": -3.5

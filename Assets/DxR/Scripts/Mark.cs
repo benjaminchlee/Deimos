@@ -466,8 +466,8 @@ namespace DxR
                 return channelEncoding.value;
             }
 
-            // Special condition for offset encodings with linked offsets (for stacked bar charts, etc.)
-            if (channelEncoding.IsOffset() && ((OffsetChannelEncoding)channelEncoding).linkedChannel != null)
+            // Special condition for offset encodings using fields (for stacked bar charts, etc.)
+            if (channelEncoding.IsOffset() && channelEncoding.field != null)
             {
                 OffsetChannelEncoding offsetChannelEncoding = (OffsetChannelEncoding)channelEncoding;
                 if (offsetChannelEncoding.values.Count > 0)
@@ -482,7 +482,7 @@ namespace DxR
                 }
             }
             // Special condition for facet wrap
-            else if (channelEncoding.IsFacetWrap())
+            if (channelEncoding.IsFacetWrap())
             {
                 FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncoding;
                 if (facetWrapChannelEncoding.translation.Count > 0)
@@ -1277,7 +1277,7 @@ namespace DxR
             JSONArray range = new JSONArray();
 
             string channel = channelEncoding.channel;
-            if (channel == "x" || channel == "width")
+            if (channel == "x" || channel == "width" || channel == "xoffset")
             {
                 range.Add(new JSONString("0"));
 
@@ -1291,7 +1291,8 @@ namespace DxR
                     specs["width"] = rangeSize;
                 }
 
-            } else if (channel == "y" || channel == "height")
+            }
+            else if (channel == "y" || channel == "height" || channel == "yoffset")
             {
                 range.Add(new JSONString("0"));
                 if (scaleSpecsObj["rangeStep"] == null)
@@ -1304,7 +1305,8 @@ namespace DxR
                     range.Add(new JSONString(rangeSize.ToString()));
                     specs["height"] = rangeSize;
                 }
-            } else if (channel == "z" || channel == "depth")
+            }
+            else if (channel == "z" || channel == "depth" || channel == "zoffset")
             {
                 range.Add(new JSONString("0"));
                 if (scaleSpecsObj["rangeStep"] == null)
@@ -1317,11 +1319,13 @@ namespace DxR
                     range.Add(new JSONString(rangeSize.ToString()));
                     specs["depth"] = rangeSize;
                 }
-            } else if (channel == "opacity")
+            }
+            else if (channel == "opacity")
             {
                 range.Add(new JSONString("0"));
                 range.Add(new JSONString("1"));
-            } else if (channel == "size" || channel == "length")
+            }
+            else if (channel == "size" || channel == "length")
             {
                 range.Add(new JSONString("0"));
                 string maxDimSize = Math.Max(Math.Max(specs["width"].AsFloat, specs["height"].AsFloat),
@@ -1329,7 +1333,8 @@ namespace DxR
 
                 range.Add(new JSONString(maxDimSize));
 
-            } else if(channel == "color")
+            }
+            else if(channel == "color")
             {
                 if(channelEncoding.fieldDataType == "nominal")
                 {
@@ -1345,11 +1350,13 @@ namespace DxR
                     scaleSpecsObj.Add("range", new JSONString("ramp"));
                 }
 
-            } else if(channel == "shape")
+            }
+            else if(channel == "shape")
             {
                 range.Add(new JSONString("symbol"));
                 throw new Exception("Not implemented yet.");
-            } else if(channel == "xrotation" || channel == "yrotation" || channel == "zrotation")
+            }
+            else if(channel == "xrotation" || channel == "yrotation" || channel == "zrotation")
             {
                 range.Add(new JSONString("0"));
                 range.Add(new JSONString("360"));
@@ -1394,9 +1401,10 @@ namespace DxR
             JSONArray domain = new JSONArray();
             if (channelEncoding.fieldDataType == "quantitative" &&
                 (channel == "x" || channel == "y" || channel == "z" ||
-                channel == "width" || channel == "height" || channel == "depth" || channel == "length" ||
-                channel == "color" || channel == "xrotation" || channel == "yrotation"
-                || channel == "zrotation" || channel == "size" || channel == "xdirection")
+                 channel == "xoffset" || channel == "yoffset" || channel == "zoffset" ||
+                 channel == "width" || channel == "height" || channel == "depth" || channel == "length" ||
+                 channel == "color" || channel == "xrotation" || channel == "yrotation"
+                 || channel == "zrotation" || channel == "size" || channel == "xdirection")
                 || channel == "ydirection" || channel == "zdirection" || channel == "opacity")
             {
                 List<float> minMax = new List<float>();
@@ -1504,6 +1512,7 @@ namespace DxR
         {
             string type = "";
             if (channel == "x" || channel == "y" || channel == "z" ||
+                channel == "xoffset" || channel == "yoffset" || channel == "zoffset" ||
                 channel == "size" || channel == "opacity")
             {
                 if (fieldDataType == "nominal" || fieldDataType == "ordinal")
@@ -1526,7 +1535,8 @@ namespace DxR
                 {
                     throw new Exception("Invalid field data type: " + fieldDataType);
                 }
-            } else if (channel == "width" || channel == "height" || channel == "depth" || channel == "length")
+            }
+            else if (channel == "width" || channel == "height" || channel == "depth" || channel == "length")
             {
                 if (fieldDataType == "nominal" || fieldDataType == "ordinal")
                 {
@@ -1548,7 +1558,8 @@ namespace DxR
                 {
                     throw new Exception("Invalid field data type: " + fieldDataType);
                 }
-            } else if (channel == "xrotation" || channel == "yrotation" || channel == "zrotation"
+            }
+            else if (channel == "xrotation" || channel == "yrotation" || channel == "zrotation"
                     || channel == "xdirection" || channel == "ydirection" || channel == "zdirection")
             {
                 if (fieldDataType == "nominal" || fieldDataType == "ordinal")
@@ -1567,7 +1578,8 @@ namespace DxR
                 {
                     throw new Exception("Invalid field data type: " + fieldDataType);
                 }
-            } else if (channel == "color")
+            }
+            else if (channel == "color")
             {
                 if (fieldDataType == "nominal" || fieldDataType == "ordinal")
                 {
@@ -1581,7 +1593,8 @@ namespace DxR
                 {
                     throw new Exception("Invalid field data type: " + fieldDataType);
                 }
-            } else if (channel == "shape")
+            }
+            else if (channel == "shape")
             {
                 if (fieldDataType == "nominal" || fieldDataType == "ordinal")
                 {
@@ -1591,7 +1604,8 @@ namespace DxR
                 {
                     throw new Exception("Invalid field data type: " + fieldDataType + " for shape channel.");
                 }
-            } else if (channel == "facetwrap")
+            }
+            else if (channel == "facetwrap")
             {
                 if (fieldDataType == "nominal" || fieldDataType == "ordinal")
                 {
@@ -1605,7 +1619,8 @@ namespace DxR
                 {
                     throw new Exception("Invalid field data type: " + fieldDataType + " for shape channel.");
                 }
-            } else
+            }
+            else
             {
                 type = "none";
             }

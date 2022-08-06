@@ -1338,19 +1338,6 @@ namespace DxR
                         throw new Exception("Facet wrap channel requires spacing values to be defined. This is in the form of a float array and should be the same length as the direction values.");
                     }
                 }
-                // Certain encodings have special properties that should not exist on other channels
-                else if (channelSpecs["channel"] != null)
-                {
-                    // Only offset encodings should have a "channel" property
-                    if (channelEncoding.IsOffset())
-                    {
-                        ((OffsetChannelEncoding)channelEncoding).linkedChannel = channelSpecs["channel"];
-                    }
-                    else
-                    {
-                        throw new Exception("Channel  " + channelEncoding.channel + " has a channel property which is not allowed.");
-                    }
-                }
                 else if (channelSpecs["value"] != null)
                 {
                     channelEncoding.value = channelSpecs["value"].Value.ToString();
@@ -1405,17 +1392,14 @@ namespace DxR
                 {
                     OffsetChannelEncoding offsetCE = (OffsetChannelEncoding)channelEncoding;
 
-                    // Skip the offset if it doesn't specify a linked channel
-                    if (offsetCE.linkedChannel == null)
+                    // Skip the offset if it doesn't specify a field
+                    if (offsetCE.field == null)
                         return;
 
-                    // Get the ChannelEncoding of the categorical channel that this offset relates to (accessed via "channel" property)
-                    ChannelEncoding categoricalCE = newChannelEncodings.Single(ch => ch.channel == offsetCE.linkedChannel);
-
-                    // Check to make sure that it is actually categorical
-                    if (categoricalCE.fieldDataType != "ordinal" && categoricalCE.fieldDataType != "nominal")
+                    // Make sure that the data type is categorical
+                    if (offsetCE.fieldDataType != "ordinal" && offsetCE.fieldDataType != "nominal")
                     {
-                        throw new Exception("The channel which an offset references must be either ordinal or nominal type.");
+                        throw new Exception("An offset channel that uses a field must be either ordinal or nominal type.");
                     }
 
                     // Get the ChannelEncodings of the spatial dimensions. These are used to determine the groups
@@ -1468,7 +1452,7 @@ namespace DxR
                     }
 
                     // Get the order of the categories. This order will be used to stagger the offset amounts
-                    List<string> offsetOrder = categoricalCE.scale.domain;
+                    List<string> offsetOrder = offsetCE.scale.domain;
 
                     // Initialise our data structure
                     // Dictionary key: The names of the grouping spatial CEs concatenated together
@@ -1490,7 +1474,7 @@ namespace DxR
                             groupedDataValues.Add(key, groupedList);
                         }
 
-                        groupedList.Add(new Tuple<int, string, float>(index, dataValue[categoricalCE.field], sizeValues[index]));
+                        groupedList.Add(new Tuple<int, string, float>(index, dataValue[offsetCE.field], sizeValues[index]));
                     }
 
                     // Sort the lists in the data structure based on the order of categories defined in the offset

@@ -29454,8 +29454,9 @@ MonoBehaviour:
     \"type\": \"nominal\"\r\n        },\r\n        \"depth\": {\r\n            \"value\":
     130\r\n        },\r\n        \"color\": {\r\n            \"field\": \"Survived\",\r\n           
     \"type\": \"nominal\",\r\n            \"legend\": \"none\"\r\n        },\r\n       
-    \"yoffset\": {\r\n            \"channel\": \"color\"\r\n        }\r\n    },\r\n   
-    \"data\": {\r\n        \"url\": \"titanic_3d.csv\"\r\n    }\r\n}"
+    \"yoffset\": {\r\n            \"field\": \"Survived\",\r\n            \"type\":
+    \"nominal\"\r\n        }\r\n    },\r\n    \"data\": {\r\n        \"url\": \"titanic_3d.csv\"\r\n   
+    }\r\n}"
   InternalSpecification: 
 --- !u!114 &1245073526
 MonoBehaviour:
@@ -35855,9 +35856,9 @@ MonoBehaviour:
     },\r\n        \"yoffsetpct\": {\r\n            \"value\": -0.5\r\n        },\r\n       
     \"depth\": {\r\n            \"value\": 10\r\n        },\r\n        \"color\":
     {\r\n            \"field\": \"Class\",\r\n            \"type\": \"nominal\"\r\n       
-    },\r\n        \"yoffset\": {\r\n            \"channel\": \"color\"\r\n       
-    }\r\n    },\r\n    \"data\": {\r\n        \"url\": \"titanic_2d.csv\"\r\n   
-    }\r\n}"
+    },\r\n        \"yoffset\": {\r\n            \"field\": \"Class\",\r\n           
+    \"type\": \"nominal\"\r\n        }\r\n    },\r\n    \"data\": {\r\n        \"url\":
+    \"titanic_2d.csv\"\r\n    }\r\n}"
   InternalSpecification: 
 --- !u!114 &1512344090
 MonoBehaviour:

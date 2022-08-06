@@ -45,7 +45,8 @@
             "legend": "none"
         },
         "yoffset": {
-            "channel": "color"
+            "field": "Survived",
+            "type": "nominal"
         }
     },
     "data": {
@@ -96,7 +97,8 @@
             "legend": "none"
         },
         "yoffset": {
-            "channel": "color"
+            "field": "Survived",
+            "type": "nominal"
         },
         "facetwrap": {
             "field": "Class",

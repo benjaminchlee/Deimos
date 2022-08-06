@@ -40,7 +40,8 @@
             "type": "nominal"
         },
         "yoffset": {
-            "channel": "color"
+            "field": "Class",
+            "type": "nominal"
         }
     },
     "data": {
@@ -92,7 +93,8 @@
             "value": 130
         },
         "zoffset": {
-            "channel": "color"
+            "field": "Class",
+            "type": "nominal"
         },
         "zoffsetpct": {
             "value": -3.5

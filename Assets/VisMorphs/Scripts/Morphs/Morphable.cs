@@ -1286,8 +1286,18 @@ namespace DxR.VisMorphs
             // Properly update the descendants in the vis spec to resolve JSON path references
             foreach (var tuple in descendantsToUpdate)
             {
-                var descendant = visSpec.SelectToken(tuple.Item1).Parent as JProperty;
-                descendant.Value = tuple.Item2;
+                JToken descendantParent = visSpec.SelectToken(tuple.Item1).Parent;
+                if (descendantParent.Type == JTokenType.Array)
+                {
+                    int start = tuple.Item1.IndexOf('[');
+                    int end = tuple.Item1.LastIndexOf(']');
+                    int index = int.Parse(tuple.Item1.Substring(start + 1, end - start - 1));
+                    descendantParent[index] = tuple.Item2;
+                }
+                else
+                {
+                    (descendantParent as JProperty).Value = tuple.Item2;
+                }
             }
 
             /// FUNCTION 4: Evaluate expressions
@@ -1335,8 +1345,18 @@ namespace DxR.VisMorphs
             // Properly update the descendants in the vis spec again to resolve expressions and Signal names
             foreach (var tuple in descendantsToUpdate)
             {
-                var descendant = visSpec.SelectToken(tuple.Item1).Parent as JProperty;
-                descendant.Value = tuple.Item2;
+                JToken descendantParent = visSpec.SelectToken(tuple.Item1).Parent;
+                if (descendantParent.Type == JTokenType.Array)
+                {
+                    int start = tuple.Item1.IndexOf('[');
+                    int end = tuple.Item1.LastIndexOf(']');
+                    int index = int.Parse(tuple.Item1.Substring(start + 1, end - start - 1));
+                    descendantParent[index] = tuple.Item2;
+                }
+                else
+                {
+                    (descendantParent as JProperty).Value = tuple.Item2;
+                }
             }
         }
 

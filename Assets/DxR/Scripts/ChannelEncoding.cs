@@ -147,8 +147,7 @@ namespace DxR
                 var oce1 = (OffsetChannelEncoding)ce1;
                 var oce2 = (OffsetChannelEncoding)ce2;
 
-                if (!(oce1.linkedChannel == oce2.linkedChannel &&
-                      oce1.values[0] == oce2.values[0]))    // TODO: By right we should check all values, but this is faster and should be fine for now
+                if (!(oce1.values[0] == oce2.values[0]))    // TODO: By right we should check all values, but this is faster and should be fine for now
                     return false;
             }
             else if (ce1.IsFacetWrap() && ce2.IsFacetWrap())
