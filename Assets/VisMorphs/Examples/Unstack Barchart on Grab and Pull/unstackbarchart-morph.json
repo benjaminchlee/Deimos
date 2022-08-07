@@ -1,0 +1,120 @@
+{
+    "$schema": "https://raw.githubusercontent.com/benjaminchlee/DxR/master/Assets/VisMorphs/Schema/morph-schema.json",
+    "name": "Unstack Barchart on Grab and Pull",
+
+    "states": [
+        {
+            "name": "stacked",
+            "mark": "cube",
+            "encoding": {
+                "x": {
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffset": {
+                    "field": "other.encoding.zoffset.field",
+                    "type": "other.encoding.zoffset.type"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "depth": {
+                    "value": 10
+                },
+                "zoffset": null,
+                "color": {
+                    "type": "nominal"
+                }
+            }
+        },
+        {
+            "name": "sideBySide",
+            "mark": "cube",
+            "encoding": {
+                "x": {
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffset": null,
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "depth": {
+                    "value": 130
+                },
+                "color": {
+                    "type": "nominal"
+                },
+                "zoffset": {
+                    "field": "other.encoding.yoffset.field",
+                    "type": "other.encoding.yoffset.type"
+                },
+                "zoffsetpct": {
+                    "value": -3.5
+                }
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "isSelectingVis",
+            "source": "hand",
+            "handedness": "any",
+            "target": "vis",
+            "criteria": "select",
+            "value": "boolean"
+        }, {
+            "name": "isVisTouchingSurface",
+            "source": "vis",
+            "target": "surface",
+            "criteria": "touch",
+            "value": "boolean"
+        }, {
+            "name": "isHandPinching",
+            "source": "hand",
+            "handedness": "any",
+            "value": "pinch"
+        }, {
+            "name": "handSurfaceDistance",
+            "source": "hand",
+            "handedness": "any",
+            "target": "surface",
+            "criteria": "closest",
+            "value": "closestdistance"
+        }, {
+            "name": "tweener",
+            "expression":"normalise(handSurfaceDistance, 0.05, 0.35, 0, 1)"
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "unstacking",
+            "states": ["stacked", "sideBySide"],
+            "trigger": "isSelectingVis && isVisTouchingSurface && isHandPinching",
+            "control": {
+                "timing": "tweener",
+                "easing": "easeinoutcirc",
+                "interrupted": "initial"
+            },
+            "staging": {
+                "z": [0, 0.5],
+                "depth": [0, 0.5],
+                "y": [0.5, 1],
+                "height": [0.5, 1]
+            },
+            "bidirectional": true,
+            "disablegrab": true
+        }
+    ]
+}

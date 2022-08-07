@@ -1,0 +1,128 @@
+{
+    "$schema": "https://raw.githubusercontent.com/benjaminchlee/DxR/master/Assets/VisMorphs/Schema/morph-schema.json",
+    "name": "Tilt Map on Tilt",
+
+    "states": [
+        {
+            "name": "choropleth",
+            "mark": "geoshape",
+            "encoding": {
+                "x": {
+                    "field": "Longitude",
+                    "type": "spatial"
+                },
+                "y": {
+                    "field": "Latitude",
+                    "type": "spatial"
+                },
+                "z": null,
+                "width": {
+                    "field": "Longitude",
+                    "type": "spatial"
+                },
+                "height": {
+                    "field": "Latitude",
+                    "type": "spatial"
+                }
+            }
+        },
+        {
+            "name": "prism",
+            "mark": "geoshape",
+            "depth": -500,
+            "encoding": {
+                "x": {
+                    "field": "Longitude",
+                    "type": "spatial"
+                },
+                "y": {
+                    "field": "Latitude",
+                    "type": "spatial"
+                },
+                "z": {
+                    "field": "Population",
+                    "type": "quantitative"
+                },
+                "width": {
+                    "field": "Longitude",
+                    "type": "spatial"
+                },
+                "height": {
+                    "field": "Latitude",
+                    "type": "spatial"
+                },
+                "depth": {
+                    "field": "Population",
+                    "type": "quantitative"
+                },
+                "zoffsetpct": {
+                    "value": 0.5
+                }
+            }
+        },
+        {
+            "name": "bar",
+            "mark": "geoshape",
+            "encoding": {
+                "x": {
+                    "field": "Name",
+                    "type": "nominal"
+                },
+                "y": null,
+                "z": {
+                    "field": "Population",
+                    "type": "quantitative"
+                },
+                "width": {
+                    "value": 5
+                },
+                "depth": {
+                    "field": "Population",
+                    "type": "quantitative"
+                },
+                "zoffsetpct": {
+                    "value": 0.5
+                },
+                "height": {
+                    "value": 0.01
+                }
+            }
+        }
+    ],
+
+    "signals": [
+        {
+            "name": "visDirectionUp",
+            "source": "vis",
+            "value": "up"
+        }, {
+            "name": "tilt",
+            "expression": "angle(vector3(0, 1, 0), visDirectionUp)"
+        }, {
+            "name": "c2pTween",
+            "expression": "normalise(tilt, 20, 45)"
+        }, {
+            "name": "p2bTween",
+            "expression":"normalise(tilt, 75, 90)"
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "c2p",
+            "states": ["choropleth", "prism"],
+            "control": {
+                "timing": "c2pTween"
+            },
+            "bidirectional": true
+        },
+        {
+            "name": "p2b",
+            "states": ["prism", "bar"],
+            "control": {
+                "timing": "p2bTween"
+            },
+            "bidirectional": true
+        }
+    ]
+}

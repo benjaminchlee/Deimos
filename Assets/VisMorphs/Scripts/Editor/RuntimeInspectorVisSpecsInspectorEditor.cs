@@ -48,6 +48,7 @@ namespace DxR
             {
                 EditorGUI.BeginDisabledGroup(true);
                 EditorGUILayout.TextArea(((TextAsset)jsonSpecificationProperty.objectReferenceValue).text, GUILayout.MinHeight(40), GUILayout.ExpandHeight(true), GUILayout.ExpandWidth(true));
+                inputSpecificationProperty.stringValue = null;
                 EditorGUI.EndDisabledGroup();
             }
             // If none is provided, show the in-editor text instead

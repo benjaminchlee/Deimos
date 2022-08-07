@@ -1,0 +1,31 @@
+{
+    "width": 800,
+    "height": 500,
+    "depth": -500,
+    "mark": "geoshape",
+    "data": {
+        "url": "us-states.json"
+    },
+    "encoding": {
+        "x": {
+            "field": "Longitude",
+            "type": "spatial"
+        },
+        "y": {
+            "field": "Latitude",
+            "type": "spatial"
+        },
+        "width": {
+            "field": "Longitude",
+            "type": "spatial"
+        },
+        "height": {
+            "field": "Latitude",
+            "type": "spatial"
+        },
+        "color": {
+            "field": "Population",
+            "type": "quantitative"
+        }
+    }
+}

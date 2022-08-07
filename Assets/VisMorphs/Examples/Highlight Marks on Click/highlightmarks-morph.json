@@ -1,0 +1,44 @@
+{
+    "$schema": "https://raw.githubusercontent.com/benjaminchlee/DxR/master/Assets/VisMorphs/Schema/morph-schema.json",
+    "name": "Highlight Marks on Click",
+
+    "states": [
+        {
+            "name": "unhighlighted",
+            "mark": "sphere",
+            "encoding": {
+                "color": null
+            }
+        },
+        {
+            "name": "highlighted",
+            "restrict": true,
+            "encoding": {
+                "color": {
+                    "value": "red"
+                }
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "mousedown",
+            "source": "mouse",
+            "handedness": "left",
+            "value": "press"
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "highlighting",
+            "states": ["unhighlighted", "highlighted"],
+            "trigger": "mousedown",
+            "control": {
+                "timing": 0.25,
+                "interrupted": "ignore"
+            },
+            "bidirectional": true
+        }
+    ]
+}

@@ -1,0 +1,105 @@
+
+{
+    "$schema": "https://raw.githubusercontent.com/benjaminchlee/DxR/master/Assets/VisMorphs/Schema/morph-schema.json",
+    "name": "Partition Barchart on Surface",
+
+    "states": [
+        {
+            "name": "stackedBarchart",
+            "encoding": {
+                "x": {
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "z": {
+                    "field": "other.encoding.facetwrap.field",
+                    "type": "nominal"
+                },
+                "depth": {
+                    "value": 130
+                }
+            }
+        },
+        {
+            "name": "facetedBarchart",
+            "restrict": true,
+            "encoding": {
+                "x": {
+                    "type": "nominal"
+                },
+                "y": {
+                    "type": "quantitative"
+                },
+                "height": {
+                    "type": "quantitative"
+                },
+                "yoffsetpct": {
+                    "value": -0.5
+                },
+                "z": null,
+                "depth": {
+                    "value": 10
+                },
+                "facetwrap": {
+                    "field": "other.encoding.z.field",
+                    "type": "nominal",
+                    "directions": ["x", "y"]
+                }
+            },
+            "position": {
+                "value": "touchedSurfaceIntersectionPoint"
+            },
+            "rotation": {
+                "value": "touchedSurfaceRotation"
+            }
+        }
+    ],
+
+    "signals": [{
+            "name": "isVisTouchingSurface",
+            "source": "vis",
+            "target": "surface",
+            "criteria": "touch",
+            "value": "boolean"
+        }, {
+            "name": "touchedSurfaceIntersectionPoint",
+            "source": "vis",
+            "target": "surface",
+            "criteria": "touch",
+            "value": "intersection"
+        }, {
+            "name": "touchedSurfaceRotation",
+            "source": "vis",
+            "target": "surface",
+            "criteria": "touch",
+            "value": "rotation"
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "partitioning",
+            "states": ["stackedBarchart", "facetedBarchart"],
+            "trigger": "isVisTouchingSurface",
+            "control": {
+                "timing": 1.5,
+                "easing": "easeoutcirc",
+                "interrupted": "ignore"
+            },
+            "staging": {
+                "encoding": [0, 0.65],
+                "position": [0.65, 1],
+                "rotation": [0.65, 1]
+            },
+            "bidirectional": true
+        }
+    ]
+}

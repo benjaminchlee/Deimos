@@ -1,0 +1,53 @@
+
+{
+    "$schema": "https://raw.githubusercontent.com/benjaminchlee/DxR/master/Assets/VisMorphs/Schema/morph-schema.json",
+    "name": "Auto Size when Distant",
+
+    "states": [
+        {
+            "name": "originalSize",
+            "encoding": {
+                "x": "*",
+                "y": "*",
+                "z": null
+            },
+            "width": "*",
+            "height": "*"
+        },
+        {
+            "name": "increasedSize",
+            "restrict": true,
+            "encoding": {
+                "x": "*",
+                "y": "*",
+                "z": null
+            },
+            "width": "other.width * 2",
+            "height": "other.height * 2"
+        }
+    ],
+
+    "signals": [{
+            "name": "headVisDistance",
+            "source": "head",
+            "target": "vis",
+            "value": "closestdistance"
+        }, {
+            "name": "isFarFromVis",
+            "expression": "headVisDistance > 4"
+        }
+    ],
+
+    "transitions": [
+        {
+            "name": "autoSizing",
+            "states": ["originalSize", "increasedSize"],
+            "trigger": "isFarFromVis",
+            "control": {
+                "timing": 0.5,
+                "interrupted": "ignore"
+            },
+            "bidirectional": true
+        }
+    ]
+}

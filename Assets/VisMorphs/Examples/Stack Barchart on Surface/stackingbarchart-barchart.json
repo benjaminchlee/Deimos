@@ -1,0 +1,44 @@
+{
+    "width": 600,
+    "height": 400,
+    "depth": 300,
+    "mark": "cube",
+    "data": {
+        "url": "titanic_2d.csv"
+    },
+    "encoding": {
+        "x": {
+            "field": "Class",
+            "type": "nominal"
+        },
+        "width": {
+            "value": 130
+        },
+        "y": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 900]
+            }
+        },
+        "height": {
+            "field": "Freq",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 900]
+            }
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "z": {
+            "field": "Survived",
+            "type": "nominal"
+        },
+        "depth": {
+            "value": 130
+        }
+    }
+}
