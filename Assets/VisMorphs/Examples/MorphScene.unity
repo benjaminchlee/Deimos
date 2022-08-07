@@ -17997,7 +17997,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 58dca9418191b7446974f36fdf9b625a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  JSONSpecification: {fileID: 0}
+  JSONSpecification: {fileID: 4900000, guid: bc8f5809181a18144bef1191e45e1a8c, type: 3}
   InputSpecification: "{\r\n    \"mark\": \"sphere\",\r\n    \"encoding\": {\r\n     
     \"x\": {\r\n        \"field\": \"alcohol\",\r\n        \"type\": \"quantitative\",\r\n       
     \"scale\": {\r\n            \"type\": \"linear\",\r\n            \"domain\":

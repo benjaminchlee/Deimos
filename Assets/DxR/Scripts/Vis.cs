@@ -114,16 +114,16 @@ namespace DxR
 
             parser = new Parser();
 
-            // If there is no visSpecsURL defined, and a RuntimeInspectorVisSpecs component is also attached
-            // to this GameObject, then we parse the JSON string specification contained in it instead
-            if (visSpecsURL == "" && GetComponent<RuntimeInspectorVisSpecs>() != null)
+            // If there is a RuntimeInspectorVisSpecs component attached to this GameObject, then we parse the specifications contained in it instead
+            RuntimeInspectorVisSpecs runtimeSpecs = GetComponent<RuntimeInspectorVisSpecs>();
+            if (runtimeSpecs != null)
             {
-                string visSpecsString = GetComponent<RuntimeInspectorVisSpecs>().InputSpecification;
+                string visSpecsString = runtimeSpecs.JSONSpecification != null ? runtimeSpecs.JSONSpecification.text : runtimeSpecs.InputSpecification;
                 parser.ParseString(visSpecsString, out visSpecs);
             }
+            // If not, parse the vis specs URL into the vis specs object.
             else
             {
-                // Parse the vis specs URL into the vis specs object.
                 parser.Parse(visSpecsURL, out visSpecs);
             }
 
@@ -1224,121 +1224,17 @@ namespace DxR
                 // The type of ChannelEncoding object which we create depends on the channel
                 ChannelEncoding channelEncoding;
                 if (kvp.Key.EndsWith("offset"))
-                {
                     channelEncoding = new OffsetChannelEncoding();
-                }
                 else if (kvp.Key == "facetwrap")
-                {
                     channelEncoding = new FacetWrapChannelEncoding();
-                }
                 else
-                {
                     channelEncoding = new ChannelEncoding();
-                }
 
                 channelEncoding.channel = kvp.Key;
                 JSONNode channelSpecs = kvp.Value;
 
-                // Handle special encodings first that do not conform to the standard rules
-                if (channelEncoding.IsFacetWrap())
-                {
-                    FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncoding;
-
-                    if (channelSpecs["field"] != null)
-                    {
-                        facetWrapChannelEncoding.field = channelSpecs["field"];
-                        if(!data.fieldNames.Contains(channelEncoding.field))
-                        {
-                            throw new Exception("Cannot find data field " + channelEncoding.field + " in data. Please check your spelling (case sensitive).");
-                        }
-                    }
-                    else
-                    {
-                        throw new Exception("Facet wrap channel requires a field to be defined");
-                    }
-                    if (channelSpecs["type"] != null)
-                    {
-                        if (channelSpecs["type"] == "quantitative")
-                            throw new NotImplementedException("Quantitative types for facet wrap is not yet supported.");
-                    }
-                    else
-                    {
-                        throw new Exception("Missing type for field in channel " + facetWrapChannelEncoding.channel);
-                    }
-                    if (channelSpecs["value"] != null)
-                    {
-                        throw new Exception("Facet wrap channel cannot have a value property. Use field and type instead.");
-                    }
-                    if (channelSpecs["directions"] != null)
-                    {
-                        JSONArray array = channelSpecs["directions"].AsArray;
-
-                        if (array.Count != 2)
-                        {
-                            throw new Exception("Facet wrap requires two direction values to be provided.");
-                        }
-
-                        for (int i = 0; i < array.Count; i++)
-                        {
-                            // We store these strings internally as integers
-                            if (array[i] == "x")
-                            {
-                                facetWrapChannelEncoding.directions.Add(0);
-                            }
-                            else if (array[i] == "y")
-                            {
-                                facetWrapChannelEncoding.directions.Add(1);
-                            }
-                            else if (array[i] == "z")
-                            {
-                                facetWrapChannelEncoding.directions.Add(2);
-                            }
-                            else
-                            {
-                                throw new Exception("Facet wrap directions can only be x, y, or z. Direction value " + array[i] + " found instead.");
-                            }
-                        }
-
-                        if (facetWrapChannelEncoding.directions.Distinct().Count() == 1)
-                        {
-                            throw new Exception("Facet wrap directions must all be unique.");
-                        }
-                    }
-                    else
-                    {
-                        throw new Exception("Facet wrap channel requires one or two directions to be defined. Valid directions are x, y, z, formatted as a string array.");
-                    }
-                    if (channelSpecs["size"] != null)
-                    {
-                        facetWrapChannelEncoding.size = int.Parse(channelSpecs["size"]);
-                    }
-                    if (channelSpecs["spacing"] != null)
-                    {
-                        JSONArray array = channelSpecs["spacing"].AsArray;
-
-                        if (array.Count != 2)
-                        {
-                            throw new Exception("Facet wrap requires two spacing values to be provided.");
-                        }
-
-                        for (int i = 0; i < array.Count; i++)
-                        {
-                            if (array[i].IsNumber)
-                            {
-                                facetWrapChannelEncoding.spacing.Add(float.Parse(array[i]));
-                            }
-                            else
-                            {
-                                throw new Exception("Facet wrap spacing values need to be numbers.");
-                            }
-                        }
-                    }
-                    else
-                    {
-                        throw new Exception("Facet wrap channel requires spacing values to be defined. This is in the form of a float array and should be the same length as the direction values.");
-                    }
-                }
-                else if (channelSpecs["value"] != null)
+                // Standard encodings with a value property
+                if (channelSpecs["value"] != null)
                 {
                     channelEncoding.value = channelSpecs["value"].Value.ToString();
 
@@ -1347,6 +1243,7 @@ namespace DxR
                         channelEncoding.valueDataType = channelSpecs["type"].Value.ToString();
                     }
                 }
+                // Standard encodings with a field property
                 else
                 {
                     channelEncoding.field = channelSpecs["field"];
@@ -1367,10 +1264,112 @@ namespace DxR
                     }
                 }
 
+                // Create the scale object
                 JSONNode scaleSpecs = channelSpecs["scale"];
                 if (scaleSpecs != null)
                 {
                     CreateScaleObject(scaleSpecs, ref channelEncoding.scale);
+                }
+
+                // Handle special encodings
+                if (channelEncoding.IsFacetWrap())
+                {
+                    FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncoding;
+
+                    if (facetWrapChannelEncoding.field == null || facetWrapChannelEncoding.fieldDataType == null)
+                        throw new Exception("Facet wrap channel must have a field and type.");
+
+                    if (facetWrapChannelEncoding.fieldDataType == "quantitative")
+                        throw new NotImplementedException("Quantitative types for facet wrap is not yet supported.");
+
+                    if (channelSpecs["directions"] != null)
+                    {
+                        JSONArray array = channelSpecs["directions"].AsArray;
+
+                        if (array.Count != 2)
+                            throw new Exception("Facet wrap requires two direction values to be provided.");
+
+                        string[] dims = new string[] { "x", "y", "z" };
+                        for (int i = 0; i < array.Count; i++)
+                        {
+                            int idx = Array.IndexOf(dims, (string)array[i]);
+                            if (idx == -1)
+                                throw new Exception("Facet wrap directions can only be x, y, or z. Direction value " + array[i] + " found instead.");
+                            facetWrapChannelEncoding.directions.Add(idx);
+                        }
+
+                        if (facetWrapChannelEncoding.directions.Distinct().Count() == 1)
+                            throw new Exception("Facet wrap directions must all be unique.");
+                    }
+                    else
+                    {
+                        // Default to ["x", "y"]
+                        facetWrapChannelEncoding.directions.Add(0);
+                        facetWrapChannelEncoding.directions.Add(1);
+                    }
+
+                    if (channelSpecs["size"] != null)
+                    {
+                        facetWrapChannelEncoding.size = int.Parse(channelSpecs["size"]);
+                    }
+                    else
+                    {
+                        // Set default
+                        facetWrapChannelEncoding.size = Mathf.CeilToInt(Mathf.Sqrt(facetWrapChannelEncoding.scale.domain.Count));
+                    }
+
+                    if (channelSpecs["spacing"] != null)
+                    {
+                        JSONArray array = channelSpecs["spacing"].AsArray;
+
+                        if (array.Count != 2)
+                            throw new Exception("Facet wrap requires two spacing values to be provided.");
+
+                        for (int i = 0; i < array.Count; i++)
+                        {
+                            if (!array[i].IsNumber)
+                                throw new Exception("Facet wrap spacing values need to be numbers.");
+
+                            facetWrapChannelEncoding.spacing.Add(float.Parse(array[i]));
+                        }
+                    }
+                    else
+                    {
+                        // Default to the size of the itself
+                        float[] sizes = new float[] { width, height, depth };
+                        foreach (int direction in facetWrapChannelEncoding.directions)
+                        {
+                            facetWrapChannelEncoding.spacing.Add(sizes[direction]);
+                        }
+                    }
+
+                    if (channelSpecs["padding"] != null)
+                    {
+                        JSONArray array = channelSpecs["padding"].AsArray;
+
+                        if (array.Count != 2)
+                            throw new Exception("Facet wrap requires two padding values to be provided.");
+
+                        for (int i = 0; i < array.Count; i++)
+                        {
+                            if (!array[i].IsNumber)
+                                throw new Exception("Facet wrap padding values need to be numbers.");
+
+                            facetWrapChannelEncoding.spacing[i] += float.Parse(array[i]);
+                        }
+                    }
+                    else
+                    {
+                        // Default to 150 for all dimensions
+                        for (int i = 0; i < facetWrapChannelEncoding.spacing.Count; i++)
+                        {
+                            // If the spacing provided is negative, use negative padding here
+                            if (facetWrapChannelEncoding.spacing[i] > 0)
+                                facetWrapChannelEncoding.spacing[i] += 150;
+                            else
+                                facetWrapChannelEncoding.spacing[i] -= 150;
+                        }
+                    }
                 }
 
                 newChannelEncodings.Add(channelEncoding);

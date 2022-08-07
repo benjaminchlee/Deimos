@@ -23,6 +23,7 @@ namespace DxR
         {
             serializedObject.Update();
 
+            // Create top level label and update vis button
             GUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Input Specification");
             if (Application.isPlaying && GUILayout.Button("Update Vis"))
@@ -31,13 +32,31 @@ namespace DxR
             }
             GUILayout.EndHorizontal();
 
+            // Create field for JSON text file and clear button if file is entered
+            GUILayout.BeginHorizontal();
             jsonSpecificationProperty.objectReferenceValue = (TextAsset)EditorGUILayout.ObjectField("", jsonSpecificationProperty.objectReferenceValue, typeof(TextAsset), true);
+            if (jsonSpecificationProperty.objectReferenceValue != null && GUILayout.Button("Clear"))
+            {
+                // Transfer the text from the text file to the editor
+                inputSpecificationProperty.stringValue = ((TextAsset)jsonSpecificationProperty.objectReferenceValue).text;
+                jsonSpecificationProperty.objectReferenceValue = null;
+            }
+            GUILayout.EndHorizontal();
 
-            if (runtimeVisScript.JSONSpecification == null)
+            // Create text area for the input specification. If a text file is provided, display its contents in greyed out form
+            if (jsonSpecificationProperty.objectReferenceValue != null)
+            {
+                EditorGUI.BeginDisabledGroup(true);
+                EditorGUILayout.TextArea(((TextAsset)jsonSpecificationProperty.objectReferenceValue).text, GUILayout.MinHeight(40), GUILayout.ExpandHeight(true), GUILayout.ExpandWidth(true));
+                EditorGUI.EndDisabledGroup();
+            }
+            // If none is provided, show the in-editor text instead
+            else
             {
                 inputSpecificationProperty.stringValue = EditorGUILayout.TextArea(inputSpecificationProperty.stringValue, GUILayout.MinHeight(40), GUILayout.ExpandHeight(true), GUILayout.ExpandWidth(true));
             }
 
+            // Create label for the internal specification
             GUILayout.BeginHorizontal();
             EditorGUILayout.LabelField("Internal Specification");
             if (Application.isPlaying && runtimeVisScript.JSONSpecification == null && GUILayout.Button("Copy Internal Specification to Input"))
@@ -46,6 +65,7 @@ namespace DxR
             }
             GUILayout.EndHorizontal();
 
+            // Create text area for the internal specification
             EditorGUI.BeginDisabledGroup(true);
             if (runtimeVisScript.InternalSpecification != "")
             {

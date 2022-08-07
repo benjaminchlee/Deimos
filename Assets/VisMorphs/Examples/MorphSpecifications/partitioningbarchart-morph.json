@@ -50,9 +50,7 @@
                 "facetwrap": {
                     "field": "other.encoding.z.field",
                     "type": "nominal",
-                    "directions": ["x", "y"],
-                    "spacing": ["this.width + 150", "this.height + 150"],
-                    "size": 2
+                    "directions": ["x", "y"]
                 }
             },
             "position": {
