@@ -3785,7 +3785,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GUID: 
   AllowSimultaneousTransitions: 1
-  ShowValuesInInspector: 1
   DebugStates: 0
   DebugTransitionCalls: 0
   CandidateMorphNames: []
@@ -12811,7 +12810,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GUID: 
   AllowSimultaneousTransitions: 1
-  ShowValuesInInspector: 1
   DebugStates: 0
   DebugTransitionCalls: 0
   CandidateMorphNames: []
@@ -15584,7 +15582,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GUID: 
   AllowSimultaneousTransitions: 1
-  ShowValuesInInspector: 1
   DebugStates: 0
   DebugTransitionCalls: 0
   CandidateMorphNames: []
@@ -20253,7 +20250,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GUID: 
   AllowSimultaneousTransitions: 1
-  ShowValuesInInspector: 1
   DebugStates: 0
   DebugTransitionCalls: 0
   CandidateMorphNames: []
@@ -23453,7 +23449,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GUID: 
   AllowSimultaneousTransitions: 1
-  ShowValuesInInspector: 1
   DebugStates: 0
   DebugTransitionCalls: 0
   CandidateMorphNames: []
@@ -23696,7 +23691,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GUID: 
   AllowSimultaneousTransitions: 1
-  ShowValuesInInspector: 1
   DebugStates: 0
   DebugTransitionCalls: 0
   CandidateMorphNames: []
@@ -26279,7 +26273,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GUID: 
   AllowSimultaneousTransitions: 1
-  ShowValuesInInspector: 1
   DebugStates: 0
   DebugTransitionCalls: 0
   CandidateMorphNames: []
@@ -31912,7 +31905,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   GUID: 
   AllowSimultaneousTransitions: 1
-  ShowValuesInInspector: 1
   DebugStates: 0
   DebugTransitionCalls: 0
   CandidateMorphNames: []

@@ -20,7 +20,6 @@ namespace DxR.VisMorphs
         /// <summary>
         /// Debug variables. These don't actually do anything in the code other than print values to the Unity Inspector
         /// </summary>
-        public bool ShowValuesInInspector = false;
         public bool DebugStates = false;
         public bool DebugTransitionCalls = false;
         public List<string> CandidateMorphNames = new List<string>();
@@ -136,12 +135,9 @@ namespace DxR.VisMorphs
                 CreateCandidateMorphSubscriptions(ref CandidateMorphs);
 
                 // Update debug inspector variables
-                if (ShowValuesInInspector)
-                {
-                    CandidateMorphNames = CandidateMorphs.Select(_ => _.Morph.Name).ToList();
-                    CandidateStateNames = CandidateMorphs.Select(_ => _.CandidateState["name"].Value).ToList();
-                    CandidateTransitionNames = CandidateMorphs.SelectMany(_ => _.CandidateTransitions).Select(_ => _.Item1["name"].Value).ToList();
-                }
+                CandidateMorphNames = CandidateMorphs.Select(_ => _.Morph.Name).ToList();
+                CandidateStateNames = CandidateMorphs.Select(_ => _.CandidateState["name"].Value).ToList();
+                CandidateTransitionNames = CandidateMorphs.SelectMany(_ => _.CandidateTransitions).Select(_ => _.Item1["name"].Value).ToList();
             }
             // Otherwise, clear all morphs
             else
@@ -157,12 +153,9 @@ namespace DxR.VisMorphs
                 }
 
                 // Update debug inspector variables
-                if (ShowValuesInInspector)
-                {
-                    CandidateMorphNames.Clear();
-                    CandidateStateNames.Clear();
-                    CandidateTransitionNames.Clear();
-                }
+                CandidateMorphNames.Clear();
+                CandidateStateNames.Clear();
+                CandidateTransitionNames.Clear();
             }
         }
 
