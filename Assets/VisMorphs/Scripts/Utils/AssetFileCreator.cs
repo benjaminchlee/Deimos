@@ -7,6 +7,23 @@ namespace DxR.VisMorphs
 {
     public static class AssetFileCreator
     {
+        [MenuItem("Assets/Create/Morphs/DxR Vis Specification", false, 1)]
+        private static void CreateDxRVisSpecification()
+        {
+            ProjectWindowUtil.CreateAssetWithContent(
+                "NewVisSpecification.json",
+@"{
+    ""data"": {
+        ""url"": """"
+    },
+    ""mark"": """",
+    ""encoding"": {
+
+    }
+}");
+        }
+
+
         [MenuItem("Assets/Create/Morphs/Morph Specification", false, 1)]
         private static void CreateMorphSpecification()
         {

@@ -20,7 +20,7 @@
 			  "facetwrap": {
 				"directions": ["x", "y"],
 				"radius": 1000,
-				"angle": [55, 0],
+				"angles": [55, 0],
 				"orientation": "centre"
 			  }
 			}
@@ -33,7 +33,7 @@
 			  "facetwrap": {
 				"directions": ["x", "y"],
 				"radius": 1000,
-				"angle": [55, 35],
+				"angles": [55, 35],
 				"orientation": "centre"
 			  }
 			}

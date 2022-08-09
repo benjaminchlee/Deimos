@@ -10,7 +10,7 @@ namespace DxR
         public List<float> spacing;               // The spacing between small multiples. This is the sum of the specified spacing + padding values. This corresponds to the directions list
         public int size;                          // The number of small multiples to fit before wrapping
         public int numFacets;                     // The number of small multiples that will be created
-        public List<float> angle;                 // The angle between small multiples. The layout will be curved when an angle is specified. Use 0 to use a flat layout. This corresponds to the directions list
+        public List<float> angles;                 // The angle between small multiples. The layout will be curved when an angle is specified. Use 0 to use a flat layout. This corresponds to the directions list
         public float radius;                      // The radius of the curved layout. This radius is applied to both directions
         public bool faceCentre;                   // Whether the small multiples will face towards the centre. If no curvature is applied, then this will do nothing
 
@@ -28,7 +28,7 @@ namespace DxR
             translation = new List<Vector3>();
             rotate = new List<Quaternion>();
             axes = new List<GameObject>();
-            angle = new List<float>();
+            angles = new List<float>();
         }
     }
 }

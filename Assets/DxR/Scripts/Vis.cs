@@ -1375,27 +1375,27 @@ namespace DxR
                     // Default radius to 0 metres if not defined
                     facetWrapChannelEncoding.radius = (channelSpecs["radius"] != null) ? channelSpecs["radius"].AsFloat : 0;
 
-                    if (channelSpecs["angle"] != null)
+                    if (channelSpecs["angles"] != null)
                     {
-                        if (channelSpecs["angle"].IsArray)
+                        if (channelSpecs["angles"].IsArray)
                         {
                             if (channelSpecs["angle"].Count != 2)
                                 throw new Exception("Facet wrap requires two angle values to be provided.");
 
-                            facetWrapChannelEncoding.angle.Add(channelSpecs["angle"][0].IsNull ? 0 : channelSpecs["angle"][0]);
-                            facetWrapChannelEncoding.angle.Add(channelSpecs["angle"][1].IsNull ? 0 : channelSpecs["angle"][1]);
+                            facetWrapChannelEncoding.angles.Add(channelSpecs["angles"][0].IsNull ? 0 : channelSpecs["angles"][0]);
+                            facetWrapChannelEncoding.angles.Add(channelSpecs["angles"][1].IsNull ? 0 : channelSpecs["angles"][1]);
                         }
                         else
                         {
-                            facetWrapChannelEncoding.angle.Add(channelSpecs["angle"]);
-                            facetWrapChannelEncoding.angle.Add(channelSpecs["angle"]);
+                            facetWrapChannelEncoding.angles.Add(channelSpecs["angles"]);
+                            facetWrapChannelEncoding.angles.Add(channelSpecs["angles"]);
                         }
                     }
                     else
                     {
                         // Default to angles of 0 if not defined (i.e., no curvature)
-                        facetWrapChannelEncoding.angle.Add(0);
-                        facetWrapChannelEncoding.angle.Add(0);
+                        facetWrapChannelEncoding.angles.Add(0);
+                        facetWrapChannelEncoding.angles.Add(0);
                     }
 
                     if (channelSpecs["orientation"] != null)
@@ -1577,7 +1577,7 @@ namespace DxR
 
             // Get a matrix of translation and rotation values that we will translate and rotate by
             Tuple<Vector3[,], Quaternion[,]> matrices = CreateTranslationAndRotateMatrices(firstDir, secondDir, sizeFirstDir, sizeSecondDir, spacingFirstDir, spacingSecondDir,
-                                                            facetWrapCE.radius, facetWrapCE.angle[0], facetWrapCE.angle[1], facetWrapCE.faceCentre);
+                                                            facetWrapCE.radius, facetWrapCE.angles[0], facetWrapCE.angles[1], facetWrapCE.faceCentre);
             Vector3[,] translationMatrix = matrices.Item1;
             Quaternion[,] rotateMatrix = matrices.Item2;
 

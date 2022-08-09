@@ -160,7 +160,7 @@ namespace DxR
                       fwce1.size == fwce2.size &&
                       fwce1.numFacets == fwce2.numFacets &&
                       fwce1.radius == fwce2.radius &&
-                      fwce1.angle.SequenceEqual(fwce2.angle) &&
+                      fwce1.angles.SequenceEqual(fwce2.angles) &&
                       fwce1.faceCentre == fwce2.faceCentre))
                     return false;
             }

@@ -35,7 +35,7 @@ namespace DxR
             // Create field for JSON text file and clear button if file is entered
             GUILayout.BeginHorizontal();
             jsonSpecificationProperty.objectReferenceValue = (TextAsset)EditorGUILayout.ObjectField("", jsonSpecificationProperty.objectReferenceValue, typeof(TextAsset), true);
-            if (jsonSpecificationProperty.objectReferenceValue != null && GUILayout.Button("Clear"))
+            if (jsonSpecificationProperty.objectReferenceValue != null && GUILayout.Button("Remove JSON File"))
             {
                 // Transfer the text from the text file to the editor
                 inputSpecificationProperty.stringValue = ((TextAsset)jsonSpecificationProperty.objectReferenceValue).text;
