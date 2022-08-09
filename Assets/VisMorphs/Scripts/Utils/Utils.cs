@@ -117,6 +117,18 @@ namespace DxR
             return result;
         }
 
+        public static Vector3 RotatePointAroundPivot(Vector3 point, Vector3 pivot, Vector3 angles)
+        {
+            return Quaternion.Euler(angles) * (point - pivot) + pivot;
+        }
+
+        public static Tuple<Vector3, Quaternion> RotatePointAroundPivot(Vector3 origPoint, Quaternion origRotation, Vector3 pivot, Quaternion rotate)
+        {
+            Vector3 position = rotate * (origPoint - pivot) + pivot;
+            Quaternion rotation = rotate * origRotation;
+            return new Tuple<Vector3, Quaternion>(position, rotation);
+        }
+
         public static JSONNode GetValueFromJSONNodePath(JSONNode jsonNode, string path)
         {
             try

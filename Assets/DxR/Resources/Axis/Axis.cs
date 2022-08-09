@@ -44,10 +44,13 @@ namespace DxR
             public Scale FinalScale;
             public Vector3 InitialTranslation;
             public Vector3 FinalTranslation;
+            public Quaternion InitialRotate;
+            public Quaternion FinalRotate;
 
             public ActiveAxisTransition(ActiveTransition activeTransition, string channel, CompositeDisposable disposable,
                                         JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale,
-                                        Vector3 initialTranslation, Vector3 finalTranslation)
+                                        Vector3 initialTranslation, Vector3 finalTranslation,
+                                        Quaternion initialRotate, Quaternion finalRotate)
             {
                 this.Name = activeTransition.Name;
                 this.TweeningObservable = activeTransition.TweeningObservable;
@@ -61,6 +64,10 @@ namespace DxR
                 this.FinalScale = finalScale;
                 this.InitialTranslation = initialTranslation;
                 this.FinalTranslation = finalTranslation;
+                this.InitialTranslation = initialTranslation;
+                this.FinalTranslation = finalTranslation;
+                this.InitialRotate = initialRotate;
+                this.FinalRotate = finalRotate;
             }
         }
 
@@ -69,10 +76,10 @@ namespace DxR
 
         public void InitialiseTransition(ActiveTransition newActiveTransition, string channel, JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale)
         {
-            InitialiseTransition(newActiveTransition, channel, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale, Vector3.zero, Vector3.zero);
+            InitialiseTransition(newActiveTransition, channel, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale, Vector3.zero, Vector3.zero, Quaternion.identity, Quaternion.identity);
         }
 
-        public void InitialiseTransition(ActiveTransition newActiveTransition, string channel, JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale, Vector3 initialTranslation, Vector3 finalTranslation)
+        public void InitialiseTransition(ActiveTransition newActiveTransition, string channel, JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale, Vector3 initialTranslation, Vector3 finalTranslation, Quaternion initialRotate, Quaternion finalRotate)
         {
             if (activeAxisTransition != null)
                 throw new Exception(string.Format("Vis Morphs: Axis is already undergoing a transition \"{0}\" and cannot apply transition \"{1}\".", activeAxisTransition.Name,  newActiveTransition.Name));
@@ -81,9 +88,9 @@ namespace DxR
             // We will set up separate subscriptions for each tweener
             CompositeDisposable transitionDisposable = new CompositeDisposable();
 
-            activeAxisTransition = new ActiveAxisTransition(newActiveTransition, channel, transitionDisposable, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale, initialTranslation, finalTranslation);
+            activeAxisTransition = new ActiveAxisTransition(newActiveTransition, channel, transitionDisposable, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale, initialTranslation, finalTranslation, initialRotate, finalRotate);
 
-            InitialiseTweeners(activeAxisTransition, initialTranslation, finalTranslation);
+            InitialiseTweeners(activeAxisTransition);
         }
 
         /// <summary>
@@ -106,13 +113,18 @@ namespace DxR
             JSONNode targetAxisSpecs = goToEnd ? activeAxisTransition.FinalAxisSpecs : activeAxisTransition.InitialAxisSpecs;
             Scale targetScale = goToEnd ? activeAxisTransition.FinalScale : activeAxisTransition.InitialScale;
             Vector3 targetTranslation = goToEnd ? activeAxisTransition.FinalTranslation : activeAxisTransition.InitialTranslation;
+            Quaternion targetRotate = goToEnd ? activeAxisTransition.FinalRotate : activeAxisTransition.InitialRotate;
 
             // We only keep the axis if the target state actually exists
             // We also make sure to only keep faceted axes if there's still a facetwrap (i.e., a translation)
             if (targetAxisSpecs != null && (!isFacetAxis || (isFacetAxis && targetTranslation != Vector3.zero)))
             {
                 UpdateSpecs(targetAxisSpecs, targetScale);
+
+                // Set the position and rotation of the axis based off any given rotation
+                SetRotate(targetRotate);
                 SetTranslation(targetTranslation);
+
                 activeAxisTransition = null;
                 return false;
             }
@@ -123,7 +135,7 @@ namespace DxR
             }
         }
 
-        private void InitialiseTweeners(ActiveAxisTransition activeAxisTransition, Vector3 initialTranslation, Vector3 finalTranslation)
+        private void InitialiseTweeners(ActiveAxisTransition activeAxisTransition)
         {
             // We have separate tweeners for each different component of the Axis. However, we might need to rescale the tweening value
             // if this Axis' channel involves staging. Therefore, we calculate it as a new observable and use it as our new tweening observable
@@ -156,7 +168,7 @@ namespace DxR
             float initialLength, finalLength;
             InitialiseLengthTweener(activeAxisTransition, out initialLength, out finalLength);
 
-            InitialisePositionTweener(activeAxisTransition, initialLength, finalLength, initialTranslation, finalTranslation);
+            InitialisePositionAndRotationTweener(activeAxisTransition, initialLength, finalLength);
 
             InitialiseColourTweener(activeAxisTransition);
 
@@ -262,28 +274,29 @@ namespace DxR
             }
         }
 
-        private void InitialisePositionTweener(ActiveAxisTransition activeAxisTransition, float initialLength, float finalLength, Vector3 initialTranslation, Vector3 finalTranslation)
+        private void InitialisePositionAndRotationTweener(ActiveAxisTransition activeAxisTransition, float initialLength, float finalLength)
         {
             JSONNode initialAxisSpecs = activeAxisTransition.InitialAxisSpecs;
             JSONNode finalAxisSpecs = activeAxisTransition.FinalAxisSpecs;
             Scale initialScale = activeAxisTransition.InitialScale;
             Scale finalScale = activeAxisTransition.FinalScale;
 
+            Vector3 initialTranslation = activeAxisTransition.InitialTranslation;
+            Vector3 finalTranslation = activeAxisTransition.FinalTranslation;
+            Quaternion initialRotate = activeAxisTransition.InitialRotate;
+            Quaternion finalRotate = activeAxisTransition.FinalRotate;
+
             // Get the initial and final positions (this is based on the lengths calculated in InitialiseLengthTweener())
-            Vector3 initialPosition = Vector3.zero;
-            Vector3 finalPosition = Vector3.zero;
-            if (facingDirection == 'x') {
-                initialPosition = new Vector3(initialLength / 2.0f, 0.0f, 0.0f);
-                finalPosition = new Vector3(finalLength / 2.0f, 0.0f, 0.0f);
-            }
-            else if (facingDirection == 'y') {
-                initialPosition = new Vector3(0.0f, initialLength / 2.0f, 0.0f);
-                finalPosition = new Vector3(0.0f, finalLength / 2.0f, 0.0f);
-            }
-            else if (facingDirection == 'z') {
-                initialPosition = new Vector3(0.0f, 0.0f, initialLength / 2.0f);
-                finalPosition = new Vector3(0.0f, 0.0f, finalLength / 2.0f);
-            }
+            Vector3 initialPosition = GetAxisPosition(facingDirection, initialLength);
+            Vector3 finalPosition = GetAxisPosition(facingDirection, finalLength);
+            Quaternion initialRotation = GetAxisRotation(facingDirection);
+            Quaternion finalRotation = initialRotation;
+
+            // Apply rotation around the inital and final positions and rotations
+            initialPosition = initialRotate * initialPosition;
+            finalPosition = finalRotate * finalPosition;
+            initialRotation = initialRotate * initialRotation;
+            finalRotation = finalRotate * finalRotation;
 
             // Add the translations due to facetwraps
             initialPosition += initialTranslation;
@@ -296,6 +309,9 @@ namespace DxR
                     // Interpolate and set local position
                     Vector3 interpolatedLocalPosition = Vector3.Lerp(initialPosition, finalPosition, t);
                     gameObject.transform.localPosition = interpolatedLocalPosition * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+                    // Interpolate and set local rotation
+                    Quaternion interpolatedRotation = Quaternion.Lerp(initialRotation, finalRotation, t);
+                    gameObject.transform.localRotation = interpolatedRotation;
                 }).AddTo(activeAxisTransition.Disposable);
             }
         }
@@ -542,26 +558,55 @@ namespace DxR
 
         private void OrientAlongPositiveX()
         {
-            gameObject.transform.localPosition = new Vector3(GetLength() / 2.0f, 0.0f, 0.0f);
-            title.transform.localPosition = new Vector3(0, -titleOffset, 0);
             facingDirection = 'x';
+            gameObject.transform.localPosition = GetAxisPosition(facingDirection, GetLength());
+            title.transform.localPosition = new Vector3(0, -titleOffset, 0);
         }
 
         private void OrientAlongPositiveY()
         {
-            gameObject.transform.localEulerAngles = new Vector3(0, 0, 90);
-            gameObject.transform.localPosition = new Vector3(0.0f, GetLength() / 2.0f, 0.0f);
-            title.transform.localPosition = new Vector3(0, titleOffset, 0);
             facingDirection = 'y';
+            gameObject.transform.localPosition = GetAxisPosition(facingDirection, GetLength());
+            gameObject.transform.localRotation = GetAxisRotation(facingDirection);
+            title.transform.localPosition = new Vector3(0, titleOffset, 0);
         }
 
         private void OrientAlongPositiveZ()
         {
-            gameObject.transform.localEulerAngles = new Vector3(0, -90, 0);
-            gameObject.transform.localPosition = new Vector3(0.0f, 0.0f, GetLength() / 2.0f);
+            facingDirection = 'z';
+            gameObject.transform.localPosition = GetAxisPosition(facingDirection, GetLength());
+            gameObject.transform.localRotation = GetAxisRotation(facingDirection);
             title.transform.localPosition = new Vector3(0, -titleOffset, 0);
             title.transform.localEulerAngles = new Vector3(0, 180, 0);
-            facingDirection = 'z';
+        }
+
+
+        private Vector3 GetAxisPosition(char dim, float length)
+        {
+            switch (dim)
+            {
+                default:
+                case 'x':
+                    return new Vector3(length / 2.0f, 0.0f, 0.0f);
+                case 'y':
+                    return new Vector3(0.0f, length / 2.0f, 0.0f);
+                case 'z':
+                    return new Vector3(0.0f, 0.0f, length / 2.0f);
+            }
+        }
+
+        private Quaternion GetAxisRotation(char dim)
+        {
+            switch (dim)
+            {
+                default:
+                case 'x':
+                    return Quaternion.identity;
+                case 'y':
+                    return Quaternion.Euler(0, 0, 90);
+                case 'z':
+                    return Quaternion.Euler(0, -90, 0);
+            }
         }
 
         private void CentreTitle()
@@ -600,6 +645,14 @@ namespace DxR
             Vector3 translateBy = transform.localPosition;
             translateBy += translation;
             transform.localPosition = translateBy;
+        }
+
+        public void SetRotate(Quaternion rotate)
+        {
+            Vector3 targetPosition = rotate * GetAxisPosition(facingDirection, GetLength());
+            Quaternion targetRotation = rotate * GetAxisRotation(facingDirection);
+            transform.localPosition = targetPosition;
+            transform.localRotation = targetRotation;
         }
 
         private void SetLength(float length)

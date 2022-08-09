@@ -158,7 +158,10 @@ namespace DxR
                 if (!(fwce1.directions.SequenceEqual(fwce2.directions) &&
                       fwce1.spacing.SequenceEqual(fwce2.spacing) &&
                       fwce1.size == fwce2.size &&
-                      fwce1.numFacets == fwce2.numFacets))
+                      fwce1.numFacets == fwce2.numFacets &&
+                      fwce1.radius == fwce2.radius &&
+                      fwce1.angle.SequenceEqual(fwce2.angle) &&
+                      fwce1.faceCentre == fwce2.faceCentre))
                     return false;
             }
 

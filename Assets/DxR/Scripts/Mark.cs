@@ -64,6 +64,8 @@ namespace DxR
                                                                                          "xrotation", "yrotation", "zrotation", "xdirection", "ydirection", "zdirection",
                                                                                          "xoffset", "yoffset", "zoffset", "xoffsetpct", "yoffsetpct", "zoffsetpct",
                                                                                          "facetwrap" };
+        public Vector3 InitialFacetedPosition = Vector3.zero;
+        public Vector3 FinalFacetedPosition = Vector3.zero;
 
         public Mark()
         {
@@ -153,9 +155,9 @@ namespace DxR
 
                 // If this encoding is an offset, we'll need to check whether or not to initially reset its base spatial dimension first
                 // We only do so if there is no base spatial dimension even defined
-                if (channel.Contains("offset") && !channelNames.Contains(channel.Substring(0, 1)))
+                if (channel.Contains("offset") && !channelNames.Contains(channel[0].ToString()))
                 {
-                    string spatialChannel = channel.Substring(0, 1);
+                    string spatialChannel = channel[0].ToString();
                     if (!resettedSpatialChannels.Contains(spatialChannel))
                     {
                         // Reset base spatial dimension to default value
@@ -166,6 +168,26 @@ namespace DxR
                     // If there isn't actually an offset to apply in the target state, skip
                     if (ce == null)
                         continue;
+                }
+                // If this encoding is a facetwrap, we'll need to reset any spatial encodings that do not exist, in order to stop them from being translated twice
+                else if (channel.Contains("facetwrap"))
+                {
+                    if (!channelNames.Contains("x") && !resettedSpatialChannels.Contains("x"))
+                        SetChannelValue("x", "0");
+
+                    if (!channelNames.Contains("y") && !resettedSpatialChannels.Contains("y"))
+                        SetChannelValue("y", "0");
+
+                    if (!channelNames.Contains("z") && !resettedSpatialChannels.Contains("z"))
+                        SetChannelValue("z", "0");
+
+                    // Apply translation and rotate
+                    FacetWrapChannelEncoding facetWrapCE = ce as FacetWrapChannelEncoding;
+                    if (ce != null)
+                    {
+                        transform.localPosition = facetWrapCE.rotate[stoppingMarkTransition.MarkIndex] * transform.localPosition;
+                        transform.localRotation = facetWrapCE.rotate[stoppingMarkTransition.MarkIndex] * transform.localRotation;
+                    }
                 }
 
                 if (ce != null)
@@ -200,7 +222,8 @@ namespace DxR
 
                 if (spatialChannelNames.Contains(channel))
                 {
-                    if (channel.StartsWith("x") && !xVisited)
+                    // If we have a facetting channel encoding, we ALWAYS initialise a transition for it, regardless if there's no encoding for that dimension
+                    if ((channel.StartsWith("x") || facetwrapCE != null) && !xVisited)
                     {
                         xVisited = true;
 
@@ -214,7 +237,7 @@ namespace DxR
                         InitialiseSpatialTransitionChannel(activeMarkTransition, "x", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE);
                     }
 
-                    if (channel.StartsWith("y") && !yVisited)
+                    if ((channel.StartsWith("y") || facetwrapCE != null) && !yVisited)
                     {
                         yVisited = true;
 
@@ -228,7 +251,7 @@ namespace DxR
                         InitialiseSpatialTransitionChannel(activeMarkTransition, "y", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE);
                     }
 
-                    if (channel.StartsWith("z") && !zVisited)
+                    if ((channel.StartsWith("z") || facetwrapCE != null) && !zVisited)
                     {
                         zVisited = true;
 
@@ -242,6 +265,27 @@ namespace DxR
                         InitialiseSpatialTransitionChannel(activeMarkTransition, "z", dimCE, offsetCE, offsetpctCE, facetwrapCE, sizeCE);
                     }
                 }
+            }
+
+            if (facetwrapCE != null)
+            {
+                // If there is rotation applied to the facets, use this special tweener to account for rotations
+                bool hasRotation = false;
+                if (facetwrapCE.Item1 != null)
+                {
+                    FacetWrapChannelEncoding facetWrapChannelEncoding = facetwrapCE.Item1 as FacetWrapChannelEncoding;
+                    if (facetWrapChannelEncoding.faceCentre)
+                        hasRotation = true;
+                }
+                if (facetwrapCE.Item2 != null)
+                {
+                    FacetWrapChannelEncoding facetWrapChannelEncoding = facetwrapCE.Item2 as FacetWrapChannelEncoding;
+                    if (facetWrapChannelEncoding.faceCentre)
+                        hasRotation = true;
+                }
+
+                if (hasRotation)
+                    InitialiseFacetPositionAndRotationTweener(activeMarkTransition, facetwrapCE);
             }
         }
 
@@ -299,22 +343,41 @@ namespace DxR
                 }
             }
 
+            // HACK: We need to figure out the start and end positions for this Mark pre-translation to properly rotate facets. This a very ugly hack to do it
+            InitialFacetedPosition[dim] = initialValue;
+            FinalFacetedPosition[dim] = finalValue;
+
             // Now add the facet
             if (facetwrapCE != null)
             {
+                bool hasRotation = false;
                 if (facetwrapCE.Item1 != null)
                 {
-                    Vector3 facetOffset = Utils.StringToVector3(GetValueForChannelEncoding(facetwrapCE.Item1, markIndex));
+                    FacetWrapChannelEncoding facetWrapChannelEncoding = facetwrapCE.Item1 as FacetWrapChannelEncoding;
+                    Vector3 facetOffset = Utils.StringToVector3(GetValueForChannelEncoding(facetWrapChannelEncoding, markIndex));
                     initialValue += facetOffset[dim];
+
+                    if (facetWrapChannelEncoding.faceCentre)
+                        hasRotation = true;
                 }
                 if (facetwrapCE.Item2 != null)
                 {
-                    Vector3 facetOffset = Utils.StringToVector3(GetValueForChannelEncoding(facetwrapCE.Item2, markIndex));
+                    FacetWrapChannelEncoding facetWrapChannelEncoding = facetwrapCE.Item2 as FacetWrapChannelEncoding;
+                    Vector3 facetOffset = Utils.StringToVector3(GetValueForChannelEncoding(facetWrapChannelEncoding, markIndex));
                     finalValue += facetOffset[dim];
-                }
-            }
 
-            InitialiseTweeners(activeMarkTransition, channel, initialValue.ToString(), finalValue.ToString());
+                    if (facetWrapChannelEncoding.faceCentre)
+                        hasRotation = true;
+                }
+
+                // If there is no rotation applied to the facets, we initialise the tweeners as per normal. If there is, we rely on the InitialiseFacetPositionAndRotationTweener() function
+                if (!hasRotation)
+                    InitialiseTweeners(activeMarkTransition, channel, initialValue.ToString(), finalValue.ToString());
+            }
+            else
+            {
+                InitialiseTweeners(activeMarkTransition, channel, initialValue.ToString(), finalValue.ToString());
+            }
         }
 
         protected virtual void InitialiseTransitionChannel(ActiveMarkTransition activeMarkTransition, Tuple<ChannelEncoding, ChannelEncoding, string> transitionChannelEncoding)
@@ -446,6 +509,36 @@ namespace DxR
             }
         }
 
+        protected void InitialiseFacetPositionAndRotationTweener(ActiveMarkTransition activeMarkTransition, Tuple<ChannelEncoding, ChannelEncoding, string> facetWrapChannelEncoding)
+        {
+            FacetWrapChannelEncoding initialFacetWrapCE = facetWrapChannelEncoding.Item1 as FacetWrapChannelEncoding;
+            FacetWrapChannelEncoding finalFacetWrapCE = facetWrapChannelEncoding.Item2 as FacetWrapChannelEncoding;
+
+            Vector3 initialPosition = InitialFacetedPosition;
+            Vector3 finalPosition = FinalFacetedPosition;
+
+            // TODO We assume that there cannot be any rotation applied to this Mark. Make this work with rotation encodings
+            Quaternion initialRotate = initialFacetWrapCE != null ? initialFacetWrapCE.rotate[activeMarkTransition.MarkIndex] : Quaternion.identity;
+            Quaternion finalRotate = finalFacetWrapCE != null ? finalFacetWrapCE.rotate[activeMarkTransition.MarkIndex] : Quaternion.identity;
+
+            Vector3 initialTranslation = initialFacetWrapCE != null ? initialFacetWrapCE.translation[activeMarkTransition.MarkIndex] : Vector3.zero;
+            Vector3 finalTranslation = finalFacetWrapCE != null ? finalFacetWrapCE.translation[activeMarkTransition.MarkIndex] : Vector3.zero;
+
+            initialPosition = initialRotate * initialPosition + initialTranslation;
+            finalPosition = finalRotate * finalPosition + finalTranslation;
+
+            initialPosition *= DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+            finalPosition *= DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
+
+            activeMarkTransition.TweeningObservable.Subscribe(t =>
+            {
+                Vector3 interpolatedPosition = Vector3.Lerp(initialPosition, finalPosition, t);
+                transform.localPosition = interpolatedPosition;
+                Quaternion interpolatedRotation = Quaternion.Lerp(initialRotate, finalRotate, t);
+                transform.localRotation = interpolatedRotation;
+            }).AddTo(activeMarkTransition.Disposable);
+        }
+
         #endregion Morphing functions
 
         #region Channel value functions
@@ -482,7 +575,7 @@ namespace DxR
                 }
             }
             // Special condition for facet wrap
-            if (channelEncoding.IsFacetWrap())
+            else if (channelEncoding.IsFacetWrap())
             {
                 FacetWrapChannelEncoding facetWrapChannelEncoding = (FacetWrapChannelEncoding)channelEncoding;
                 if (facetWrapChannelEncoding.translation.Count > 0)

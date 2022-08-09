@@ -9,7 +9,8 @@
             "encoding": {
                 "x": "*",
                 "y": "*",
-                "z": null
+                "z": null,
+                "facetwrap": null
             },
             "width": "*",
             "height": "*"
@@ -20,7 +21,8 @@
             "encoding": {
                 "x": "*",
                 "y": "*",
-                "z": null
+                "z": null,
+                "facetwrap": null
             },
             "width": "other.width * 2",
             "height": "other.height * 2"

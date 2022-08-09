@@ -479,56 +479,52 @@ namespace DxR
                 // We need at least one of these to be defined so that we can activate the transition
                 if (initialAxisSpecs != null || finalAxisSpecs != null)
                 {
-                    // Get the axis for this object. We will need to pass it a channel encoding object but the values will get overridden later on anyway
-                    Axis axis = null;
+                    // We will need to pass these variables into our axis creation functions for them to have proper defaults
                     ChannelEncoding dummyCE = encodingChange.Item1 != null ? encodingChange.Item1 : encodingChange.Item2;
                     JSONNode dummyAxisSpec = initialAxisSpecs != null ? initialAxisSpecs : finalAxisSpecs;
-                    ConstructAndUpdateAxisObject(channel, dummyAxisSpec, ref dummyCE, out axis);
 
-                    // Call to initialise transition on this single axis
-                    axis.InitialiseTransition(activeTransition, channel, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale);
-
-                    // Now check for facetwrap
-                    if (facetWrapEncodingChange != null)
+                    // If there is no facetwrap, we update the axis normally
+                    if (facetWrapEncodingChange == null)
+                    {
+                        // Get the axis for this object. We will need to pass it a channel encoding object but the values will get overridden later on anyway
+                        ConstructAndUpdateAxisObject(channel, dummyAxisSpec, ref dummyCE, out Axis axis);
+                        // Call to initialise transition on this single axis
+                        axis.InitialiseTransition(activeTransition, channel, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale);
+                    }
+                    // Handle facetwrap
+                    else
                     {
                         // We need to calculate the translations twice for both the initial and final states
                         FacetWrapChannelEncoding initialFacetWrapCE = null;
                         int initialnumFacets = 0;
                         int initialFacetSize = 1;
-                        float initialDeltaFirstDir = 0;
-                        float initialDeltaSecondDir = 0;
                         if (facetWrapEncodingChange.Item1 != null)
                         {
                             initialFacetWrapCE = (FacetWrapChannelEncoding)facetWrapEncodingChange.Item1;
                             initialnumFacets = initialFacetWrapCE.numFacets;
                             initialFacetSize = initialFacetWrapCE.size;
-                            initialDeltaFirstDir = initialFacetWrapCE.spacing[0];
-                            initialDeltaSecondDir = initialFacetWrapCE.spacing[1];
                         }
 
                         FacetWrapChannelEncoding finalFacetWrapCE = null;
                         int finalNumFacets = 0;
                         int finalFacetSize = 1;
-                        float finalDeltaFirstDir = 0;
-                        float finalDeltaSecondDir = 0;
                         if (facetWrapEncodingChange.Item2 != null)
                         {
                             finalFacetWrapCE = (FacetWrapChannelEncoding)facetWrapEncodingChange.Item2;
                             finalNumFacets = finalFacetWrapCE.numFacets;
                             finalFacetSize = finalFacetWrapCE.size;
-                            finalDeltaFirstDir = finalFacetWrapCE.spacing[0];
-                            finalDeltaSecondDir = finalFacetWrapCE.spacing[1];
                         }
 
                         // Create the axes for our facet
                         List<Axis> facetedAxes = new List<Axis>();
-                        ConstructAndUpdateFacetedAxisObjects(channel, dummyAxisSpec, ref dummyCE, ref facetedAxes,
-                                                             Mathf.Max(initialnumFacets, finalNumFacets) - 1);    // We need to minus 1 as we don't include the original axes themselves
+                        ConstructAndUpdateFacetedAxisObjects(channel, dummyAxisSpec, ref dummyCE, ref facetedAxes, Mathf.Max(initialnumFacets, finalNumFacets) - 1); // We need to minus 1 as we don't include the original axes themselves
 
                         List<Vector3> initialTranslations = Enumerable.Repeat(Vector3.zero, facetedAxes.Count).ToList();
                         List<Vector3> finalTranslations = Enumerable.Repeat(Vector3.zero, facetedAxes.Count).ToList();
+                        List<Quaternion> initialRotates = Enumerable.Repeat(Quaternion.identity, facetedAxes.Count).ToList();
+                        List<Quaternion> finalRotates = Enumerable.Repeat(Quaternion.identity, facetedAxes.Count).ToList();
 
-                        // Calculate translations for initial
+                        // Get the translations for initial
                         for (int facetIdx = 0; facetIdx < initialnumFacets - 1; facetIdx++)
                         {
                             Axis facetAxis = facetedAxes[facetIdx];
@@ -540,13 +536,11 @@ namespace DxR
                             int idxFirstDir = (facetIdx + 1) % initialFacetSize;
                             int idxSecondDir = Mathf.FloorToInt((facetIdx + 1) / (float)initialFacetSize);
 
-                            Vector3 translation = initialTranslations[facetIdx];
-                            translation[firstDir] = initialDeltaFirstDir * idxFirstDir;
-                            translation[secondDir] = initialDeltaSecondDir * idxSecondDir;
-                            initialTranslations[facetIdx] = translation;
+                            initialTranslations[facetIdx] = initialFacetWrapCE.translationMatrix[idxFirstDir, idxSecondDir];
+                            initialRotates[facetIdx] = initialFacetWrapCE.rotateMatrix[idxFirstDir, idxSecondDir];
                         }
 
-                        // Calculate translations for final
+                        // Get the translations for final
                         for (int facetIdx = 0; facetIdx < finalNumFacets - 1; facetIdx++)
                         {
                             Axis facetAxis = facetedAxes[facetIdx];
@@ -558,10 +552,8 @@ namespace DxR
                             int idxFirstDir = (facetIdx + 1) % finalFacetSize;
                             int idxSecondDir = Mathf.FloorToInt((facetIdx + 1) / (float)finalFacetSize);
 
-                            Vector3 translation = finalTranslations[facetIdx];
-                            translation[firstDir] = finalDeltaFirstDir * idxFirstDir;
-                            translation[secondDir] = finalDeltaSecondDir * idxSecondDir;
-                            finalTranslations[facetIdx] = translation;
+                            finalTranslations[facetIdx] = finalFacetWrapCE.translationMatrix[idxFirstDir, idxSecondDir];
+                            finalRotates[facetIdx] = finalFacetWrapCE.rotateMatrix[idxFirstDir, idxSecondDir];
                         }
 
                         // Apply the transition
@@ -569,8 +561,17 @@ namespace DxR
                         {
                             facetedAxes[i].InitialiseTransition(activeTransition, channel, initialAxisSpecs, finalAxisSpecs,
                                                                 initialScale, finalScale,
-                                                                initialTranslations[i], finalTranslations[i]);
+                                                                initialTranslations[i], finalTranslations[i],
+                                                                initialRotates[i], finalRotates[i]);
                         }
+
+                        // Handle base axis
+                        ConstructAndUpdateAxisObject(channel, dummyAxisSpec, ref dummyCE, out Axis axis);
+                        Vector3 initialTranslation = initialFacetWrapCE != null ? initialFacetWrapCE.translationMatrix[0, 0] : Vector3.zero;
+                        Vector3 finalTranslation = finalFacetWrapCE != null ? finalFacetWrapCE.translationMatrix[0, 0] : Vector3.zero;
+                        Quaternion initialRotate = initialFacetWrapCE != null ? initialFacetWrapCE.rotateMatrix[0, 0] : Quaternion.identity;
+                        Quaternion finalRotate = finalFacetWrapCE != null ? finalFacetWrapCE.rotateMatrix[0, 0] : Quaternion.identity;
+                        axis.InitialiseTransition(activeTransition, channel, initialAxisSpecs, finalAxisSpecs, initialScale, finalScale, initialTranslation, finalTranslation, initialRotate, finalRotate);
                     }
                 }
             }
@@ -1335,7 +1336,7 @@ namespace DxR
                     }
                     else
                     {
-                        // Default to the size of the itself
+                        // Default to the size of the vis itself
                         float[] sizes = new float[] { width, height, depth };
                         foreach (int direction in facetWrapChannelEncoding.directions)
                         {
@@ -1369,6 +1370,41 @@ namespace DxR
                             else
                                 facetWrapChannelEncoding.spacing[i] -= 150;
                         }
+                    }
+
+                    // Default radius to 1 metre if not defined
+                    facetWrapChannelEncoding.radius = (channelSpecs["radius"] != null) ? channelSpecs["radius"].AsFloat : 1000;
+
+                    if (channelSpecs["angle"] != null)
+                    {
+                        if (channelSpecs["angle"].IsArray)
+                        {
+                            if (channelSpecs["angle"].Count != 2)
+                                throw new Exception("Facet wrap requires two angle values to be provided.");
+
+                            facetWrapChannelEncoding.angle.Add(channelSpecs["angle"][0].IsNull ? 0 : channelSpecs["angle"][0]);
+                            facetWrapChannelEncoding.angle.Add(channelSpecs["angle"][1].IsNull ? 0 : channelSpecs["angle"][1]);
+                        }
+                        else
+                        {
+                            facetWrapChannelEncoding.angle.Add(channelSpecs["angle"]);
+                            facetWrapChannelEncoding.angle.Add(channelSpecs["angle"]);
+                        }
+                    }
+                    else
+                    {
+                        // Default to angles of 0 if not defined (i.e., no curvature)
+                        facetWrapChannelEncoding.angle.Add(0);
+                        facetWrapChannelEncoding.angle.Add(0);
+                    }
+
+                    if (channelSpecs["orientation"] != null)
+                    {
+                        facetWrapChannelEncoding.faceCentre = (channelSpecs["orientation"] == "centre" || channelSpecs["orientation"] == "center");
+                    }
+                    else
+                    {
+                        facetWrapChannelEncoding.faceCentre = false;
                     }
                 }
 
@@ -1527,47 +1563,103 @@ namespace DxR
             // Get the order of the categories. This order will be used to position the facets
             List<string> facetOrder = facetWrapCE.scale.domain;
 
-            // Position the facets by calculating translation offsets per each data value (i.e., mark)
-            int facetSize = facetWrapCE.size;
-
-            // Create our data structure
-            List<string> xTranslationValues = new List<string>();
-            List<string> yTranslationValues = new List<string>();
-            List<string> zTranslationValues = new List<string>();
-            List<Vector3> translationValues = new List<Vector3>();
-
-            // Get the spacing values between each small multiple
-            float deltaFirstDir = facetWrapCE.spacing[0];
-            float deltaSecondDir = facetWrapCE.spacing[1];
-
             // Get the indices (0, 1, 2) of the spatial directions which are spacing towards
             int firstDir = facetWrapCE.directions[0];
             int secondDir = facetWrapCE.directions[1];
 
+            // Get the size of our small multiple (number of small multiples along both directions)
+            int sizeFirstDir = facetWrapCE.size;
+            int sizeSecondDir = Mathf.CeilToInt(facetOrder.Count / (float)sizeFirstDir);
+
+            // Get the spacing values between each small multiple
+            float spacingFirstDir = facetWrapCE.spacing[0];
+            float spacingSecondDir = facetWrapCE.spacing[1];
+
+            // Get a matrix of translation and rotation values that we will translate and rotate by
+            Tuple<Vector3[,], Quaternion[,]> matrices = CreateTranslationAndRotateMatrices(firstDir, secondDir, sizeFirstDir, sizeSecondDir, spacingFirstDir, spacingSecondDir,
+                                                            facetWrapCE.radius, facetWrapCE.angle[0], facetWrapCE.angle[1], facetWrapCE.faceCentre);
+            Vector3[,] translationMatrix = matrices.Item1;
+            Quaternion[,] rotateMatrix = matrices.Item2;
+
+            // Create our data structures and populate it for each mark
+            List<Vector3> translationValues = new List<Vector3>();
+            List<Quaternion> rotationValues = new List<Quaternion>();
             for (int i = 0; i < facetingValues.Count; i++)
             {
                 // Calculate the index along the two spatial directions as though it were a 2D grid
                 int facetIdx = facetOrder.IndexOf(facetingValues[i]);
-                int idxFirstDir = facetIdx % facetSize;
-                int idxSecondDir = Mathf.FloorToInt(facetIdx / (float)facetSize);
+                int idxFirstDir = facetIdx % sizeFirstDir;
+                int idxSecondDir = Mathf.FloorToInt(facetIdx / (float)sizeFirstDir);
 
-                // Calculate and store translation values based on the calculated index on the grid and the delta spacing between them
-                Vector3 translation = Vector3.zero;
-                translation[firstDir] = deltaFirstDir * idxFirstDir;
-                translation[secondDir] = deltaSecondDir * idxSecondDir;
-
-                xTranslationValues.Add(translation.x.ToString());
-                yTranslationValues.Add(translation.y.ToString());
-                zTranslationValues.Add(translation.z.ToString());
-                translationValues.Add(translation);
+                // Retrieve and store translation and rotation values based on the calculated index on the grid
+                translationValues.Add(translationMatrix[idxFirstDir, idxSecondDir]);
+                rotationValues.Add(rotateMatrix[idxFirstDir, idxSecondDir]);
             }
 
             // Store our data structure
-            facetWrapCE.xTranslation = xTranslationValues;
-            facetWrapCE.yTranslation = yTranslationValues;
-            facetWrapCE.zTranslation = zTranslationValues;
             facetWrapCE.translation = translationValues;
+            facetWrapCE.rotate = rotationValues;
+            facetWrapCE.translationMatrix = translationMatrix;
+            facetWrapCE.rotateMatrix = rotateMatrix;
             facetWrapCE.numFacets = facetOrder.Count;
+        }
+
+        /// <summary>
+        /// Creates a matrix of translation values for each small multiple
+        /// </summary>
+        private Tuple<Vector3[,], Quaternion[,]> CreateTranslationAndRotateMatrices(int firstDir, int secondDir, int sizeFirstDir, int sizeSecondDir, float spacingFirstDir, float spacingSecondDir,
+                                                                               float radius, float angleFirstDir, float angleSecondDir, bool faceCentre)
+        {
+            Vector3[,] translationMatrix = new Vector3[sizeFirstDir, sizeSecondDir];
+            Quaternion[,] rotateMatrix = new Quaternion[sizeFirstDir, sizeSecondDir];
+
+            // Calculate and apply offsets for flat layouts
+            Vector3 visSize = new Vector3(width, height, depth);
+            float firstDirOffset = ((sizeFirstDir - 1) * spacingFirstDir + visSize[firstDir]) * 0.5f;
+            float secondDirOffset = ((sizeSecondDir - 1) * spacingSecondDir + visSize[secondDir]) * 0.5f;
+
+            for (int i = 0; i < sizeFirstDir; i++)
+            {
+                for (int j = 0; j < sizeSecondDir; j++)
+                {
+                    // Project each point on a grid onto a sphere using equirectangular projection
+                    Vector3 translation = ProjectEquirectangularPoint(radius,
+                                                                      angleFirstDir * (i - (sizeFirstDir - 0.5f) / 2f) * Mathf.Deg2Rad,
+                                                                      angleSecondDir * (j - (sizeSecondDir - 0.5f) / 2f) * Mathf.Deg2Rad);
+
+                    // Apply spacing for directions that didn't have any angle set (i.e., flat layout)
+                    if (angleFirstDir == 0)
+                        translation[firstDir] = (spacingFirstDir * i - firstDirOffset);
+                    if (angleSecondDir == 0)
+                        translation[secondDir] = (spacingSecondDir * j - secondDirOffset);
+
+                    translationMatrix[i, j] = translation;
+
+                    // Calculate rotation if necessary
+                    if (faceCentre)
+                    {
+                        // Flatten the centre position for directions that are flat
+                        Vector3 centre = translation;
+                        if (angleFirstDir == 0) centre[firstDir] = 0;
+                        if (angleSecondDir == 0) centre[secondDir] = 0;
+                        rotateMatrix[i, j] = faceCentre ? Quaternion.LookRotation(centre) : Quaternion.identity;
+                    }
+                    else
+                    {
+                        rotateMatrix[i, j] = Quaternion.identity;
+                    }
+                }
+            }
+
+            return new Tuple<Vector3[,], Quaternion[,]>(translationMatrix, rotateMatrix);
+        }
+
+        private Vector3 ProjectEquirectangularPoint(float rho, float theta, float phi)
+        {
+            float x = rho * Mathf.Sin (theta) * Mathf.Cos (phi);
+            float y = rho * Mathf.Sin (phi);
+            float z = rho * Mathf.Cos (theta) * Mathf.Cos (phi);
+            return new Vector3 (x, y, z);
         }
 
         private void CreateScaleObject(JSONNode scaleSpecs, ref Scale scale)
@@ -1965,7 +2057,7 @@ namespace DxR
 
                 if (verbose) Debug.Log("Constructing axis for channel " + channelEncoding.channel);
 
-                ConstructAndUpdateAxisObject(channel, axisSpecs, ref channelEncoding, out Axis a);
+                ConstructAndUpdateAxisObject(channel, axisSpecs, ref channelEncoding, out Axis firstAxis);
 
                 visitedAxisChannels.Add(channel);
 
@@ -1995,10 +2087,16 @@ namespace DxR
                         int idxFirstDir = (facetIdx + 1) % facetSize;
                         int idxSecondDir = Mathf.FloorToInt((facetIdx + 1) / (float)facetSize);
 
-                        axis.SetTranslation(deltaFirstDir * idxFirstDir, firstDir);
-                        axis.SetTranslation(deltaSecondDir * idxSecondDir, secondDir);
+                        // We need to set the rotation before the translation
+                        Quaternion rotate = facetWrapChannelEncoding.rotateMatrix[idxFirstDir, idxSecondDir];
+                        axis.SetRotate(rotate);
+                        Vector3 translation = facetWrapChannelEncoding.translationMatrix[idxFirstDir, idxSecondDir];
+                        axis.SetTranslation(translation);
                     }
 
+                    // Apply the translation to the first set of axes as well
+                    firstAxis.SetRotate(facetWrapChannelEncoding.rotateMatrix[0, 0]);
+                    firstAxis.SetTranslation(facetWrapChannelEncoding.translationMatrix[0, 0]);
                     visitedFacetingAxisChannels.Add(channel);
                 }
             }
