@@ -40,11 +40,11 @@
 
     "signals": [{
             "name": "selectedExtrusionDimension",
-            "source": "togglemenu",
+            "source": "ui",
             "target": "ExtrusionMenu"
         }, {
             "name": "extrusionActivationToggle",
-            "source": "togglebutton",
+            "source": "ui",
             "target": "ExtrusionToggle"
         }
     ],

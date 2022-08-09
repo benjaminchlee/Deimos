@@ -1372,8 +1372,8 @@ namespace DxR
                         }
                     }
 
-                    // Default radius to 1 metre if not defined
-                    facetWrapChannelEncoding.radius = (channelSpecs["radius"] != null) ? channelSpecs["radius"].AsFloat : 1000;
+                    // Default radius to 0 metres if not defined
+                    facetWrapChannelEncoding.radius = (channelSpecs["radius"] != null) ? channelSpecs["radius"].AsFloat : 0;
 
                     if (channelSpecs["angle"] != null)
                     {

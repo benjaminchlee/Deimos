@@ -262,14 +262,14 @@ namespace DxR.VisMorphs
             if (signalSpec["expression"] != null)
             {
                 if (signalSpec.Children.Count() > 2)
-                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an expression property but contains other non-expression related properties.", signalSpec["name"]));
+                    throw new Exception(string.Format("Vis Morphs: The Signal {0} has an expression property but contains other non-expression related properties.", signalSpec["name"]));
             }
             // Otherwise it is a regular Signal. Perform checks for this
             else
             {
                 // All non-expression Signals need to have a source property
                 if (signalSpec["source"] == null)
-                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" does not have a source property specified.", signalSpec["name"]));
+                    throw new Exception(string.Format("Vis Morphs: The Signal {0} does not have a source property specified.", signalSpec["name"]));
 
                 // Mouse, hand, and controller sources should have a handedness property
                 if (signalSpec["source"] == "mouse" || signalSpec["source"] == "hand" || signalSpec["source"] == "controller")
@@ -283,7 +283,7 @@ namespace DxR.VisMorphs
                     else
                     {
                         if (!(signalSpec["handedness"] == "left" || signalSpec["handedness"] == "right" || signalSpec["handedness"] == "any"))
-                            throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an invalid handedness, \"{1}\" given. Only left, right, and any is supported.", signalSpec["name"], signalSpec["handedness"]));
+                            throw new Exception(string.Format("Vis Morphs: The Signal {0} has an invalid handedness, {1} given. Only left, right, and any is supported.", signalSpec["name"], signalSpec["handedness"]));
                     }
                 }
 
@@ -321,7 +321,7 @@ namespace DxR.VisMorphs
             // The only Signals that are global are those which:
             //  a. Are a UI element; or
             //  a. Are not a "Vis" source AND don't target anything
-            if (signalSpec["source"] == "togglemenu" || signalSpec["source"] == "togglebutton")
+            if (signalSpec["source"] == "ui")
                 return true;
 
             if (signalSpec["source"] == "vis")
@@ -432,7 +432,7 @@ namespace DxR.VisMorphs
                     return CreateControllerTargetedObservable(signalSpec, morphable);
                 }
             }
-            else if (source == "togglemenu" || source == "togglebutton")
+            else if (source == "ui")
             {
                 return CreateUIElementObservable(signalSpec, morphable);
             }
@@ -459,14 +459,12 @@ namespace DxR.VisMorphs
                 case "position":
                     return mouseObservablesHelper.GetMousePositionObservable().Select(_ => (dynamic)_);
 
-                case "press":
-                    return mouseObservablesHelper.GetMouseButtonPressedObservable(handedness).Select(_ => (dynamic)_);
-
+                case "select":
                 case "click":
-                    return mouseObservablesHelper.GetMouseButtonClickedObservable(handedness).Select(_ => (dynamic)_);
+                    return mouseObservablesHelper.GetMouseButtonSelectObservable(handedness).Select(_ => (dynamic)_);
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is a targetless mouse source with an unsupported value property.", signalSpec["name"]));
+                    throw new Exception(string.Format("Vis Morphs: The Signal {0} is a targetless mouse source with an unsupported value property.", signalSpec["name"]));
             }
         }
 
@@ -495,7 +493,7 @@ namespace DxR.VisMorphs
 
                 case "select":
                     // Get the observable for mouse button presses
-                    IObservable<bool> buttonPressedObservable = mouseObservablesHelper.GetMouseButtonPressedObservable(handedness);
+                    IObservable<bool> buttonPressedObservable = mouseObservablesHelper.GetMouseButtonSelectObservable(handedness);
                     targetObservable = buttonPressedObservable
                         .WithLatestFrom(raycastHitObservable, (pressed, hits) =>
                         {
@@ -533,7 +531,6 @@ namespace DxR.VisMorphs
                                 criteriaGameObject = CameraCache.Main.gameObject;
                                 break;
                             case "vis":
-                            case "DxRVis":  // Targets get converted to specific names if they match a tag. This is a workaround for now
                                 criteriaGameObject = morphable.gameObject;
                                 break;
                             default:
@@ -545,7 +542,7 @@ namespace DxR.VisMorphs
                     }
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is a targeted mouse source with an unsupported criteria property.", signalSpec["name"]));
+                    throw new Exception(string.Format("Vis Morphs: The Signal {0} is a targeted mouse source with an unsupported criteria property.", signalSpec["name"]));
             }
 
             return CreateValueObservableFromTarget(signalSpec, targetObservable, morphable);
@@ -559,17 +556,17 @@ namespace DxR.VisMorphs
 
             switch (value)
             {
-                case "select":
-                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(_ => (dynamic)_);
-
-                case "pinch":
-                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(f => (dynamic)(f > 0.5f));
-
                 case "position":
                     return mrtkObservablesHelper.GetControllerGameObjectObservable(handedness).Select(controller => (dynamic)controller.transform.position);
 
+                case "pinch":
+                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(_ => (dynamic)_);
+
+                case "select":
+                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(f => (dynamic)(f > 0.5f));
+
                 default:
-                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is a targetless hand or controller source with an unsupported value property.", signalSpec["name"]));
+                    throw new Exception(string.Format("Vis Morphs: The Signal {0} is a targetless hand or controller source with an unsupported value property.", signalSpec["name"]));
             }
         }
 
@@ -600,7 +597,7 @@ namespace DxR.VisMorphs
                 case "select":
                     {
                         IObservable<Collider[]> touchingGameObjectsObservable = mrtkObservablesHelper.GetControllerTouchingGameObjectsObservable(handedness);
-                        IObservable<float> selectObservable = mrtkObservablesHelper.GetControllerSelectObservable(handedness).Where(s => s > 0.8f);
+                        IObservable<float> selectObservable = mrtkObservablesHelper.GetControllerSelectObservable(handedness).Where(f => f > 0.5f);
                         targetObservable = selectObservable.WithLatestFrom(touchingGameObjectsObservable, (f, colliders) =>
                         {
                             return colliders.Where(collider => collider.tag == target)
@@ -648,7 +645,6 @@ namespace DxR.VisMorphs
                                 criteriaGameObject = CameraCache.Main.gameObject;
                                 break;
                             case "vis":
-                            case "DxRVis":  // Targets get converted to specific names if they match a tag. This is a workaround for now
                                 criteriaGameObject = morphable.gameObject;
                                 break;
                             default:
@@ -715,17 +711,7 @@ namespace DxR.VisMorphs
             string source = signalSpec["source"];
             string target = signalSpec["target"];
 
-            switch (source)
-            {
-                case "togglemenu":
-                    return mrtkObservablesHelper.GetToggleMenuObservable(target);
-
-                case "togglebutton":
-                    return mrtkObservablesHelper.GetToggleButtonObservable(target).Select(_ => (dynamic)_);
-
-                default:
-                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is not a supported source. This should not happen.", signalSpec["name"]));
-            }
+            return mrtkObservablesHelper.GetUIObservable(target);
         }
 
         public IObservable<dynamic> CreateObservableFromObjectTargetless(JSONNode signalSpec, Morphable morphable = null)
@@ -752,7 +738,7 @@ namespace DxR.VisMorphs
             }
 
             if (sourceGameObject == null)
-                throw new Exception(string.Format("Vis Morphs: Could not find any source GameObject with name \"{0}\".", source));
+                throw new Exception(string.Format("Vis Morphs: Could not find any source GameObject with name {0}.", source));
 
             // Leverage this function to access values from our object
             return CreateValueObservableFromTarget(signalSpec, gameObjectObservablesHelper.GetGameObjectObservable(sourceGameObject), morphable);
@@ -783,7 +769,7 @@ namespace DxR.VisMorphs
             }
 
             if (sourceGameObject == null)
-                throw new Exception(string.Format("Vis Morphs: Could not find any source GameObject with name \"{0}\".", source));
+                throw new Exception(string.Format("Vis Morphs: Could not find any source GameObject with name {0}.", source));
 
             // Find the object that the source is targetting
             IObservable<GameObject> targetObservable = null;
@@ -825,8 +811,7 @@ namespace DxR.VisMorphs
                             case "head":
                                 criteriaGameObject = CameraCache.Main.gameObject;
                                 break;
-                            case "vis":
-                            case "DxRVis":  // Targets get converted to specific names if they match a tag. This is a workaround for now
+                            case "DxRVis":
                                 criteriaGameObject = morphable.gameObject;
                                 break;
                             default:
@@ -838,7 +823,7 @@ namespace DxR.VisMorphs
                     }
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" is a targeted object source with an unsupported criteria property.", signalSpec["name"]));
+                    throw new Exception(string.Format("Vis Morphs: The Signal {0} is a targeted object source with an unsupported criteria property.", signalSpec["name"]));
             }
 
             return CreateComparisonValueObservableFromObjectTarget(signalSpec, sourceGameObject, targetObservable, morphable);
@@ -972,7 +957,7 @@ namespace DxR.VisMorphs
                 default:
                 {
                     return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.GetPropValue(value));
-                    // throw new Exception(string.Format("Vis Morphs: The Signal \"{0}\" has an unsupported value property. If using reflection, make sure the path is correct.", signalSpec["name"]));
+                    // throw new Exception(string.Format("Vis Morphs: The Signal {0} has an unsupported value property. If using reflection, make sure the path is correct.", signalSpec["name"]));
                 }
             }
         }

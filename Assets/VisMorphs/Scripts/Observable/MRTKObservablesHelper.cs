@@ -20,8 +20,7 @@ namespace DxR.VisMorphs
         private Dictionary<Handedness, IObservable<Collider[]>> touchingGameObjectsObservables = new Dictionary<Handedness, IObservable<Collider[]>>();
         private Dictionary<Handedness, IObservable<RaycastHit[]>> pointingGameObjectsObservables = new Dictionary<Handedness, IObservable<RaycastHit[]>>();
         private Dictionary<Tuple<Handedness, string>, IObservable<GameObject[]>> proximityGameObjectsObservables = new Dictionary<Tuple<Handedness, string>, IObservable<GameObject[]>>();
-        private Dictionary<string, IObservable<string>> toggleMenuObservables = new Dictionary<string, IObservable<string>>();
-        private Dictionary<string, IObservable<bool>> toggleButtonObservables = new Dictionary<string, IObservable<bool>>();
+        private Dictionary<string, IObservable<dynamic>> uiObservables = new Dictionary<string, IObservable<dynamic>>();
 
         public MRTKObservablesHelper()
         {
@@ -163,35 +162,33 @@ namespace DxR.VisMorphs
             return observable;
         }
 
-        public IObservable<string> GetToggleMenuObservable(string menuName)
+        public IObservable<dynamic> GetUIObservable(string uiName)
         {
-            IObservable<string> observable = null;
+            IObservable<dynamic> observable = null;
 
-            if (!toggleMenuObservables.TryGetValue(menuName, out observable))
+            if (!uiObservables.TryGetValue(uiName, out observable))
             {
-                ToggleCollection toggleCollection = GameObject.Find(menuName).GetComponentInChildren<ToggleCollection>();
+                GameObject uiGameObject = GameObject.Find(uiName);
 
-                observable = toggleCollection.OnToggleSelected.AsObservable<int>().Select(idx => toggleCollection.Toggles[idx].GetComponentInChildren<TextMeshPro>().text);
+                ToggleCollection toggleCollection = uiGameObject.GetComponentInChildren<ToggleCollection>();
+                PressableButton button = uiGameObject.GetComponentInChildren<PressableButton>();
 
-                toggleMenuObservables.Add(menuName, observable);
-            }
+                if (toggleCollection != null)
+                {
+                    observable = toggleCollection.OnToggleSelected.AsObservable<int>().Select(idx => toggleCollection.Toggles[idx].GetComponentInChildren<TextMeshPro>().text);
+                }
+                else if (button != null)
+                {
+                    IObservable<bool> toggledObservable = button.IsToggled.OnEntered.AsObservable<float>().Select(_ => true);
+                    IObservable<bool> detoggledObservable = button.IsToggled.OnExited.AsObservable<float>().Select(_ => false);
+                    observable = toggledObservable.Merge(detoggledObservable).Select(_ => (dynamic)_);
+                }
+                else
+                {
+                    throw new Exception(string.Format("Vis Morphs: The UI GameObject {0} does not have a supported UI script on it. Currently supported are ToggleCollection and PressableButton.", uiName));
+                }
 
-            return observable;
-        }
-
-        public IObservable<bool> GetToggleButtonObservable(string buttonName)
-        {
-            IObservable<bool> observable = null;
-
-            if (!toggleButtonObservables.TryGetValue(buttonName, out observable))
-            {
-                PressableButton button = GameObject.Find(buttonName).GetComponentInChildren<PressableButton>();
-
-                IObservable<bool> toggledObservable = button.IsToggled.OnEntered.AsObservable<float>().Select(_ => true);
-                IObservable<bool> detoggledObservable = button.IsToggled.OnExited.AsObservable<float>().Select(_ => false);
-
-                observable = toggledObservable.Merge(detoggledObservable);
-                toggleButtonObservables.Add(buttonName, observable);
+                uiObservables.Add(uiName, observable);
             }
 
             return observable;

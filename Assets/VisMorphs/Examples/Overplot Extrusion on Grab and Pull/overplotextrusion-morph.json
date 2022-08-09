@@ -60,10 +60,10 @@
             "criteria": "touch",
             "value": "boolean"
         }, {
-            "name": "isRightHandPinching",
+            "name": "isRightHandSelecting",
             "source": "hand",
             "handedness": "right",
-            "value": "pinch"
+            "value": "select"
         }, {
             "name": "rightHandSurfaceDistance",
             "source": "hand",
@@ -81,7 +81,7 @@
         {
             "name": "overplotExtrusion",
             "states": ["unextruded", "extruded"],
-            "trigger": "isSelectingMark && isRightHandPinching && isVisTouchingSurface",
+            "trigger": "isSelectingMark && isRightHandSelecting && isVisTouchingSurface",
             "control": {
                 "timing": "tweener",
                 "interrupted": "ignore"

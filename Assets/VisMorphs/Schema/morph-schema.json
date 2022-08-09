@@ -56,7 +56,7 @@
                       "type": "string"
                     },
                     {
-                      "enum": ["mouse", "controller", "hand", "togglemenu", "togglebutton", "vis", "head"]
+                      "enum": ["mouse", "controller", "hand", "ui", "vis", "head"]
                     }
                   ]
                 },
@@ -67,7 +67,7 @@
                   "default": "any"
                 },
                 "target": {
-                  "description": "The type of Target that this Signal should try and select. This field is optional.\nTargets allow for some other type of object to be accessed based off the given Source and Criteria (defined as a separate property). For example, a visualisation's marks can be used as a Signal, which is selected via a hand source.\nFor UI-based Sources (i.e., togglemenu and togglebutton), the Target is instead the name of the Unity GameObject that contains the UI script.\nPrimitive targets are provided via autocomplete. As with Source, arbitrary Unity GameObjects can also be referenced via their name",
+                  "description": "The type of Target that this Signal should try and select. This field is optional.\nTargets allow for some other type of object to be accessed based off the given Source and Criteria (defined as a separate property). For example, a visualisation's marks can be used as a Signal, which is selected via a hand source.\nFor UI Sources, the Target is instead the name of the Unity GameObject that contains the UI script.\nPrimitive targets are provided via autocomplete. As with Source, arbitrary Unity GameObjects can also be referenced via their name",
                   "anyOf": [
                     {
                       "type": "string"
@@ -80,16 +80,16 @@
                 "criteria": {
                   "description": "The Criteria to use when selecting the specified Target. This property is required and will only work for Targets that are of mark, axis, or surface.",
                   "type": "string",
-                  "enum": ["touch", "point", "select", "closest", "farthest", "click"]
+                  "enum": ["touch", "point", "select", "click", "closest", "farthest"]
                 },
                 "value": {
-                  "description": "The Value to derive from the Source or Target. Not all Values are valid for all Sources or Targets.\nFor Signals without a Target, valid Values are those which access some property of the given Source (e.g., position, forward, click (mouse sources), pinch (for hand/controller sources)). GameObject values can also be accessed via reflection if desired (e.g., transform.childCount).\nFor Signals with a Target, the same Values can be used. But in addition, Values which derive values from comparisons can be used instead (e.g., distance, intersection). In other words, these work by calculating a value between the Source and Target.",
+                  "description": "The Value to derive from the Source or Target. Not all Values are valid for all Sources or Targets.\nFor Signals without a Target, valid Values are those which access some property of the given Source (e.g., position, forward, select (for both controller and hand), pinch (for hand)). GameObject values can also be accessed via reflection if desired (e.g., transform.childCount).\nFor Signals with a Target, the same Values can be used. But in addition, Values which derive values from comparisons can be used instead (e.g., distance, intersection). In other words, these work by calculating a value between the Source and Target.",
                   "anyOf": [
                     {
                       "type": "string"
                     },
                     {
-                      "enum": ["position", "localposition", "rotation", "localrotation", "eulerangles", "localeulerangles", "scale", "forward", "up", "right", "boolean", "distance", "closestdistance", "angle", "intersection", "select", "pinch", "press", "click"]
+                      "enum": ["position", "localposition", "rotation", "localrotation", "eulerangles", "localeulerangles", "scale", "forward", "up", "right", "boolean", "distance", "closestdistance", "angle", "intersection", "select", "pinch"]
                     }
                   ]
                 }

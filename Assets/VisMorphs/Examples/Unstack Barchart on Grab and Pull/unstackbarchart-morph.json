@@ -80,10 +80,10 @@
             "criteria": "touch",
             "value": "boolean"
         }, {
-            "name": "isHandPinching",
+            "name": "isHandSelecting",
             "source": "hand",
             "handedness": "any",
-            "value": "pinch"
+            "value": "select"
         }, {
             "name": "handSurfaceDistance",
             "source": "hand",
@@ -101,7 +101,7 @@
         {
             "name": "unstacking",
             "states": ["stacked", "sideBySide"],
-            "trigger": "isSelectingVis && isVisTouchingSurface && isHandPinching",
+            "trigger": "isSelectingVis && isVisTouchingSurface && isHandSelecting",
             "control": {
                 "timing": "tweener",
                 "easing": "easeinoutcirc",
