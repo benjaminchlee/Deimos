@@ -101,8 +101,11 @@ namespace DxR.VisMorphs
             if (!isInitialised)
                 Initialise();
 
-            CurrentVisSpec = ParentVis.GetVisSpecsExpanded();
-            VisUpdated(ParentVis, CurrentVisSpec);
+            if (ParentVis.IsReady)
+            {
+                CurrentVisSpec = ParentVis.GetVisSpecsExpanded();
+                VisUpdated(ParentVis, CurrentVisSpec);
+            }
         }
 
         /// <summary>

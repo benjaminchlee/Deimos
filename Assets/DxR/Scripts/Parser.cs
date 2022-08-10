@@ -21,28 +21,9 @@ namespace DxR
             visSpecs = JSON.Parse(GetStringFromFile(GetFullSpecsPath(specsFilename)));
 
             // If the specs file is empty, provide the boiler plate data and marks specs.
-            if(visSpecs == null)
+            if (visSpecs == null || visSpecs.ToString() == "\"\"")
             {
                 CreateEmptyTemplateSpecs(specsFilename, ref visSpecs);
-            }
-        }
-
-        /// <summary>
-        /// Reads specifications from a JSON string specified by specs instead of a file.
-        /// Otherwise functions identically to the Parse function
-        /// </summary>
-        public void ParseString(string specs, out JSONNode visSpecs)
-        {
-            visSpecs = JSON.Parse(specs);
-
-            // If the specs file is empty, provide the boiler plate data and marks specs.
-            if(visSpecs == null)
-            {
-                JSONNode emptySpecs = new JSONObject();
-                JSONNode dataSpecs = new JSONObject();
-                dataSpecs.Add("url", new JSONString(DxR.Vis.UNDEFINED));
-                emptySpecs.Add("data", dataSpecs);
-                emptySpecs.Add("mark", new JSONString(DxR.Vis.UNDEFINED));
             }
         }
 
@@ -57,6 +38,32 @@ namespace DxR
             visSpecs = emptySpecs;
 
             System.IO.File.WriteAllText(GetFullSpecsPath(specsFilename), emptySpecs.ToString(2));
+        }
+
+        /// <summary>
+        /// Reads specifications from a JSON string specified by specs instead of a file.
+        /// Otherwise functions identically to the Parse function
+        /// </summary>
+        public void ParseString(string specs, out JSONNode visSpecs)
+        {
+            visSpecs = JSON.Parse(specs);
+
+            // If the specs file is empty, provide the boiler plate data and marks specs.
+            if(visSpecs == null || visSpecs.ToString() == "\"\"")
+            {
+                CreateEmptyTemplateSpecs(ref visSpecs);
+            }
+        }
+
+        private void CreateEmptyTemplateSpecs(ref JSONNode visSpecs)
+        {
+            JSONNode emptySpecs = new JSONObject();
+            JSONNode dataSpecs = new JSONObject();
+            dataSpecs.Add("url", new JSONString(DxR.Vis.UNDEFINED));
+            emptySpecs.Add("data", dataSpecs);
+            emptySpecs.Add("mark", new JSONString(DxR.Vis.UNDEFINED));
+
+            visSpecs = emptySpecs;
         }
 
         /// <summary>

@@ -42,7 +42,7 @@ namespace DxR
                     parentVis = GetComponent<Vis>();
                 }
 
-                if (parentVis != null && parentVis.IsReady)
+                if (parentVis != null)
                 {
                     if (JSONSpecification != null)
                     {

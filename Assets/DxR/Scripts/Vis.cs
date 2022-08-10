@@ -88,13 +88,6 @@ namespace DxR
 
         private void Awake()
         {
-            if (VisUpdated == null)
-            {
-                VisUpdated = new VisUpdatedEvent();
-                VisUpdatedExpanded = new VisUpdatedEvent();
-                VisUpdatedInferred = new VisUpdatedEvent();
-            }
-
             // Initialize objects:
             parentObject = gameObject;
             viewParentObject = gameObject.transform.Find("DxRView").gameObject;
@@ -102,17 +95,31 @@ namespace DxR
             guidesParentObject = viewParentObject.transform.Find("DxRGuides").gameObject;
             interactionsParentObject = gameObject.transform.Find("DxRInteractions").gameObject;
 
-            boxCollider = gameObject.GetComponent<BoxCollider>() != null ? gameObject.GetComponent<BoxCollider>() : gameObject.AddComponent<BoxCollider>();
-            rigidbody = gameObject.GetComponent<Rigidbody>() != null ? gameObject.GetComponent<Rigidbody>() : gameObject.AddComponent<Rigidbody>();
-            boxCollider.isTrigger = false;
-            rigidbody.isKinematic = true;
+            VisUpdated = new VisUpdatedEvent();
+            VisUpdatedExpanded = new VisUpdatedEvent();
+            VisUpdatedInferred = new VisUpdatedEvent();
 
             if (viewParentObject == null || marksParentObject == null)
             {
                 throw new Exception("Unable to load DxRView and/or DxRMarks objects.");
             }
 
-            parser = new Parser();
+            boxCollider = gameObject.GetComponent<BoxCollider>() != null ? gameObject.GetComponent<BoxCollider>() : gameObject.AddComponent<BoxCollider>();
+            rigidbody = gameObject.GetComponent<Rigidbody>() != null ? gameObject.GetComponent<Rigidbody>() : gameObject.AddComponent<Rigidbody>();
+            boxCollider.isTrigger = false;
+            rigidbody.isKinematic = true;
+
+            InitialiseVis();
+            UpdateVis();
+        }
+
+        private void InitialiseVis()
+        {
+            if (isReady)
+                return;
+
+            if (parser == null)
+                parser = new Parser();
 
             // If there is a RuntimeInspectorVisSpecs component attached to this GameObject, then we parse the specifications contained in it instead
             RuntimeInspectorVisSpecs runtimeSpecs = GetComponent<RuntimeInspectorVisSpecs>();
@@ -127,15 +134,16 @@ namespace DxR
                 parser.Parse(visSpecsURL, out visSpecs);
             }
 
+            // If the mark is set to undefined, this is a sign that the vis specs isn't valid. Throw an exception here
+            if (visSpecs["mark"] == DxR.Vis.UNDEFINED)
+                throw new Exception("Provided vis specs is not valid.");
+
             InitDataList();
             InitMarksList();
 
             // Initialize the GUI based on the initial vis specs.
             InitGUI();
             InitTooltip();
-
-            // Update vis based on the vis specs.
-            UpdateVis();
 
             isReady = true;
         }
@@ -152,6 +160,9 @@ namespace DxR
         /// </summary>
         private void UpdateVis(bool callUpdateEvent = true)
         {
+            if (!isReady)
+                throw new Exception("DxR Vis is not yet initialised. Cannot update Vis.");
+
             DeleteInteractions();                                   // Delete old GameObjects that we cannot update
             DeleteLegends();                                        // No longer deletes marks and axes
 
@@ -2338,6 +2349,9 @@ namespace DxR
         /// </summary>
         public void UpdateVisSpecsFromStringSpecs(string specs)
         {
+            if (!isReady)
+                InitialiseVis();
+
             JSONNode textSpecs;
             parser.ParseString(specs, out textSpecs);
 
@@ -2351,6 +2365,9 @@ namespace DxR
 
         public void UpdateVisSpecsFromJSONNode(JSONNode specs, bool updateGuiSpecs = true, bool callUpdateEvent = true)
         {
+            if (!isReady)
+                InitialiseVis();
+
             visSpecs = specs;
 
             if (enableGUI && updateGuiSpecs)
@@ -2361,6 +2378,9 @@ namespace DxR
 
         public void UpdateVisSpecsFromTextSpecs()
         {
+            if (!isReady)
+                InitialiseVis();
+
             // For now, just reset the vis specs to empty and
             // copy the contents of the text to vis specs; starting
             // everything from scratch. Later on, the new specs will have
@@ -2379,6 +2399,9 @@ namespace DxR
 
         public void UpdateTextSpecsFromVisSpecs()
         {
+            if (!isReady)
+                InitialiseVis();
+
             JSONNode visSpecsToWrite = JSON.Parse(visSpecs.ToString());
             if(visSpecs["data"]["url"] != null && visSpecs["data"]["url"] != "inline")
             {
@@ -2401,11 +2424,17 @@ namespace DxR
 
         private void UpdateGUISpecsFromVisSpecs()
         {
+            if (!isReady)
+                InitialiseVis();
+
             gui.UpdateGUISpecsFromVisSpecs();
         }
 
         public void UpdateVisSpecsFromGUISpecs()
         {
+            if (!isReady)
+                InitialiseVis();
+
             // For now, just reset the vis specs to empty and
             // copy the contents of the text to vis specs; starting
             // everything from scratch. Later on, the new specs will have
