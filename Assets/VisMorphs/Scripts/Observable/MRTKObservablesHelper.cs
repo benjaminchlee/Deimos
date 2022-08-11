@@ -5,26 +5,125 @@ using System.Linq;
 using UnityEngine;
 using UniRx;
 using Microsoft.MixedReality.Toolkit;
-using Microsoft.MixedReality.Toolkit.UX;
 using TMPro;
+using Microsoft.MixedReality.Toolkit.Utilities;
+using Microsoft.MixedReality.Toolkit.Input;
+using UnityEngine.Events;
+using Microsoft.MixedReality.Toolkit.UI;
 
 namespace DxR.VisMorphs
 {
-    public class MRTKObservablesHelper
+    public class MRTKObservablesHelper : IMixedRealitySourceStateHandler, IMixedRealityPointerHandler
     {
-        // The script that MRTK provides to give us access to the controllers (or hands)
-        private ControllerLookup controllerLookup;
-
+        private Dictionary<Handedness, IObservable<IMixedRealityController>> controllerActiveObservables = new Dictionary<Handedness, IObservable<IMixedRealityController>>();
         private Dictionary<Handedness, IObservable<GameObject>> gameObjectObservables = new Dictionary<Handedness, IObservable<GameObject>>();
-        private Dictionary<Handedness, IObservable<float>> selectObservables = new Dictionary<Handedness, IObservable<float>>();
+        private Dictionary<Handedness, IObservable<bool>> selectObservables = new Dictionary<Handedness, IObservable<bool>>();
         private Dictionary<Handedness, IObservable<Collider[]>> touchingGameObjectsObservables = new Dictionary<Handedness, IObservable<Collider[]>>();
         private Dictionary<Handedness, IObservable<RaycastHit[]>> pointingGameObjectsObservables = new Dictionary<Handedness, IObservable<RaycastHit[]>>();
         private Dictionary<Tuple<Handedness, string>, IObservable<GameObject[]>> proximityGameObjectsObservables = new Dictionary<Tuple<Handedness, string>, IObservable<GameObject[]>>();
         private Dictionary<string, IObservable<dynamic>> uiObservables = new Dictionary<string, IObservable<dynamic>>();
 
+        private Dictionary<Handedness, IMixedRealityPointer> pointers = new Dictionary<Handedness, IMixedRealityPointer>();
+
+        // Unity event versions of MRTK pointer events so that it is easier to hook into these with observables
+        [Serializable]
+        private class MRTKSourceEvent : UnityEvent<SourceStateEventData> { }
+        private MRTKSourceEvent MRTKSourceDetected;
+        private MRTKSourceEvent MRTKSourceLost;
+
+        private class MRTKPointerEvent : UnityEvent<MixedRealityPointerEventData> { }
+        private MRTKPointerEvent MRTKPointerDown;
+        private MRTKPointerEvent MRTKPointerUp;
+        private MRTKPointerEvent MRTKPointerClicked;
+        private MRTKPointerEvent MRTKPointerDragged;
+
         public MRTKObservablesHelper()
         {
-            controllerLookup = GameObject.FindObjectOfType<ControllerLookup>();
+            CoreServices.InputSystem?.RegisterHandler<IMixedRealitySourceStateHandler>(this);
+            MRTKSourceDetected = new MRTKSourceEvent();
+            MRTKSourceLost = new MRTKSourceEvent();
+
+            CoreServices.InputSystem?.RegisterHandler<IMixedRealityPointerHandler>(this);
+            MRTKPointerDown = new MRTKPointerEvent();
+            MRTKPointerUp = new MRTKPointerEvent();
+            MRTKPointerClicked = new MRTKPointerEvent();
+            MRTKPointerDragged = new MRTKPointerEvent();
+        }
+
+        public void OnSourceDetected(SourceStateEventData eventData)
+        {
+            if (eventData.InputSource.SourceType == InputSourceType.Hand || eventData.InputSource.SourceType == InputSourceType.Controller)
+            {
+                if (eventData.Controller.ControllerHandedness == Handedness.Left || eventData.Controller.ControllerHandedness == Handedness.Right)
+                    MRTKSourceDetected.Invoke(eventData);
+            }
+        }
+
+        public void OnSourceLost(SourceStateEventData eventData)
+        {
+            if (eventData.InputSource.SourceType == InputSourceType.Hand || eventData.InputSource.SourceType == InputSourceType.Controller)
+            {
+                if (eventData.Controller.ControllerHandedness == Handedness.Left || eventData.Controller.ControllerHandedness == Handedness.Right)
+                    MRTKSourceLost.Invoke(eventData);
+            }
+        }
+
+        public void OnPointerDown(MixedRealityPointerEventData eventData)
+        {
+            if (eventData.InputSource.SourceType == InputSourceType.Hand || eventData.InputSource.SourceType == InputSourceType.Controller)
+            {
+                if (eventData.Handedness == Handedness.Left || eventData.Handedness == Handedness.Right)
+                    MRTKPointerDown.Invoke(eventData);
+            }
+        }
+
+        public void OnPointerUp(MixedRealityPointerEventData eventData)
+        {
+            if (eventData.InputSource.SourceType == InputSourceType.Hand || eventData.InputSource.SourceType == InputSourceType.Controller)
+            {
+                if (eventData.Handedness == Handedness.Left || eventData.Handedness == Handedness.Right)
+                    MRTKPointerUp.Invoke(eventData);
+            }
+        }
+
+        public void OnPointerClicked(MixedRealityPointerEventData eventData)
+        {
+            if (eventData.InputSource.SourceType == InputSourceType.Hand || eventData.InputSource.SourceType == InputSourceType.Controller)
+            {
+                if (eventData.Handedness == Handedness.Left || eventData.Handedness == Handedness.Right)
+                    MRTKPointerClicked.Invoke(eventData);
+            }
+        }
+
+        public void OnPointerDragged(MixedRealityPointerEventData eventData)
+        {
+            if (eventData.InputSource.SourceType == InputSourceType.Hand || eventData.InputSource.SourceType == InputSourceType.Controller)
+            {
+                if (eventData.Handedness == Handedness.Left || eventData.Handedness == Handedness.Right)
+                    MRTKPointerDragged.Invoke(eventData);
+            }
+        }
+
+        public IObservable<IMixedRealityController> GetControllerActiveObservable(Handedness handedness)
+        {
+            IObservable<IMixedRealityController> observable = null;
+
+            if (!controllerActiveObservables.TryGetValue(handedness, out observable))
+            {
+                IObservable<IMixedRealityController> controllerLostObservable = MRTKSourceLost.AsObservable().Where(eventData => eventData.Controller != null && (eventData.Controller.ControllerHandedness == handedness || handedness == Handedness.Any)).Select(_ => (IMixedRealityController)null);
+                observable = MRTKSourceDetected.AsObservable().Where(eventData => eventData.Controller != null && (eventData.Controller.ControllerHandedness == handedness || handedness == Handedness.Any)).Select(eventData => eventData.Controller)
+                            .TakeUntil(controllerLostObservable)
+                            .Repeat()
+                            .Merge(controllerLostObservable);
+                observable = Observable.EveryUpdate().CombineLatest(observable, (_, controller) => controller).Where(controller => controller != null);
+
+                // Force this observable to be a hot observable
+                observable = observable.Replay(1).RefCount();
+                observable.Subscribe();
+                controllerActiveObservables.Add(handedness, observable);
+            }
+
+            return observable;
         }
 
         public IObservable<GameObject> GetControllerGameObjectObservable(Handedness handedness)
@@ -33,19 +132,31 @@ namespace DxR.VisMorphs
 
             if (!gameObjectObservables.TryGetValue(handedness, out observable))
             {
-                // We use "none" to represent "any", i.e., both hands
-                if (handedness == Handedness.None)
-                {
-                    IObservable<GameObject> leftHandObservable = GetControllerGameObjectObservable(Handedness.Left);
-                    IObservable<GameObject> rightHandObservable = GetControllerGameObjectObservable(Handedness.Right);
-                    observable = leftHandObservable.Merge(rightHandObservable);
-                }
-                else
-                {
-                    var controller = handedness == Handedness.Left ? controllerLookup.LeftHandController : controllerLookup.RightHandController;
-                    observable = Observable.EveryUpdate().Where(_ => controller.currentControllerState.inputTrackingState != UnityEngine.XR.InputTrackingState.None).Select(_ => controller.gameObject);
-                }
+                observable = GetControllerActiveObservable(handedness).Select(controller => {
+                    // If this controller is a hand, we return the index tip joint position
+                    var hand = controller as IMixedRealityHand;
+                    if (hand != null)
+                    {
+                        if (controller.Visualizer != null && controller.Visualizer.GameObjectProxy != null)
+                        {
+                            Transform indexTipTransform = controller.Visualizer.GameObjectProxy.transform.Find("IndexTip Proxy Transform");
+                            return (indexTipTransform != null) ? indexTipTransform.gameObject : null;
+                        }
+                    }
+                    // If this controller is an actual controller, we return its visualiser proxy
+                    else
+                    {
+                        if (controller.Visualizer != null && controller.Visualizer.GameObjectProxy != null)
+                            return controller.Visualizer.GameObjectProxy;
+                    }
 
+                    return null;
+                })
+                    .Where(_ => _ != null);
+
+                // Force this observable to be a hot observable
+                observable = observable.Replay(1).RefCount();
+                observable.Subscribe();
                 gameObjectObservables.Add(handedness, observable);
             }
 
@@ -53,28 +164,21 @@ namespace DxR.VisMorphs
         }
 
         /// <summary>
-        /// Returns an observable of the extent to which the select action is performed. For hand input this is the pinch gesture.
+        /// Returns a boolean as to whether or not the select action is being performed
         /// </summary>
-        public IObservable<float> GetControllerSelectObservable(Handedness handedness)
+        public IObservable<bool> GetControllerSelectObservable(Handedness handedness)
         {
-            IObservable<float> observable = null;
+            IObservable<bool> observable = null;
 
             if (!selectObservables.TryGetValue(handedness, out observable))
             {
-                // We use "none" to represent "any", i.e., both hands
-                if (handedness == Handedness.None)
-                {
-                    IObservable<float> leftHandObservable = GetControllerSelectObservable(Handedness.Left);
-                    IObservable<float> rightHandObservable = GetControllerSelectObservable(Handedness.Right);
-                    observable = leftHandObservable.Merge(rightHandObservable);
-                }
-                else
-                {
-                    // Controllers and hands should be treated identically in UnityXR
-                    var controller = handedness == Handedness.Left ? controllerLookup.LeftHandController : controllerLookup.RightHandController;
-                    observable = Observable.EveryUpdate().Where(_ => controller.currentControllerState.inputTrackingState != UnityEngine.XR.InputTrackingState.None).Select(_ => controller.selectInteractionState.value);
-                }
+                IObservable<bool> pointerUpObservable = MRTKPointerUp.AsObservable().Where(eventData => (eventData.Handedness == handedness || handedness == Handedness.Any)).Select(_ => false);
+                observable = MRTKPointerDown.AsObservable().Where(eventData => (eventData.Handedness == handedness || handedness == Handedness.Any)).Select(_ => true)
+                                                            .TakeUntil(pointerUpObservable)
+                                                            .Repeat()
+                                                            .Merge(pointerUpObservable);
 
+                observable = observable.Replay(1).RefCount();
                 selectObservables.Add(handedness, observable);
             }
 
@@ -87,20 +191,13 @@ namespace DxR.VisMorphs
 
             if (!touchingGameObjectsObservables.TryGetValue(handedness, out observable))
             {
-                // We use "none" to represent "any", i.e., both hands
-                if (handedness == Handedness.None)
-                {
-                    IObservable<Collider[]> leftHandObservable = GetControllerTouchingGameObjectsObservable(Handedness.Left);
-                    IObservable<Collider[]> rightHandObservable = GetControllerTouchingGameObjectsObservable(Handedness.Right);
-                    observable = leftHandObservable.Merge(rightHandObservable);
-                }
-                else
-                {
-                    var controller = handedness == Handedness.Left ? controllerLookup.LeftHandController : controllerLookup.RightHandController;
-                    observable = GetControllerSelectObservable(handedness).Select(_ => Physics.OverlapSphere(controller.currentControllerState.position, 0.125f))
-                        .StartWith(new Collider[] { });
-                }
+                IObservable<GameObject> gameObjectObservable = GetControllerGameObjectObservable(handedness);
+                observable = GetControllerGameObjectObservable(handedness)
+                                .Select(controller => Physics.OverlapSphere(controller.transform.position, 0.125f));
 
+                // Force this observable to be a hot observable
+                observable = observable.Replay(1).RefCount();
+                observable.Subscribe();
                 touchingGameObjectsObservables.Add(handedness, observable);
             }
 
@@ -113,20 +210,24 @@ namespace DxR.VisMorphs
 
             if (!pointingGameObjectsObservables.TryGetValue(handedness, out observable))
             {
-                // We use "none" to represent "any", i.e., both hands
-                if (handedness == Handedness.None)
+                observable = GetControllerActiveObservable(handedness).Select(controller =>
                 {
-                    IObservable<RaycastHit[]> leftHandObservable = GetControllerPointingGameObjectsObservable(Handedness.Left);
-                    IObservable<RaycastHit[]> rightHandObservable = GetControllerPointingGameObjectsObservable(Handedness.Right);
-                    observable = leftHandObservable.Merge(rightHandObservable);
-                }
-                else
-                {
-                    var controller = handedness == Handedness.Left ? controllerLookup.LeftHandController : controllerLookup.RightHandController;
-                    observable = GetControllerSelectObservable(handedness).Select(_ => Physics.RaycastAll(controller.transform.position, controller.transform.forward))
-                        .StartWith(new RaycastHit[] { });
-                }
+                    foreach (var pointer in controller.InputSource.Pointers)
+                    {
+                        if (pointer.SceneQueryType == Microsoft.MixedReality.Toolkit.Physics.SceneQueryType.SimpleRaycast)
+                        {
+                            Ray ray = new Ray(pointer.Rays[0].Origin, pointer.Rays[0].Direction);
+                            return Physics.RaycastAll(ray, 100);
+                        }
+                    }
+                    return null;
+                })
+                    .StartWith(new RaycastHit[] { })
+                    .Where(_ => _ != null);
 
+                // Force this observable to be a hot observable
+                observable = observable.Replay(1).RefCount();
+                observable.Subscribe();
                 pointingGameObjectsObservables.Add(handedness, observable);
             }
 
@@ -141,21 +242,15 @@ namespace DxR.VisMorphs
 
             if (!proximityGameObjectsObservables.TryGetValue(key, out observable))
             {
-                // We use "none" to represent "any", i.e., both hands
-                if (handedness == Handedness.None)
+                observable = GetControllerGameObjectObservable(handedness).Select(controller =>
                 {
-                    IObservable<GameObject[]> leftHandObservable = GetControllerProximityGameObjectsObservable(Handedness.Left, target);
-                    IObservable<GameObject[]> rightHandObservable = GetControllerProximityGameObjectsObservable(Handedness.Right, target);
-                    observable = leftHandObservable.Merge(rightHandObservable);
-                }
-                else
-                {
-                    var controller = handedness == Handedness.Left ? controllerLookup.LeftHandController : controllerLookup.RightHandController;
-                    observable = Observable.EveryUpdate().Where(_ => controller.currentControllerState.inputTrackingState != UnityEngine.XR.InputTrackingState.None)
-                                                         .Select(_ => GameObject.FindGameObjectsWithTag(target)
-                                                         .OrderBy(go => Vector3.Distance(controller.transform.position, go.transform.position)).ToArray());
-                }
+                    return GameObject.FindGameObjectsWithTag(target).OrderBy(go => Vector3.Distance(controller.transform.position, go.transform.position)).ToArray();
+                })
+                    .StartWith(new GameObject[] { });
 
+                // Force this observable to be a hot observable
+                observable = observable.Replay(1).RefCount();
+                observable.Subscribe();
                 proximityGameObjectsObservables.Add(key, observable);
             }
 
@@ -170,24 +265,33 @@ namespace DxR.VisMorphs
             {
                 GameObject uiGameObject = GameObject.Find(uiName);
 
-                ToggleCollection toggleCollection = uiGameObject.GetComponentInChildren<ToggleCollection>();
-                PressableButton button = uiGameObject.GetComponentInChildren<PressableButton>();
+                InteractableToggleCollection toggleCollection = uiGameObject.GetComponentInChildren<InteractableToggleCollection>();
+                Interactable interactable = uiGameObject.GetComponentInChildren<Interactable>();
 
                 if (toggleCollection != null)
                 {
-                    observable = toggleCollection.OnToggleSelected.AsObservable<int>().Select(idx => toggleCollection.Toggles[idx].GetComponentInChildren<TextMeshPro>().text);
+                    observable = toggleCollection.OnSelectionEvents.AsObservable().Select(_ => toggleCollection.ToggleList[toggleCollection.CurrentIndex].GetComponentInChildren<TextMesh>().text);
                 }
-                else if (button != null)
+                else if (interactable != null)
                 {
-                    IObservable<bool> toggledObservable = button.IsToggled.OnEntered.AsObservable<float>().Select(_ => true);
-                    IObservable<bool> detoggledObservable = button.IsToggled.OnExited.AsObservable<float>().Select(_ => false);
-                    observable = toggledObservable.Merge(detoggledObservable).Select(_ => (dynamic)_);
+                    if (interactable.ButtonMode == SelectionModes.Toggle)
+                    {
+                        observable = interactable.OnClick.AsObservable().Select(_ => (dynamic)interactable.IsToggled);
+                    }
+                    // TODO: Other types of buttons
+                    else
+                    {
+                        throw new NotImplementedException("Buttons other than toggles not supported");
+                    }
                 }
                 else
                 {
                     throw new Exception(string.Format("Vis Morphs: The UI GameObject {0} does not have a supported UI script on it. Currently supported are ToggleCollection and PressableButton.", uiName));
                 }
 
+                // Force this observable to be a hot observable
+                observable = observable.Replay(1).RefCount();
+                observable.Subscribe();
                 uiObservables.Add(uiName, observable);
             }
 

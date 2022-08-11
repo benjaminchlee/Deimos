@@ -34,6 +34,7 @@
         },
         {
             "name": "sideBySide",
+            "restrict": true,
             "mark": "cube",
             "encoding": {
                 "x": {
@@ -93,7 +94,7 @@
             "value": "closestdistance"
         }, {
             "name": "tweener",
-            "expression":"normalise(handSurfaceDistance, 0.05, 0.35, 0, 1)"
+            "expression":"normalise(handSurfaceDistance, 0, 0.35, 0, 1)"
         }
     ],
 

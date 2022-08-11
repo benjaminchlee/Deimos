@@ -28,6 +28,7 @@ namespace DxR
         public bool enableGUI = true;                                   // Switch for in-situ GUI editor.
         public bool enableSpecsExpansion = false;                       // Switch for automatically replacing the vis specs text file on disk with inferrence result.
         public bool enableTooltip = true;                               // Switch for tooltip that shows datum attributes on-hover of mark instance.
+        public bool enableCollider = true;
         public bool verbose = true;                                     // Switch for verbose log.
 
         public static readonly string UNDEFINED = "undefined";                   // Value used for undefined objects in the JSON vis specs.
@@ -104,10 +105,18 @@ namespace DxR
                 throw new Exception("Unable to load DxRView and/or DxRMarks objects.");
             }
 
-            boxCollider = gameObject.GetComponent<BoxCollider>() != null ? gameObject.GetComponent<BoxCollider>() : gameObject.AddComponent<BoxCollider>();
-            rigidbody = gameObject.GetComponent<Rigidbody>() != null ? gameObject.GetComponent<Rigidbody>() : gameObject.AddComponent<Rigidbody>();
-            boxCollider.isTrigger = false;
-            rigidbody.isKinematic = true;
+            if (enableCollider)
+            {
+                boxCollider = gameObject.GetComponent<BoxCollider>() != null ? gameObject.GetComponent<BoxCollider>() : gameObject.AddComponent<BoxCollider>();
+                rigidbody = gameObject.GetComponent<Rigidbody>() != null ? gameObject.GetComponent<Rigidbody>() : gameObject.AddComponent<Rigidbody>();
+                boxCollider.isTrigger = false;
+                rigidbody.isKinematic = true;
+            }
+            else
+            {
+                if (gameObject.GetComponent<BoxCollider>() != null)
+                    Destroy(gameObject.GetComponent<BoxCollider>());
+            }
 
             InitialiseVis();
             UpdateVis();
@@ -624,7 +633,7 @@ namespace DxR
             ApplyTransitionRotation(newActiveTransition);
 
             // If any of the two had activated, we disable the box collider on this Vis so that things like MRTK can no longer move it
-            if (posePositionChanges != null || poseRotationChanges != null)
+            if (enableCollider && (posePositionChanges != null || poseRotationChanges != null))
             {
                 boxCollider.enabled = false;
             }
@@ -846,7 +855,7 @@ namespace DxR
             }
 
             // If both position and rotation are now no longer transitioning, we re-enable the box collider
-            if (posePositionChanges == null && poseRotationChanges == null)
+            if (enableCollider && (posePositionChanges == null && poseRotationChanges == null))
             {
                 boxCollider.enabled = true;
             }
@@ -2712,6 +2721,9 @@ namespace DxR
         /// </summary>
         private void UpdateCollider()
         {
+            if (!enableCollider)
+                return;
+
             Quaternion currentRotation = transform.rotation;
             transform.rotation = Quaternion.identity;
 
@@ -2743,5 +2755,4 @@ namespace DxR
 
         #endregion Unity GameObject handling functions
     }
-
 }

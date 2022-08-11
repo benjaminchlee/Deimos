@@ -17,6 +17,7 @@ TagManager:
   - DxRMark
   - DxRAxis
   - DxRLegend
+  - FixedMarkPart
   layers:
   - Default
   - TransparentFX
@@ -48,7 +49,7 @@ TagManager:
   - 
   - 
   - 
-  - 
+  - Teleport Surface
   - Spatial Awareness
   m_SortingLayers:
   - name: Default

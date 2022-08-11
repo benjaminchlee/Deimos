@@ -43,6 +43,9 @@ namespace DxR.VisMorphs
                         break;
                 }
 
+                // Force this observable to be a hot observable
+                observable = observable.Replay(1).RefCount();
+                observable.Subscribe();
                 buttonPressedObservables.Add(button, observable);
             }
 
@@ -70,6 +73,9 @@ namespace DxR.VisMorphs
                         break;
                 }
 
+                // Force this observable to be a hot observable
+                observable = observable.Replay(1).RefCount();
+                observable.Subscribe();
                 buttonClickedObservables.Add(button, observable);
             }
 
@@ -86,6 +92,11 @@ namespace DxR.VisMorphs
                         RaycastHit[] hits = Physics.RaycastAll(ray);
                         return hits;
                     });
+
+                // Force this observable to be a hot observable
+                raycastHitsObservable = raycastHitsObservable.Replay(1).RefCount();
+                raycastHitsObservable.Subscribe();
+                raycastHitsObservable = raycastHitsObservable.Replay(1).RefCount();
             }
 
             return raycastHitsObservable;

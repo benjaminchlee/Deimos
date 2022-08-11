@@ -327,7 +327,7 @@ namespace DxR.VisMorphs
             if (signalSpec["source"] == "vis")
                 return false;
 
-            if (signalSpec["target"] != "none")
+            if (signalSpec["target"] != null && signalSpec["target"] != "none")
                 return false;
 
             return true;
@@ -423,7 +423,7 @@ namespace DxR.VisMorphs
             }
             else if (source == "controller" || source == "hand")
             {
-                if (target == null ||target == "none")
+                if (target == null || target == "none")
                 {
                     return CreateControllerUntargetedObservable(signalSpec, morphable);
                 }
@@ -528,7 +528,7 @@ namespace DxR.VisMorphs
                         switch (target)
                         {
                             case "head":
-                                criteriaGameObject = CameraCache.Main.gameObject;
+                                criteriaGameObject = Camera.main.gameObject;
                                 break;
                             case "vis":
                                 criteriaGameObject = morphable.gameObject;
@@ -551,7 +551,7 @@ namespace DxR.VisMorphs
         public IObservable<dynamic> CreateControllerUntargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
             string source = signalSpec["source"];
-            Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : signalSpec["handedness"] == "right" ? Handedness.Right : Handedness.None;
+            Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : signalSpec["handedness"] == "right" ? Handedness.Right : Handedness.Any;
             string value = signalSpec["value"];
 
             switch (value)
@@ -559,11 +559,8 @@ namespace DxR.VisMorphs
                 case "position":
                     return mrtkObservablesHelper.GetControllerGameObjectObservable(handedness).Select(controller => (dynamic)controller.transform.position);
 
-                case "pinch":
-                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(_ => (dynamic)_);
-
                 case "select":
-                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(f => (dynamic)(f > 0.5f));
+                    return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(b => (dynamic)b);
 
                 default:
                     throw new Exception(string.Format("Vis Morphs: The Signal {0} is a targetless hand or controller source with an unsupported value property.", signalSpec["name"]));
@@ -572,7 +569,7 @@ namespace DxR.VisMorphs
 
         public IObservable<dynamic> CreateControllerTargetedObservable(JSONNode signalSpec, Morphable morphable = null)
         {
-            Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : signalSpec["handedness"] == "right" ? Handedness.Right : Handedness.None;
+            Handedness handedness = signalSpec["handedness"] == "left" ? Handedness.Left : signalSpec["handedness"] == "right" ? Handedness.Right : Handedness.Any;
             string target = signalSpec["target"];
             string criteria = signalSpec["criteria"];
             string value = signalSpec["value"];
@@ -597,8 +594,8 @@ namespace DxR.VisMorphs
                 case "select":
                     {
                         IObservable<Collider[]> touchingGameObjectsObservable = mrtkObservablesHelper.GetControllerTouchingGameObjectsObservable(handedness);
-                        IObservable<float> selectObservable = mrtkObservablesHelper.GetControllerSelectObservable(handedness).Where(f => f > 0.5f);
-                        targetObservable = selectObservable.WithLatestFrom(touchingGameObjectsObservable, (f, colliders) =>
+                        IObservable<bool> selectObservable = mrtkObservablesHelper.GetControllerSelectObservable(handedness).Where(b => b);
+                        targetObservable = selectObservable.CombineLatest(touchingGameObjectsObservable, (b, colliders) =>
                         {
                             return colliders.Where(collider => collider.tag == target)
                                             .Where(collider => collider.GetComponentInParent<Morphable>() == morphable)
@@ -642,7 +639,7 @@ namespace DxR.VisMorphs
                         switch (target)
                         {
                             case "head":
-                                criteriaGameObject = CameraCache.Main.gameObject;
+                                criteriaGameObject = Camera.main.gameObject;
                                 break;
                             case "vis":
                                 criteriaGameObject = morphable.gameObject;
@@ -669,37 +666,47 @@ namespace DxR.VisMorphs
                 case "distance":
                     return targetObservable.Where(_ => _ != null).WithLatestFrom(controllerObservable, (target, controller) =>
                         {
+                            if (controller == null)
+                                return null;
+
                             return (dynamic)Vector3.Distance(controller.transform.position, target.transform.position);
-                        });
+                        })
+                        .Where(_ => _ != null);
 
                 case "closestdistance":
                     return targetObservable.Where(_ => _ != null).WithLatestFrom(controllerObservable, (target, controller) =>
                         {
-                            Collider A = controller.GetComponentInChildren<Collider>();
-                            Collider B = target.GetComponent<Collider>();
-                            Vector3 ptA = B.ClosestPoint(A.transform.position);
-                            return (dynamic)Vector3.Distance(ptA, controller.transform.position);
-                        });
+                            if (controller == null)
+                                return null;
+
+                            Collider targetCollider = target.GetComponent<Collider>();
+                            Vector3 closestPoint = targetCollider.ClosestPoint(controller.transform.position);
+                            return (dynamic)Vector3.Distance(closestPoint, controller.transform.position);
+                        })
+                        .Where(_ => _ != null);
 
                 case "angle":
                     return targetObservable.Where(_ => _ != null).WithLatestFrom(controllerObservable, (target, controller) =>
                         {
+                            if (controller == null)
+                                return null;
+
                             return (dynamic)Vector3.Angle(controller.transform.forward, target.transform.forward);
-                        });
+                        })
+                        .Where(_ => _ != null);
 
                 case "intersection":
-                    {
                     return targetObservable.Where(_ => _ != null).WithLatestFrom(controllerObservable, (target, controller) =>
                         {
-                            Collider A = controller.GetComponentInChildren<Collider>();
-                            Collider B = target.GetComponent<Collider>();
-                            Vector3 ptA = B.ClosestPoint(A.transform.position);
-                            Vector3 ptB = A.ClosestPoint(B.transform.position);
-                            Vector3 ptM = ptA + (ptB - ptA) / 2;
-                            Vector3 closestAtB = B.ClosestPoint(ptM);
-                            return (dynamic)closestAtB;
-                        });
-                    }
+                            if (controller == null)
+                                return null;
+
+                            Collider targetCollider = target.GetComponent<Collider>();
+                            Vector3 closestPoint = targetCollider.ClosestPoint(controller.transform.position);
+                            float distance = Vector3.Distance(closestPoint, controller.transform.position);
+                            return (distance < 0.05f) ? closestPoint : (dynamic)null;
+                        })
+                        .Where(_ => _ != null);
 
                 default:
                     return CreateValueObservableFromTarget(signalSpec, targetObservable, morphable);
@@ -727,7 +734,7 @@ namespace DxR.VisMorphs
             switch (source)
             {
                 case "head":
-                    sourceGameObject = CameraCache.Main.transform.gameObject;
+                    sourceGameObject = Camera.main.gameObject;
                     break;
                 case "vis":
                     sourceGameObject = morphable.gameObject;
@@ -758,7 +765,7 @@ namespace DxR.VisMorphs
             switch (source)
             {
                 case "head":
-                    sourceGameObject = CameraCache.Main.transform.gameObject;
+                    sourceGameObject = Camera.main.gameObject;
                     break;
                 case "vis":
                     sourceGameObject = morphable.gameObject;
@@ -809,7 +816,7 @@ namespace DxR.VisMorphs
                         switch (target)
                         {
                             case "head":
-                                criteriaGameObject = CameraCache.Main.gameObject;
+                                criteriaGameObject = Camera.main.gameObject;
                                 break;
                             case "DxRVis":
                                 criteriaGameObject = morphable.gameObject;

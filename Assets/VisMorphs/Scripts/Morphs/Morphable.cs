@@ -2,7 +2,7 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using Microsoft.MixedReality.Toolkit.SpatialManipulation;
+using Microsoft.MixedReality.Toolkit.UI;
 using Newtonsoft.Json.Linq;
 using SimpleJSON;
 using UniRx;
@@ -42,6 +42,7 @@ namespace DxR.VisMorphs
         private Vector3 restingPosition;
         private Quaternion restingRotation;
         private static readonly string[] inequalityOperations = new string[] { "<", "<=", "=<", ">", "=>", ">=" };
+        private bool isBeingManipulated = false;
 
         private void Start()
         {
@@ -55,7 +56,14 @@ namespace DxR.VisMorphs
                 ParentVis = GetComponent<Vis>();
                 ParentVis.VisUpdatedExpanded.AddListener(VisUpdated);
                 GUID = System.Guid.NewGuid().ToString().Substring(0, 8);
+
                 objectManipulator = GetComponent<ObjectManipulator>();
+                if (objectManipulator != null)
+                {
+                    objectManipulator.OnManipulationStarted.AddListener(VisManipulationStarted);
+                    objectManipulator.OnManipulationEnded.AddListener(VisManipulationEnded);
+                }
+
                 isInitialised = true;
             }
         }
@@ -89,7 +97,7 @@ namespace DxR.VisMorphs
 
             // Store the position and rotation of this GameObject at its resting state (i.e., not being grabbed)
             // This is so that we can reset its position if we need to release the grab when a transition starts
-            if (objectManipulator != null && !objectManipulator.isSelected)
+            if (objectManipulator != null && !isBeingManipulated)
             {
                 restingPosition = transform.position;
                 restingRotation = transform.rotation;
@@ -803,10 +811,10 @@ namespace DxR.VisMorphs
                 // If the flag is set to true, then the system will automatically release the grab when the trasition begins
                 if (transitionSpec["disablegrab"] != null && transitionSpec["disablegrab"] == true && objectManipulator != null)
                 {
-                    if (objectManipulator.isSelected)
+                    if (isBeingManipulated)
                     {
-                        // This is obviously using a deprecated function, will need to find the correct way of doing this
-                        objectManipulator.interactionManager.CancelInteractableSelection(objectManipulator);
+                        objectManipulator.ForceEndManipulation();
+                        isBeingManipulated = false;
 
                         // Force set the position in case it has drifted
                         transform.position = restingPosition;
@@ -1479,11 +1487,27 @@ namespace DxR.VisMorphs
             return stages;
         }
 
+        private void VisManipulationStarted(ManipulationEventData arg0)
+        {
+            isBeingManipulated = true;
+        }
+
+        private void VisManipulationEnded(ManipulationEventData arg0)
+        {
+            isBeingManipulated = false;
+        }
+
         private void OnDestroy()
         {
             Reset(checkForMorphs: false);
             ParentVis.VisUpdated.RemoveListener(VisUpdated);
             MorphManager.Instance.ClearMorphableVariables(this);
+
+            if (objectManipulator != null)
+            {
+                objectManipulator.OnManipulationStarted.RemoveAllListeners();
+                objectManipulator.OnManipulationEnded.RemoveAllListeners();
+            }
         }
     }
 }

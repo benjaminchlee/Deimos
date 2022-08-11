@@ -21,6 +21,7 @@ namespace DxR.VisMorphs
             {
                 observable = Observable.EveryUpdate().Select(_ => go);
 
+                observable = observable.Replay(1).RefCount();
                 gameObjectObservables.Add(go, observable);
             }
 
@@ -44,6 +45,9 @@ namespace DxR.VisMorphs
                                                   collider.transform.rotation);
                     });
 
+                // Force this observable to be a hot observable
+                observable = observable.Replay(1).RefCount();
+                observable.Subscribe();
                 overlapBoxObservables.Add(go, observable);
             }
 
@@ -61,6 +65,9 @@ namespace DxR.VisMorphs
                         return Physics.RaycastAll(go.transform.position, go.transform.forward);
                     });
 
+                // Force this observable to be a hot observable
+                observable = observable.Replay(1).RefCount();
+                observable.Subscribe();
                 raycastHitsObservables.Add(go, observable);
             }
 
