@@ -27,10 +27,11 @@ namespace DxR
 
         private Vis parentVis;
 
-        private void Awake()
+        private void Start()
         {
             parentVis = GetComponent<Vis>();
             parentVis.VisUpdated.AddListener(UpdateInternalSpecification);
+            UpdateInternalSpecification(parentVis, parentVis.GetVisSpecs());
         }
 
         public void UpdateVis()

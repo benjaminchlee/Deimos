@@ -26608,12 +26608,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   JSONSpecification: {fileID: 0}
   InputSpecification: "{\r\n    \"mark\": \"sphere\",\r\n    \"width\": 800,\r\n   
-    \"height\": 800,\r\n    \"depth\": 800,\r\n    \"encoding\": {\r\n      \"x\":
-    {\r\n        \"field\": \"Horsepower\",\r\n        \"type\": \"quantitative\"\r\n     
-    },\r\n      \"y\": {\r\n        \"field\": \"Miles_per_Gallon\",\r\n        \"type\":
-    \"quantitative\"\r\n      },\r\n      \"z\": {\r\n        \"field\": \"Acceleration\",\r\n       
-    \"type\": \"quantitative\"\r\n      }\r\n    },\r\n    \"data\": {\r\n      \"url\":
-    \"cars.json\"\r\n    }\r\n  }"
+    \"height\": 800,\r\n    \"depth\": 800,\r\n    \"data\": {\r\n      \"url\":
+    \"cars.json\"\r\n    }\r,\r\n    \"encoding\": {\r\n      \"x\": {\r\n       
+    \"field\": \"Horsepower\",\r\n        \"type\": \"quantitative\"\r\n      },\r\n     
+    \"y\": {\r\n        \"field\": \"Miles_per_Gallon\",\r\n        \"type\": \"quantitative\"\r\n     
+    },\r\n      \"z\": {\r\n        \"field\": \"Acceleration\",\r\n        \"type\":
+    \"quantitative\"\r\n      }\r\n    }\n  }"
   InternalSpecification: 
 --- !u!114 &1119035472
 MonoBehaviour:

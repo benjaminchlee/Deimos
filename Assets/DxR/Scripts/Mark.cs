@@ -180,14 +180,6 @@ namespace DxR
 
                     if (!channelNames.Contains("z") && !resettedSpatialChannels.Contains("z"))
                         SetChannelValue("z", "0");
-
-                    // Apply translation and rotate
-                    FacetWrapChannelEncoding facetWrapCE = ce as FacetWrapChannelEncoding;
-                    if (ce != null)
-                    {
-                        transform.localPosition = facetWrapCE.rotate[stoppingMarkTransition.MarkIndex] * transform.localPosition;
-                        transform.localRotation = facetWrapCE.rotate[stoppingMarkTransition.MarkIndex] * transform.localRotation;
-                    }
                 }
 
                 if (ce != null)

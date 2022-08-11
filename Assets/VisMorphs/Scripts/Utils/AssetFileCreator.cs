@@ -31,7 +31,7 @@ namespace DxR.VisMorphs
                 "NewMorphSpecification.json",
 @"{
     ""$schema"": ""https://raw.githubusercontent.com/benjaminchlee/DxR/master/Assets/VisMorphs/Schema/morph-schema.json"",
-    ""name"": ""NewMorphSpecification"",
+    ""name"": ""New Morph Specification"",
 
     ""states"": [
         {
