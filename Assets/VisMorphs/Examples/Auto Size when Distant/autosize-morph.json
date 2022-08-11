@@ -33,7 +33,7 @@
             "name": "headVisDistance",
             "source": "head",
             "target": "vis",
-            "value": "closestdistance"
+            "value": "distance"
         }, {
             "name": "isFarFromVis",
             "expression": "headVisDistance > 4"

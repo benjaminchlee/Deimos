@@ -4516,7 +4516,7 @@ Transform:
   - {fileID: 614307498}
   - {fileID: 71147267}
   m_Father: {fileID: 0}
-  m_RootOrder: 11
+  m_RootOrder: 10
   m_LocalEulerAnglesHint: {x: 0, y: -90, z: 0}
 --- !u!114 &215304198
 MonoBehaviour:
@@ -14697,7 +14697,7 @@ Transform:
   - {fileID: 2020303020}
   - {fileID: 646892638}
   m_Father: {fileID: 0}
-  m_RootOrder: 5
+  m_RootOrder: 4
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &639472986
 MonoBehaviour:
@@ -18143,7 +18143,7 @@ Transform:
   - {fileID: 1375610634}
   - {fileID: 1678169169}
   m_Father: {fileID: 0}
-  m_RootOrder: 9
+  m_RootOrder: 8
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &782584197
 MonoBehaviour:
@@ -23474,7 +23474,7 @@ Transform:
   - {fileID: 1098718106}
   - {fileID: 1520713238}
   m_Father: {fileID: 0}
-  m_RootOrder: 6
+  m_RootOrder: 5
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!54 &982090496
 Rigidbody:
@@ -23696,7 +23696,7 @@ MonoBehaviour:
   rotateLerpTime: 0.001
   scaleLerpTime: 0.001
   enableConstraints: 1
-  constraintsManager: {fileID: 0}
+  constraintsManager: {fileID: 982090498}
   manipulationLogicTypes:
     moveLogicType:
       reference: Microsoft.MixedReality.Toolkit.SpatialManipulation.MoveLogic, Microsoft.MixedReality.Toolkit.SpatialManipulation
@@ -26659,7 +26659,7 @@ Transform:
   - {fileID: 398830422}
   - {fileID: 1458040724}
   m_Father: {fileID: 0}
-  m_RootOrder: 4
+  m_RootOrder: 3
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1119035474
 MonoBehaviour:
@@ -26984,7 +26984,7 @@ Transform:
   - {fileID: 5534401377847321832}
   - {fileID: 1147649740386692900}
   m_Father: {fileID: 0}
-  m_RootOrder: 12
+  m_RootOrder: 11
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1128761691
 GameObject:
@@ -29774,7 +29774,7 @@ Transform:
   - {fileID: 830289543}
   - {fileID: 235933329}
   m_Father: {fileID: 0}
-  m_RootOrder: 10
+  m_RootOrder: 9
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!65 &1245073531
 BoxCollider:
@@ -34432,7 +34432,7 @@ Transform:
   - {fileID: 88135464}
   - {fileID: 835354166}
   m_Father: {fileID: 0}
-  m_RootOrder: 7
+  m_RootOrder: 6
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1425124390
 GameObject:
@@ -36098,7 +36098,7 @@ Transform:
   - {fileID: 2020945965}
   - {fileID: 1077328070}
   m_Father: {fileID: 0}
-  m_RootOrder: 8
+  m_RootOrder: 7
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &1512344092
 MonoBehaviour:
@@ -42545,7 +42545,7 @@ Transform:
   - {fileID: 7963412402780614708}
   - {fileID: 784557474807030771}
   m_Father: {fileID: 0}
-  m_RootOrder: 2
+  m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1762190020
 GameObject:
@@ -48426,7 +48426,7 @@ Transform:
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 0}
-  m_RootOrder: 3
+  m_RootOrder: 2
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!114 &2065599721
 MonoBehaviour:
@@ -53882,110 +53882,6 @@ Transform:
   m_Father: {fileID: 4545931790235273168}
   m_RootOrder: 1
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!114 &2471102460204072563
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7585035319291393915}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 43ca381bcb5d40f4aacc5a817013e9d0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  controlSet: 0
-  cameraSettings:
-    simulationEnabled: 1
-    originOffset: {x: 0, y: 0, z: 0}
-    isMovementSmoothed: 1
-    moveDepth: {fileID: 7299012687604269993, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    moveHorizontal: {fileID: 8718149717473967433, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    moveVertical: {fileID: 8557015737124631664, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    moveSpeed: 10
-    rotationSensitivity: 1
-    roll: {fileID: 8489548663522219587, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}
-    pitch: {fileID: 2456286265664290993, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}
-    yaw: {fileID: 7162356020669401171, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}
-    invertPitch: 0
-  eyeGazeSettings:
-    simulationEnabled: 1
-    eyeOriginOffset: {x: 0, y: 0, z: 0}
-    lookHorizontal: {fileID: -7345170528461143681, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    lookVertical: {fileID: -4223466768389085971, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    sensitivity: 1
-  leftControllerSettings:
-    simulationMode: 1
-    anchorPoint: 0
-    changeNeutralPose: {fileID: -1599196918749775551, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    defaultPosition: {x: -0.25, y: 0, z: 0.5}
-    track: {fileID: -7375025743082985399, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    toggle: {fileID: -1821415106711856085, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    depthSensitivity: 1
-    jitterStrength: 0
-    isMovementSmoothed: 1
-    moveDepth: {fileID: -5267809750672040652, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    moveHorizontal: {fileID: 4483224600902060913, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    moveVertical: {fileID: -6560558444935668334, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    roll: {fileID: -1609917552046445164, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}
-    pitch: {fileID: 2934691147409726869, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}
-    yaw: {fileID: -3635213825055628297, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}
-    invertPitch: 0
-    faceTheCamera: {fileID: -3464755530298322375, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    triggerAxis: {fileID: 1252292630270556985, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    triggerButton: {fileID: 3656792388885193888, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    gripAxis: {fileID: -737936298204536619, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    gripButton: {fileID: -3526819263525005143, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-  rightControllerSettings:
-    simulationMode: 1
-    anchorPoint: 0
-    changeNeutralPose: {fileID: -1040645400157157469, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    defaultPosition: {x: 0.25, y: 0, z: 0.5}
-    track: {fileID: -4319582668609697866, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    toggle: {fileID: 7677260744920439143, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    depthSensitivity: 1
-    jitterStrength: 0
-    isMovementSmoothed: 1
-    moveDepth: {fileID: -5085426165658736758, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    moveHorizontal: {fileID: 1224412753233153404, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    moveVertical: {fileID: 7279293947812093548, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    roll: {fileID: 8623410012940978455, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}
-    pitch: {fileID: -8219984990603162505, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    yaw: {fileID: 4781290023593216104, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}
-    invertPitch: 0
-    faceTheCamera: {fileID: -4313581616622894791, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    triggerAxis: {fileID: -8445668217222168300, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    triggerButton: {fileID: -5963926856265715503, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    gripAxis: {fileID: -2106122626610995820, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
-    gripButton: {fileID: 5138476479549876314, guid: 70b361cf3c037d54896482d1ffd9f999,
-      type: 3}
 --- !u!1 &2513697893712350133
 GameObject:
   m_ObjectHideFlags: 0
@@ -56282,21 +56178,6 @@ MonoBehaviour:
     centerColor: {r: 0.21176471, g: 0.5568628, b: 0.98039216, a: 0}
     middleColor: {r: 0.18431373, g: 0.5176471, b: 1, a: 0.2}
     outerColor: {r: 0.9647059, g: 0.3647059, b: 2.2470589, a: 1}
---- !u!4 &3493013817914945303
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7585035319291393915}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_RootOrder: 1
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!33 &3494471440416923251
 MeshFilter:
   m_ObjectHideFlags: 0
@@ -63510,24 +63391,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!1 &7585035319291393915
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 3493013817914945303}
-  - component: {fileID: 2471102460204072563}
-  - component: {fileID: 8173594957746495125}
-  m_Layer: 0
-  m_Name: MRTKInputSimulator
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
 --- !u!4 &7609097064471465263
 Transform:
   m_ObjectHideFlags: 0
@@ -64398,20 +64261,6 @@ GameObject:
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
   m_IsActive: 1
---- !u!114 &8173594957746495125
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 7585035319291393915}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 017c5e3933235514c9520e1dace2a4b2, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  m_ActionAssets:
-  - {fileID: -944628639613478452, guid: 70b361cf3c037d54896482d1ffd9f999, type: 3}
 --- !u!33 &8192393221281462140
 MeshFilter:
   m_ObjectHideFlags: 0
