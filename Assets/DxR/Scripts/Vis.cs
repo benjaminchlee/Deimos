@@ -1390,7 +1390,7 @@ namespace DxR
                     {
                         if (channelSpecs["angles"].IsArray)
                         {
-                            if (channelSpecs["angle"].Count != 2)
+                            if (channelSpecs["angles"].Count != 2)
                                 throw new Exception("Facet wrap requires two angle values to be provided.");
 
                             facetWrapChannelEncoding.angles.Add(channelSpecs["angles"][0].IsNull ? 0 : channelSpecs["angles"][0]);

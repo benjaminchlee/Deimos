@@ -1,78 +1,78 @@
 {
-	"$schema": "https://raw.githubusercontent.com/benjaminchlee/DxR/master/Assets/VisMorphs/Schema/morph-schema.json",
-	"name": "Auto Facet Layout when Close",
-
-	"states": [
-		{
-			"name": "flat",
-			"mark": "sphere",
-			"encoding": {
-			  "facetwrap": {
-				"directions": ["x", "y"]
-			  }
-			}
-		},
-		{
-			"name": "curved",
-			"restrict": true,
-			"mark": "sphere",
-			"encoding": {
-			  "facetwrap": {
-				"directions": ["x", "y"],
-				"radius": 1000,
-				"angles": [55, 0],
-				"orientation": "centre"
-			  }
-			}
-		},
-		{
-			"name": "spherical",
-			"restrict": true,
-			"mark": "sphere",
-			"encoding": {
-			  "facetwrap": {
-				"directions": ["x", "y"],
-				"radius": 1000,
-				"angles": [55, 35],
-				"orientation": "centre"
-			  }
-			}
-		}
-	],
-
-	"signals": [{
-			"name": "headVisDistance",
-			"source": "head",
-			"target": "vis",
-			"value": "closestdistance"
-		}, {
-			"name": "closeTween",
-			"expression": "1 - normalise(headVisDistance, 0.25, 0.5)"
-		}, {
-			"name": "nearbyTween",
-			"expression": "1 - normalise(headVisDistance, 1, 2)"
-		}
-	],
-
-	"transitions": [
-		{
-			"name": "flat2curved",
-			"states": ["flat", "curved"],
-			"control": {
-				"timing": "nearbyTween",
-				"interrupted": "ignore"
-			},
-			"bidirectional": true
-		},
-		{
-			"name": "curved2spherical",
-			"states": ["curved", "spherical"],
-			"control": {
-				"timing": "closeTween",
-				"interrupted": "ignore"
-			},
-			"bidirectional": true,
-			"priority": 1
-		}
-	]
+    "$schema": "https://raw.githubusercontent.com/benjaminchlee/DxR/master/Assets/VisMorphs/Schema/morph-schema.json",
+    "name": "Auto Facet Layout when Close",
+    "states": [
+        {
+            "name": "flat",
+            "mark": "sphere",
+            "encoding": {
+                "facetwrap": {
+                    "directions": ["x", "y"]
+                }
+            }
+        },
+        {
+            "name": "curved",
+            "restrict": true,
+            "mark": "sphere",
+            "encoding": {
+                "facetwrap": {
+                    "directions": ["x", "y"],
+                    "radius": 1000,
+                    "angles": [55, 0],
+                    "orientation": "centre"
+                }
+            }
+        },
+        {
+            "name": "spherical",
+            "restrict": true,
+            "mark": "sphere",
+            "encoding": {
+                "facetwrap": {
+                    "directions": ["x", "y"],
+                    "radius": 1000,
+                    "angles": [55, 35],
+                    "orientation": "centre"
+                }
+            }
+        }
+    ],
+    "signals": [
+        {
+            "name": "headVisDistance",
+            "source": "head",
+            "target": "vis",
+            "value": "closestdistance"
+        },
+        {
+            "name": "closeTween",
+            "expression": "1 - normalise(headVisDistance, 0.25, 0.5)"
+        },
+        {
+            "name": "nearbyTween",
+            "expression": "1 - normalise(headVisDistance, 1, 2)"
+        }
+    ],
+    "transitions": [
+        {
+            "name": "flat2curved",
+            "states": ["flat", "curved"],
+            "control": {
+                "timing": "nearbyTween",
+                "interrupted": "ignore"
+            },
+            "bidirectional": true
+        },
+        {
+            "name": "curved2spherical",
+            "states": ["curved", "spherical"],
+            "control": {
+                "timing": "closeTween",
+                "interrupted": "ignore"
+            },
+            "bidirectional": true,
+            "priority": 1
+        }
+    ]
 }

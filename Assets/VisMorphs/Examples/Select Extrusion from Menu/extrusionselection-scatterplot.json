@@ -1,16 +1,16 @@
 {
     "mark": "sphere",
     "data": {
-      "url": "cars.json"
+        "url": "cars.json"
     },
     "encoding": {
       "x": {
         "field": "Miles_per_Gallon",
         "type": "quantitative"
       },
-      "y": {
+        "y": {
         "field": "Weight_in_lbs",
         "type": "quantitative"
-      }
+        }
     }
 }

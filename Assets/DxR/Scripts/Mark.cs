@@ -549,7 +549,16 @@ namespace DxR
         public virtual void ApplyChannelEncoding(ChannelEncoding channelEncoding, int markIndex)
         {
             string value = GetValueForChannelEncoding(channelEncoding, markIndex);
-            SetChannelValue(channelEncoding.channel, value);
+
+            if (!channelEncoding.IsFacetWrap())
+            {
+                SetChannelValue(channelEncoding.channel, value);
+            }
+            else
+            {
+                SetMarkRotationFromFacet(channelEncoding as FacetWrapChannelEncoding, markIndex);
+                SetChannelValue(channelEncoding.channel, value);
+            }
         }
 
         protected virtual string GetValueForChannelEncoding(ChannelEncoding channelEncoding, int markIndex)
@@ -858,6 +867,15 @@ namespace DxR
 
             // Quaternion rotation = Quaternion.FromToRotation(forwardDirection, curDirection);
             // transform.rotation = rotation;
+        }
+
+        private void SetMarkRotationFromFacet(FacetWrapChannelEncoding facetWrapChannelEncoding, int markIdx)
+        {
+            // Get the rotation value from the FacetWrap encoding
+            Quaternion rotate = facetWrapChannelEncoding.rotate[markIdx];
+
+            transform.localPosition = rotate * transform.localPosition;
+            transform.localRotation = rotate * transform.localRotation;
         }
 
         #endregion Channel value functions

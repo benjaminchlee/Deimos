@@ -29,6 +29,10 @@
                 "domain": [0, 900]
             }
         },
+        "yoffset": {
+            "field": "Survived",
+            "type": "nominal"
+        },
         "yoffsetpct": {
             "value": -0.5
         },
@@ -40,16 +44,10 @@
             "type": "nominal",
             "legend": "none"
         },
-        "yoffset": {
-            "field": "Survived",
-            "type": "nominal"
-        },
         "facetwrap": {
             "field": "Class",
             "type": "nominal",
-            "directions": ["x", "y"],
-            "spacing": [400, -500],
-            "size": 2
+            "directions": ["x", "y"]
         }
     }
 }

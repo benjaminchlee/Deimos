@@ -5,7 +5,7 @@
 
     "states": [
         {
-            "name": "stackedBarchart",
+            "name": "3DBarchart",
             "encoding": {
                 "x": {
                     "type": "nominal"
@@ -24,7 +24,7 @@
                     "type": "nominal"
                 },
                 "depth": {
-                    "value": 130
+                    "value": "*"
                 }
             }
         },
@@ -87,7 +87,7 @@
     "transitions": [
         {
             "name": "partitioning",
-            "states": ["stackedBarchart", "facetedBarchart"],
+            "states": ["3DBarchart", "facetedBarchart"],
             "trigger": "isVisTouchingSurface",
             "control": {
                 "timing": 1.5,

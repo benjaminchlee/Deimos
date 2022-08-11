@@ -1,7 +1,7 @@
 {
     "mark": "sphere",
     "data": {
-      "url": "WineQualityCombined_t_sne.csv"
+        "url": "WineQualityCombined_t_sne.csv"
     },
     "encoding": {
       "x": {
@@ -17,9 +17,9 @@
         "type": "quantitative"
       },
       "color": {
-          "field": "Type",
-          "type": "ordinal",
-          "scale": {
+            "field": "Type",
+            "type": "ordinal",
+            "scale": {
             "scheme": [ "#d42424", "#fafafa" ]
           }
       }
