@@ -60,7 +60,6 @@ namespace DxR
         private GameObject interactionsParentObject = null;             // Parent game object for all interactions, e.g., filters.
         private GameObject centreOffsetObject = null;
         private BoxCollider boxCollider;
-        private new Rigidbody rigidbody;
         private GameObject markPrefab = null;                           // Prefab game object for instantiating marks.
 
         private List<ChannelEncoding> channelEncodings = null;          // List of channel encodings.
@@ -108,9 +107,7 @@ namespace DxR
             if (enableCollider)
             {
                 boxCollider = gameObject.GetComponent<BoxCollider>() != null ? gameObject.GetComponent<BoxCollider>() : gameObject.AddComponent<BoxCollider>();
-                rigidbody = gameObject.GetComponent<Rigidbody>() != null ? gameObject.GetComponent<Rigidbody>() : gameObject.AddComponent<Rigidbody>();
-                boxCollider.isTrigger = false;
-                rigidbody.isKinematic = true;
+                boxCollider.isTrigger = true;
             }
             else
             {
@@ -2728,7 +2725,7 @@ namespace DxR
             transform.rotation = Quaternion.identity;
 
             // Iterate through all renderers on this Vis gameobject
-            Renderer[] renderers = gameObject.GetComponentsInChildren<Renderer>();
+            Renderer[] renderers = gameObject.GetComponentsInChildren<Renderer>(false);
             if (renderers.Length > 0)
             {
                 Bounds bounds = renderers[0].bounds;
@@ -2751,6 +2748,12 @@ namespace DxR
             }
 
             transform.rotation = currentRotation;
+
+            // Make sure all colliders are set to triggers
+            foreach (Collider collider in gameObject.GetComponentsInChildren<Collider>(false))
+            {
+                collider.isTrigger = true;
+            }
         }
 
         #endregion Unity GameObject handling functions

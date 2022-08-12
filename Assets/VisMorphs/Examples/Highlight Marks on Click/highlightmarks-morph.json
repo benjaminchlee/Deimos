@@ -22,8 +22,13 @@
     ],
 
     "signals": [{
-            "name": "mousedown",
+            "name": "leftMouseDown",
             "source": "mouse",
+            "handedness": "left",
+            "value": "select"
+        }, {
+            "name": "leftHandSelect",
+            "source": "hand",
             "handedness": "left",
             "value": "select"
         }
@@ -33,7 +38,7 @@
         {
             "name": "highlighting",
             "states": ["unhighlighted", "highlighted"],
-            "trigger": "mousedown",
+            "trigger": "leftMouseDown || leftHandSelect",
             "control": {
                 "timing": 0.25,
                 "interrupted": "ignore"
