@@ -5,7 +5,7 @@
     },
     "encoding": {
       "x": {
-        "field": "Miles_per_Gallon",
+        "field": "Acceleration",
         "type": "quantitative"
       },
         "y": {

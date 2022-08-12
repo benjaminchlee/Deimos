@@ -7,7 +7,7 @@
             "name": "unextruded",
             "encoding": {
                 "x": {
-                    "field": "Miles_per_Gallon",
+                    "field": "Acceleration",
                     "type": "quantitative"
                 },
                 "y": {
@@ -23,7 +23,7 @@
             "depth": -500,
             "encoding": {
                 "x": {
-                    "field": "Miles_per_Gallon",
+                    "field": "Acceleration",
                     "type": "quantitative"
                 },
                 "y": {
