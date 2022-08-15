@@ -7,9 +7,9 @@ using Newtonsoft.Json.Linq;
 using SimpleJSON;
 using UniRx;
 using UnityEngine;
-using static DxR.VisMorphs.EasingFunction;
+using static DxR.Deimos.EasingFunction;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     [RequireComponent(typeof(Vis))]
     public class Morphable : MonoBehaviour

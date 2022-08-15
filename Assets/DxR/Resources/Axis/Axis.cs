@@ -3,10 +3,10 @@ using System.Collections;
 using System.Collections.Generic;
 using SimpleJSON;
 using UnityEngine;
-using DxR.VisMorphs;
+using DxR.Deimos;
 using UniRx;
 using TMPro;
-using static DxR.VisMorphs.EasingFunction;
+using static DxR.Deimos.EasingFunction;
 
 namespace DxR
 {

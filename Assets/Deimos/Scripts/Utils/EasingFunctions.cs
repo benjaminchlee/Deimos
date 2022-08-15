@@ -58,7 +58,7 @@
 using System;
 using UnityEngine;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     public enum Ease
     {

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using SimpleJSON;
 using UnityEngine;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     public class Morph
     {

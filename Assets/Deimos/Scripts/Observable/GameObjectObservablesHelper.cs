@@ -5,7 +5,7 @@ using System.Linq;
 using UnityEngine;
 using UniRx;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     public class GameObjectObservablesHelper
     {

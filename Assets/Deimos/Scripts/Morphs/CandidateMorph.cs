@@ -7,7 +7,7 @@ using SimpleJSON;
 using UniRx;
 using UnityEngine;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     public class CandidateMorph
     {

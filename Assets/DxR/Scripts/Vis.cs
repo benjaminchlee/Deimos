@@ -11,8 +11,8 @@ using GeoJSON.Net.Geometry;
 using Newtonsoft.Json;
 using GeoJSON.Net.Feature;
 using GeoJSON.Net;
-using DxR.VisMorphs;
-using static DxR.VisMorphs.EasingFunction;
+using DxR.Deimos;
+using static DxR.Deimos.EasingFunction;
 
 namespace DxR
 {

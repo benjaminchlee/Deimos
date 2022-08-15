@@ -5,7 +5,7 @@ using UnityEngine;
 using UniRx;
 using System.Linq;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     public class MouseObservablesHelper
     {

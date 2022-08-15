@@ -7,8 +7,8 @@ using SimpleJSON;
 using UnityEngine;
 using UnityEngine.UI;
 using UniRx;
-using DxR.VisMorphs;
-using static DxR.VisMorphs.EasingFunction;
+using DxR.Deimos;
+using static DxR.Deimos.EasingFunction;
 
 namespace DxR
 {

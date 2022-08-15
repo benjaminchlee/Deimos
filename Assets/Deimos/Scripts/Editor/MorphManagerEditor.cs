@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEditor;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     [CustomEditor(typeof(MorphManager))]
     [CanEditMultipleObjects]

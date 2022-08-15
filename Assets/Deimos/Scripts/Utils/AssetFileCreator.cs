@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEditor;
 using UnityEngine;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     public static class AssetFileCreator
     {

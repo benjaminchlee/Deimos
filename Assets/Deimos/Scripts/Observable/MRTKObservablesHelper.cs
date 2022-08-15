@@ -11,7 +11,7 @@ using Microsoft.MixedReality.Toolkit.Input;
 using UnityEngine.Events;
 using Microsoft.MixedReality.Toolkit.UI;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     public class MRTKObservablesHelper : IMixedRealitySourceStateHandler, IMixedRealityPointerHandler
     {

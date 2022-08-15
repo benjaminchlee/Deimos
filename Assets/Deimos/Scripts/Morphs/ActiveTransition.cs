@@ -3,9 +3,9 @@ using System.Collections;
 using System.Collections.Generic;
 using SimpleJSON;
 using UnityEngine;
-using static DxR.VisMorphs.EasingFunction;
+using static DxR.Deimos.EasingFunction;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     public class ActiveTransition
     {

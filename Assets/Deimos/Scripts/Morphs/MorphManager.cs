@@ -13,7 +13,7 @@ using Microsoft.MixedReality.Toolkit.Input;
 using Newtonsoft.Json.Linq;
 using Newtonsoft.Json.Schema;
 
-namespace DxR.VisMorphs
+namespace DxR.Deimos
 {
     [Serializable]
     public class MorphSpecification
