@@ -30,7 +30,7 @@ namespace DxR.Deimos
             ProjectWindowUtil.CreateAssetWithContent(
                 "NewMorphSpecification.json",
 @"{
-    ""$schema"": ""https://raw.githubusercontent.com/benjaminchlee/DxR/master/Assets/VisMorphs/Schema/morph-schema.json"",
+    ""$schema"": ""https://raw.githubusercontent.com/benjaminchlee/Deimos/master/Assets/Deimos/Schema/morph-schema.json"",
     ""name"": ""New Morph Specification"",
 
     ""states"": [
