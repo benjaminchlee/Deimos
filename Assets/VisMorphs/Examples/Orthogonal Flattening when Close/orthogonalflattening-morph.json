@@ -54,7 +54,7 @@
             "value": "angle"
         }, {
             "name": "isCloseToVis",
-            "expression": "headVisDistance < 1"
+            "expression": "headVisDistance < 0.75"
         }, {
             "name": "isLookingFront",
             "expression": "headVisAngle < 20 || 160 < headVisAngle"
@@ -70,8 +70,8 @@
             "states": ["unflattened", "flattenedX"],
             "trigger": "isLookingSide && isCloseToVis",
             "control": {
-                "timing": 1,
-                "easing": "easeoutcirc",
+                "timing": 0.5,
+                "easing": "easeinoutcirc",
                 "interrupted": "ignore"
             },
             "bidirectional": true
@@ -81,8 +81,8 @@
             "states": ["unflattened", "flattenedZ"],
             "trigger": "isLookingFront && isCloseToVis",
             "control": {
-                "timing": 1,
-                "easing": "easeoutcirc",
+                "timing": 0.5,
+                "easing": "easeinoutcirc",
                 "interrupted": "ignore"
             },
             "bidirectional": true
