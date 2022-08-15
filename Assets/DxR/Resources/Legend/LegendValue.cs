@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using DxR;
 using SimpleJSON;
+using TMPro;
 using UnityEngine;
 
 public class LegendValue : MonoBehaviour {
@@ -14,17 +15,17 @@ public class LegendValue : MonoBehaviour {
     void Start () {
 
 	}
-	
+
 	// Update is called once per frame
 	void Update () {
-		
+
 	}
 
     public void SetTitle(string title)
     {
-        gameObject.GetComponentInChildren<TextMesh>().text = title;
+        gameObject.GetComponentInChildren<TextMeshPro>().text = title;
         categoryName = title;
-    } 
+    }
 
     public void SetMark(GameObject mark)
     {

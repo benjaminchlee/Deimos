@@ -5,6 +5,7 @@ using SimpleJSON;
 using UnityEngine;
 using DxR.VisMorphs;
 using UniRx;
+using TMPro;
 using static DxR.VisMorphs.EasingFunction;
 
 namespace DxR
@@ -24,7 +25,7 @@ namespace DxR
         private GameObject sliderBar;
         private GameObject ticksHolder;
         private GameObject tickPrefab;
-        private TextMesh titleTextMesh;
+        private TextMeshPro titleTextMesh;
         private List<GameObject> ticks = new List<GameObject>();
 
         // An axis can onlyfeasibly have a single transition applied to it at a time
@@ -477,7 +478,7 @@ namespace DxR
             sliderBar = gameObject.transform.Find("AxisLine/Slider/SliderBar").gameObject;
             ticksHolder = gameObject.transform.Find("Ticks").gameObject;
             tickPrefab = Resources.Load("Axis/Tick") as GameObject;
-            titleTextMesh = gameObject.transform.Find("Title/Text").GetComponent<TextMesh>();
+            titleTextMesh = gameObject.transform.Find("Title/Text").GetComponent<TextMeshPro>();
         }
 
         public void UpdateSpecs(JSONNode axisSpecs, DxR.Scale scale)
@@ -782,7 +783,7 @@ namespace DxR
             tickLabelTransform.localPosition = new Vector3(xoffset, yoffset, 0);
             tickLabelTransform.localEulerAngles = new Vector3(xrot, yrot, zrot);
 
-            tickLabelTransform.GetComponent<TextMesh>().text = label;
+            tickLabelTransform.GetComponent<TextMeshPro>().text = label;
         }
 
         private void EnableThresholdFilter(JSONNode axisSpecs, DxR.Scale scale)

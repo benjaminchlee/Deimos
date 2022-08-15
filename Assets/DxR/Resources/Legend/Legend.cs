@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using DxR;
 using SimpleJSON;
+using TMPro;
 using UnityEngine;
 
 public class Legend : MonoBehaviour {
@@ -14,10 +15,10 @@ public class Legend : MonoBehaviour {
     void Start () {
 
 	}
-	
+
 	// Update is called once per frame
 	void Update () {
-		
+
 	}
 
     public void UpdateSpecs(JSONNode legendSpecs, ref DxR.ChannelEncoding channelEncoding, GameObject markPrefab)
@@ -48,7 +49,7 @@ public class Legend : MonoBehaviour {
         {
             if(legendSpecs["x"] != null && legendSpecs["x"] != null && legendSpecs["x"] != null)
             {
-                gameObject.GetComponent<Legend>().SetOrientation(legendSpecs["orient"].Value, legendSpecs["face"].Value, 
+                gameObject.GetComponent<Legend>().SetOrientation(legendSpecs["orient"].Value, legendSpecs["face"].Value,
                     legendSpecs["x"].AsFloat, legendSpecs["y"].AsFloat, legendSpecs["z"].AsFloat);
             }
             else
@@ -70,7 +71,7 @@ public class Legend : MonoBehaviour {
 
         bool addTicks = false;
         Transform ticks = gameObject.transform.Find("Ticks");
-        GameObject tickPrefab = null; 
+        GameObject tickPrefab = null;
         if(ticks != null)
         {
             addTicks = true;
@@ -118,7 +119,7 @@ public class Legend : MonoBehaviour {
                 pos.y = 0.04f;             // TODO: Get this from text size.
                 tick.transform.Translate(pos);
 
-                tick.GetComponent<TextMesh>().text = channelEncoding.scale.domain[i];
+                tick.GetComponent<TextMeshPro>().text = channelEncoding.scale.domain[i];
             }
         }
 
@@ -128,7 +129,7 @@ public class Legend : MonoBehaviour {
         colorLine.endWidth = height;
 
         Gradient gradient = new Gradient();
-        gradient.SetKeys(colorKeyList.ToArray(), alphaKeyList.ToArray());    
+        gradient.SetKeys(colorKeyList.ToArray(), alphaKeyList.ToArray());
         colorLine.colorGradient = gradient;
 
         colorLine.transform.parent = gameObject.transform;
@@ -170,11 +171,11 @@ public class Legend : MonoBehaviour {
                 // Update the collection.
                 //legendValueInstance.GetComponent<HoloToolkit.Unity.Collections.ObjectCollection>().UpdateCollection();
             }
-            
+
             gameObject.GetComponent<HoloToolkit.Unity.Collections.ObjectCollection>().Rows = channelEncoding.scale.domain.Count + 1;
             gameObject.GetComponent<HoloToolkit.Unity.Collections.ObjectCollection>().CellHeight = 0.05f;   // TODO: Set to height of each legendValue.
             gameObject.GetComponent<HoloToolkit.Unity.Collections.ObjectCollection>().UpdateCollection();
-            
+
         } else if(channelEncoding.channel == "opacity")
         {
             // TODO:
@@ -194,13 +195,14 @@ public class Legend : MonoBehaviour {
 
     public void SetTitle(string title)
     {
-        gameObject.GetComponentInChildren<TextMesh>().text = title;
+        gameObject.GetComponentInChildren<TextMeshPro>().text = title;
     }
 
     // TODO: Support all possible orientations.
     internal void SetOrientation(string orient, string face, float x, float y, float z)
     {
-        gameObject.GetComponentInChildren<TextMesh>().anchor = TextAnchor.UpperLeft;
+        // gameObject.GetComponentInChildren<TextMesh>().anchor = TextAnchor.UpperLeft;
+        gameObject.GetComponentInChildren<TextMeshPro>().alignment = TextAlignmentOptions.TopLeft;
         gameObject.transform.localPosition = new Vector3(x, y, z) * DxR.Vis.SIZE_UNIT_SCALE_FACTOR;
     }
 
