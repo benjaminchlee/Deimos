@@ -88,6 +88,10 @@ namespace DxR
 
         private void Awake()
         {
+            // Set culture to fix parsing issues for certain regions (decimal vs comma separator)
+            System.Threading.Thread.CurrentThread.CurrentCulture = new System.Globalization.CultureInfo("en-US");
+            System.Threading.Thread.CurrentThread.CurrentUICulture = new System.Globalization.CultureInfo("en-US");
+
             // Initialize objects:
             parentObject = gameObject;
             viewParentObject = gameObject.transform.Find("DxRView").gameObject;
