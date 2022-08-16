@@ -192,148 +192,148 @@
                   "type": "string",
                   "enum": ["initial", "final", "ignore"],
                   "default": "final"
+                },
+                "staging": {
+                  "description": "Staging to apply to the Transition.\nStaging is defined on a per-property basis. Only properties that have staging specified here will actually be staged, with the rest being unaffected.\nPer each property, an array of start and end value must be provided. These should be within the range of 0 to 1 and be in ascending order. If, for example, a range of [0.25, 0.5] is given, that property will only animate between the 25% and 50% points of the Transition, regardless of its length.\nIn order to stage all encodings at once, the \"encoding\" property can be used, with any explictly defined properties taking priority.",
+                  "type": "object",
+                  "properties": {
+                    "x": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "y": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "z": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "width": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "height": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "depth": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "size": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "color": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "opacity": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "encoding": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "position": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    },
+                    "rotation": {
+                      "type": "array",
+                      "items": {
+                        "type": "number",
+                        "minimum": 0,
+                        "maximum": 1
+                      },
+                      "minItems": 2,
+                      "maxItems": 2,
+                      "default": [0, 1]
+                    }
+                  },
+                  "minProperties": 1,
+                  "additionalProperties": false
                 }
               },
-              "additionalProperties": false
-            },
-            "staging": {
-              "description": "Staging to apply to the Transition.\nStaging is defined on a per-property basis. Only properties that have staging specified here will actually be staged, with the rest being unaffected.\nPer each property, an array of start and end value must be provided. These should be within the range of 0 to 1 and be in ascending order. If, for example, a range of [0.25, 0.5] is given, that property will only animate between the 25% and 50% points of the Transition, regardless of its length.\nIn order to stage all encodings at once, the \"encoding\" property can be used, with any explictly defined properties taking priority.",
-              "type": "object",
-              "properties": {
-                "x": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "y": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "z": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "width": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "height": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "depth": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "size": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "color": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "opacity": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "encoding": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "position": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                },
-                "rotation": {
-                  "type": "array",
-                  "items": {
-                    "type": "number",
-                    "minimum": 0,
-                    "maximum": 1
-                  },
-                  "minItems": 2,
-                  "maxItems": 2,
-                  "default": [0, 1]
-                }
-              },
-              "minProperties": 1,
               "additionalProperties": false
             },
             "bidirectional": {

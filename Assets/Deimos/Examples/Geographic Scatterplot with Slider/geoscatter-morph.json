@@ -68,13 +68,13 @@
             "states": ["scatterplot", "choropleth"],
             "control": {
                 "timing": "sliderX",
-                "easing": "easeinoutquint"
-            },
-            "staging": {
-                "x": [0, 0.5],
-                "y": [0, 0.5],
-                "width": [0.5, 1],
-                "height": [0.5, 1]
+                "easing": "easeinoutquint",
+                "staging": {
+                    "x": [0, 0.5],
+                    "y": [0, 0.5],
+                    "width": [0.5, 1],
+                    "height": [0.5, 1]
+                }
             },
             "bidirectional": true
         }

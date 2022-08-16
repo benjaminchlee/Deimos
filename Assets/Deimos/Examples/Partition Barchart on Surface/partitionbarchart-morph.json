@@ -92,12 +92,12 @@
             "control": {
                 "timing": 1.5,
                 "easing": "easeoutcirc",
-                "interrupted": "ignore"
-            },
-            "staging": {
-                "encoding": [0, 0.65],
-                "position": [0.65, 1],
-                "rotation": [0.65, 1]
+                "interrupted": "ignore",
+                "staging": {
+                    "encoding": [0, 0.65],
+                    "position": [0.65, 1],
+                    "rotation": [0.65, 1]
+                }
             },
             "bidirectional": true
         }

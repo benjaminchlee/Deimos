@@ -106,13 +106,13 @@
             "control": {
                 "timing": "tweener",
                 "easing": "easeinoutcirc",
-                "interrupted": "initial"
-            },
-            "staging": {
-                "z": [0, 0.5],
-                "depth": [0, 0.5],
-                "y": [0.5, 1],
-                "height": [0.5, 1]
+                "interrupted": "initial",
+                "staging": {
+                    "z": [0, 0.5],
+                    "depth": [0, 0.5],
+                    "y": [0.5, 1],
+                    "height": [0.5, 1]
+                }
             },
             "bidirectional": true,
             "disablegrab": true

@@ -1461,9 +1461,9 @@ namespace DxR.Deimos
         {
             // Get the set of stages from the transition spec. We pass this onto the Vis when we're done
             Dictionary<string, Tuple<float, float>> stages = new Dictionary<string, Tuple<float, float>>();
-            if (transitionSpec["staging"] != null)
+            if (transitionSpec["control"]["staging"] != null)
             {
-                foreach (var kvp in transitionSpec["staging"])
+                foreach (var kvp in transitionSpec["control"]["staging"])
                 {
                     if (stages.ContainsKey(kvp.Key))
                         throw new Exception(string.Format("Vis Morphs: Transition \"{0}\" has the staging channel \"{1}\" multiple times. All stages must be unique.", transitionName, kvp.Key));
