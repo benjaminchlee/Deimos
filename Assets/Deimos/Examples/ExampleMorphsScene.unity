@@ -53501,7 +53501,7 @@ MonoBehaviour:
   GUID: 
   AllowSimultaneousTransitions: 1
   DebugStates: 0
-  DebugTransitionCalls: 1
+  DebugTransitionCalls: 0
   CandidateMorphNames: []
   CandidateStateNames: []
   CandidateTransitionNames: []
