@@ -17,7 +17,7 @@ The example scene can be found in the *Assets/Deimos/Examples* folder. The subfo
 
 Deimos is built around MRTK 2 and has been tested using a tethered Oculus Quest 2 (with both controller and hand tracking input). The MRTK simulator can also be used to simulate hand input. **Deimos has not been tested for use in standalone VR/MR applications**.
 
-For a walkthrough and FAQ for how to use Deimos, please see ⚠️ TODO: ADD URL HERE ⚠️
+A walkthrough and FAQ for how to use Deimos can be found [here](https://docs.google.com/document/d/1GJDZPGTNqb_4bdJepBPPRkw5wZTJMZyr9rQKygiQ9H0/edit?usp=sharing).
 
 ### Updates to DxR
 Several features have been added to DxR during the development of Deimos. These include:
