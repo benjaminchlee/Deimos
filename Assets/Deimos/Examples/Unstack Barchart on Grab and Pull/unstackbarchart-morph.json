@@ -29,7 +29,8 @@
                 "zoffset": null,
                 "color": {
                     "type": "nominal"
-                }
+                },
+                "facetwrap": null
             }
         },
         {
