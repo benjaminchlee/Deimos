@@ -21,7 +21,7 @@ namespace DxR.Deimos
             {
                 observable = Observable.EveryUpdate().Select(_ => go);
 
-                observable = observable.Replay(1).RefCount();
+                // observable = observable.Replay(1).RefCount();
                 gameObjectObservables.Add(go, observable);
             }
 
@@ -46,8 +46,9 @@ namespace DxR.Deimos
                     });
 
                 // Force this observable to be a hot observable
-                observable = observable.Replay(1).RefCount();
-                observable.Subscribe();
+                // Temprarily removed to fix a bug with this value being pushed twice
+                // observable = observable.Replay(1).RefCount();
+                // observable.Subscribe();
                 overlapBoxObservables.Add(go, observable);
             }
 
@@ -66,8 +67,9 @@ namespace DxR.Deimos
                     });
 
                 // Force this observable to be a hot observable
-                observable = observable.Replay(1).RefCount();
-                observable.Subscribe();
+                // Temprarily removed to fix a bug with this value being pushed twice
+                // observable = observable.Replay(1).RefCount();
+                // observable.Subscribe();
                 raycastHitsObservables.Add(go, observable);
             }
 

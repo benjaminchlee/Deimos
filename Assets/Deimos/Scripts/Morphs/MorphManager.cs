@@ -986,7 +986,7 @@ namespace DxR.Deimos
             // Iterate through all Signals that this expression references, checking both global and local signals
             List<IObservable<dynamic>> signalObservables = new List<IObservable<dynamic>>();
 
-            foreach (KeyValuePair<string, IObservable<dynamic>> kvp in MorphManager.Instance.GlobalSignalObservables)
+            foreach (KeyValuePair<string, IObservable<dynamic>> kvp in GlobalSignalObservables)
             {
                 string signalName = kvp.Key;
                 if (expression.Contains(signalName))
@@ -1128,15 +1128,32 @@ namespace DxR.Deimos
 
         public dynamic EvaluateExpression(Morphable morphable, string expression)
         {
-            return EvaluateExpression(morphable.GUID, expression);
-        }
-
-        private dynamic EvaluateExpression(string guid, string expression)
-        {
             Interpreter interpreter;
-            if (!Interpreters.TryGetValue(guid, out interpreter))
+            if (!Interpreters.TryGetValue(morphable.GUID, out interpreter))
             {
-                interpreter = InitialiseExpressionInterpreter(guid);
+                interpreter = InitialiseExpressionInterpreter(morphable.GUID);
+            }
+
+            // HACKY WORKAROUND: This function can be called outside of the scope of the CreateObservableFromExpression() function, which means that some signal values
+            // might not be properly set in the expression interpreter. We update the variables here before we evaluate
+            foreach (KeyValuePair<string, IObservable<dynamic>> kvp in GlobalSignalObservables)
+            {
+                if (expression.Contains(kvp.Key))
+                {
+                    IDisposable subscription = kvp.Value.Subscribe(value => interpreter.SetVariable(kvp.Key, value));
+                    subscription.Dispose();
+                }
+            }
+            foreach (var candidateMorph in morphable.CandidateMorphs)
+            {
+                foreach (KeyValuePair<string, IObservable<dynamic>> kvp in candidateMorph.LocalSignalObservables)
+                {
+                    if (expression.Contains(kvp.Key))
+                    {
+                        IDisposable subscription = kvp.Value.Subscribe(value => interpreter.SetVariable(kvp.Key, value));
+                        subscription.Dispose();
+                    }
+                }
             }
 
             return interpreter.Eval(expression);
