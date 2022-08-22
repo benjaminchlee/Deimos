@@ -148,9 +148,14 @@
             "states": ["3DBarchart", "stacked2DBarchart"],
             "trigger": "isVisTouchingSurface && isTouchingSideways",
             "control": {
-                "timing": 0.75,
+                "timing": 1.5,
                 "easing": "easeoutcirc",
-                "interrupted": "ignore"
+                "interrupted": "ignore",
+                "staging": {
+                    "encoding": [0, 0.65],
+                    "position": [0.65, 1],
+                    "rotation": [0.65, 1]
+                }
             },
             "bidirectional": true,
             "priority": 1
