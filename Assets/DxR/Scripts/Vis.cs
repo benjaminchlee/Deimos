@@ -246,7 +246,7 @@ namespace DxR
         {
             if (activeTransitions.Keys.Contains(transitionName))
             {
-                throw new Exception(string.Format("Vis Morphs: The transition {0} is currently active, therefore cannot be applied again.", transitionName));
+                throw new Exception(string.Format("Deimos: The transition {0} is currently active, therefore cannot be applied again.", transitionName));
             }
 
             // We need to determine the channel encodings which have changed between the initial and final states. These will be used to apply the transition
@@ -365,7 +365,7 @@ namespace DxR
             }
             else
             {
-                Debug.LogWarning("Vis Morphs: A transition has failed to been applied as it affects a visualisation property which is currently undergoing a transition.");
+                Debug.LogWarning("Deimos: A transition has failed to been applied as it affects a visualisation property which is currently undergoing a transition.");
                 return false;
             }
         }
@@ -374,7 +374,7 @@ namespace DxR
         {
             if (!activeTransitions.ContainsKey(transitionName))
             {
-                throw new Exception(string.Format("Vis Morphs: The transition {0} is not active, and therefore cannot be stopped.", transitionName));
+                throw new Exception(string.Format("Deimos: The transition {0} is not active, and therefore cannot be stopped.", transitionName));
             }
 
             StopTransitionChannelEncodings(transitionName, goToEnd, commitVisSpecChanges);

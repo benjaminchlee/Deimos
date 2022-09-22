@@ -49,7 +49,7 @@ namespace DxR.Deimos
             }
             else
             {
-                Debug.LogWarning(string.Format("Vis Morphs: A local signal with the name {0} already exists and therefore has not been overwritten. Is this intentional?", name));
+                Debug.LogWarning(string.Format("Deimos: A local signal with the name {0} already exists and therefore has not been overwritten. Is this intentional?", name));
             }
         }
 

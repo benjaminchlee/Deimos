@@ -96,10 +96,10 @@ namespace DxR.Deimos
             // This is kind of a stupid limitation in hindsight but that's just how it is for now
             // var stateNames = Morphs.SelectMany(m => m.States).Select(s => (string)s["name"]);
             // if (stateNames.Count() != stateNames.Distinct().Count())
-            //     throw new Exception("Vis Morphs: All state names in the enabled morphs must be unique.");
+            //     throw new Exception("Deimos: All state names in the enabled morphs must be unique.");
             var transitionNames = Morphs.SelectMany(m => m.Transitions).Select(s => (string)s["name"]);
             if (transitionNames.Count() != transitionNames.Distinct().Count())
-                throw new Exception("Vis Morphs: All transition names in the enabled morphs must be unique.");
+                throw new Exception("Deimos: All transition names in the enabled morphs must be unique.");
 
             if (Morphs.Count > 0)
             {
@@ -109,7 +109,7 @@ namespace DxR.Deimos
                 }
             }
 
-            Debug.Log(string.Format("Vis Morphs: {0} Morphs loaded: {1}", Morphs.Count, string.Join(", ", Morphs.Select(m => m.Name))));
+            Debug.Log(string.Format("Deimos: {0} Morphs loaded: {1}", Morphs.Count, string.Join(", ", Morphs.Select(m => m.Name))));
         }
 
         private void ResetMorphSpecifications()
@@ -155,7 +155,7 @@ namespace DxR.Deimos
             }
 
             if (success)
-                Debug.Log("Vis Morphs: All Morph Specifications successfully validated.");
+                Debug.Log("Deimos: All Morph Specifications successfully validated.");
         }
 
         private bool ValidateMorphSpecification(TextAsset morphJson)
@@ -167,7 +167,7 @@ namespace DxR.Deimos
             IList<string> messages;
             if (!jObject.IsValid(jSchema, out messages))
             {
-                Debug.LogError(string.Format("Vis Morphs: Morph Specification {0} failed to validate. Errors found:\n{1}", morphJson.name, string.Join("\n", messages)));
+                Debug.LogError(string.Format("Deimos: Morph Specification {0} failed to validate. Errors found:\n{1}", morphJson.name, string.Join("\n", messages)));
                 return false;
             }
             else
@@ -184,12 +184,12 @@ namespace DxR.Deimos
 
             if (statesSpec == null)
             {
-                Debug.LogError(string.Format("Vis Morphs: The Morph {0} does not have any State specifications. At least two are required for Morphs to properly function. Skipping...", morph.Name));
+                Debug.LogError(string.Format("Deimos: The Morph {0} does not have any State specifications. At least two are required for Morphs to properly function. Skipping...", morph.Name));
                 return false;
             }
             else if (statesSpec.Children.Count() <= 1)
             {
-                Debug.LogError(string.Format("Vis Morphs: The Morph {0} has less than two State specifications. At least two are required for Morphs to properly function. Skipping...", morph.Name));
+                Debug.LogError(string.Format("Deimos: The Morph {0} has less than two State specifications. At least two are required for Morphs to properly function. Skipping...", morph.Name));
                 return false;
             }
 
@@ -242,7 +242,7 @@ namespace DxR.Deimos
                 catch (Exception e)
                 {
                     Debug.LogError(e);
-                    Debug.LogError(string.Format("Vis Morphs: The Morph {0} returned an error while parsing Signals. Skipping...", morph.Name));
+                    Debug.LogError(string.Format("Deimos: The Morph {0} returned an error while parsing Signals. Skipping...", morph.Name));
                     return false;
                 }
             }
@@ -261,24 +261,24 @@ namespace DxR.Deimos
 
             // All signals need to have a name
             if (signalSpec["name"] == null)
-                throw new Exception("Vis Morphs: All signals need to have a name property.");
+                throw new Exception("Deimos: All signals need to have a name property.");
 
             // The name cannot be blank
             if (signalSpec["name"].Value.Trim() == "")
-                throw new Exception("Vis Morphs: Signal names cannot be blank.");
+                throw new Exception("Deimos: Signal names cannot be blank.");
 
             // Expression signals can only have a name and the "expression" property, and no others
             if (signalSpec["expression"] != null)
             {
                 if (signalSpec.Children.Count() > 2)
-                    throw new Exception(string.Format("Vis Morphs: The Signal {0} has an expression property but contains other non-expression related properties.", signalSpec["name"]));
+                    throw new Exception(string.Format("Deimos: The Signal {0} has an expression property but contains other non-expression related properties.", signalSpec["name"]));
             }
             // Otherwise it is a regular Signal. Perform checks for this
             else
             {
                 // All non-expression Signals need to have a source property
                 if (signalSpec["source"] == null)
-                    throw new Exception(string.Format("Vis Morphs: The Signal {0} does not have a source property specified.", signalSpec["name"]));
+                    throw new Exception(string.Format("Deimos: The Signal {0} does not have a source property specified.", signalSpec["name"]));
 
                 // Mouse, hand, and controller sources should have a handedness property
                 if (signalSpec["source"] == "mouse" || signalSpec["source"] == "hand" || signalSpec["source"] == "controller")
@@ -292,7 +292,7 @@ namespace DxR.Deimos
                     else
                     {
                         if (!(signalSpec["handedness"] == "left" || signalSpec["handedness"] == "right" || signalSpec["handedness"] == "any"))
-                            throw new Exception(string.Format("Vis Morphs: The Signal {0} has an invalid handedness, {1} given. Only left, right, and any is supported.", signalSpec["name"], signalSpec["handedness"]));
+                            throw new Exception(string.Format("Deimos: The Signal {0} has an invalid handedness, {1} given. Only left, right, and any is supported.", signalSpec["name"], signalSpec["handedness"]));
                     }
                 }
 
@@ -363,7 +363,7 @@ namespace DxR.Deimos
             }
             else
             {
-                Debug.LogWarning(string.Format("Vis Morphs: A global signal with the name {0} already exists and therefore has not been overwritten. Is this intentional?", name));
+                Debug.LogWarning(string.Format("Deimos: A global signal with the name {0} already exists and therefore has not been overwritten. Is this intentional?", name));
             }
         }
 
@@ -473,7 +473,7 @@ namespace DxR.Deimos
                     return mouseObservablesHelper.GetMouseButtonSelectObservable(handedness).Select(_ => (dynamic)_);
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: The Signal {0} is a targetless mouse source with an unsupported value property.", signalSpec["name"]));
+                    throw new Exception(string.Format("Deimos: The Signal {0} is a targetless mouse source with an unsupported value property.", signalSpec["name"]));
             }
         }
 
@@ -551,7 +551,7 @@ namespace DxR.Deimos
                     }
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: The Signal {0} is a targeted mouse source with an unsupported criteria property.", signalSpec["name"]));
+                    throw new Exception(string.Format("Deimos: The Signal {0} is a targeted mouse source with an unsupported criteria property.", signalSpec["name"]));
             }
 
             return CreateValueObservableFromTarget(signalSpec, targetObservable, morphable);
@@ -572,7 +572,7 @@ namespace DxR.Deimos
                     return mrtkObservablesHelper.GetControllerSelectObservable(handedness).Select(b => (dynamic)b);
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: The Signal {0} is a targetless hand or controller source with an unsupported value property.", signalSpec["name"]));
+                    throw new Exception(string.Format("Deimos: The Signal {0} is a targetless hand or controller source with an unsupported value property.", signalSpec["name"]));
             }
         }
 
@@ -754,7 +754,7 @@ namespace DxR.Deimos
             }
 
             if (sourceGameObject == null)
-                throw new Exception(string.Format("Vis Morphs: Could not find any source GameObject with name {0}.", source));
+                throw new Exception(string.Format("Deimos: Could not find any source GameObject with name {0}.", source));
 
             // Leverage this function to access values from our object
             return CreateValueObservableFromTarget(signalSpec, gameObjectObservablesHelper.GetGameObjectObservable(sourceGameObject), morphable);
@@ -785,7 +785,7 @@ namespace DxR.Deimos
             }
 
             if (sourceGameObject == null)
-                throw new Exception(string.Format("Vis Morphs: Could not find any source GameObject with name {0}.", source));
+                throw new Exception(string.Format("Deimos: Could not find any source GameObject with name {0}.", source));
 
             // Find the object that the source is targetting
             IObservable<GameObject> targetObservable = null;
@@ -839,7 +839,7 @@ namespace DxR.Deimos
                     }
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: The Signal {0} is a targeted object source with an unsupported criteria property.", signalSpec["name"]));
+                    throw new Exception(string.Format("Deimos: The Signal {0} is a targeted object source with an unsupported criteria property.", signalSpec["name"]));
             }
 
             return CreateComparisonValueObservableFromObjectTarget(signalSpec, sourceGameObject, targetObservable, morphable);
@@ -973,7 +973,7 @@ namespace DxR.Deimos
                 default:
                 {
                     return targetObservable.Where(_ => _ != null).Select((GameObject target) => (dynamic)target.GetPropValue(value));
-                    // throw new Exception(string.Format("Vis Morphs: The Signal {0} has an unsupported value property. If using reflection, make sure the path is correct.", signalSpec["name"]));
+                    // throw new Exception(string.Format("Deimos: The Signal {0} has an unsupported value property. If using reflection, make sure the path is correct.", signalSpec["name"]));
                 }
             }
         }
@@ -1069,7 +1069,7 @@ namespace DxR.Deimos
                 }
                 catch (DynamicExpresso.Exceptions.UnknownIdentifierException e)
                 {
-                    throw new Exception(string.Format("Vis Morphs: A morph has a state or signal with the expression \"{0}\" that references a signal which doesn't exist.", expression));
+                    throw new Exception(string.Format("Deimos: A morph has a state or signal with the expression \"{0}\" that references a signal which doesn't exist.", expression));
                 }
             }
         }
@@ -1082,7 +1082,7 @@ namespace DxR.Deimos
         private Interpreter InitialiseExpressionInterpreter(string guid)
         {
             if (Interpreters.ContainsKey(guid))
-                throw new Exception(string.Format("Vis Morphs: There already exists a DynamicExpresso interpreter for the Morphable with guid {0}.", guid));
+                throw new Exception(string.Format("Deimos: There already exists a DynamicExpresso interpreter for the Morphable with guid {0}.", guid));
 
             Interpreter interpreter = new Interpreter();
 
@@ -1185,7 +1185,7 @@ namespace DxR.Deimos
 
             if (transitionsSpec == null)
             {
-                Debug.LogError(string.Format("Vis Morphs: The Morph {0} does not have any Transition specifications. At least one is required for Morphs to properly function. Skipping...", morph.Name));
+                Debug.LogError(string.Format("Deimos: The Morph {0} does not have any Transition specifications. At least one is required for Morphs to properly function. Skipping...", morph.Name));
                 return false;
             }
 

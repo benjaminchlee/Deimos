@@ -107,7 +107,7 @@ namespace DxR
         public void InitialiseTransition(ActiveTransition newActiveTransition, int markIndex)
         {
             if (activeMarkTransitions.ContainsKey(newActiveTransition.Name))
-                throw new Exception(string.Format("Vis Morphs: Mark already contains subscriptions for the transition {0}. This error shouldn't happen", newActiveTransition.Name));
+                throw new Exception(string.Format("Deimos: Mark already contains subscriptions for the transition {0}. This error shouldn't happen", newActiveTransition.Name));
 
             // Create the disposable which will be used to store and quickly unsubscribe from our tweens
             CompositeDisposable transitionDisposable = new CompositeDisposable();
@@ -131,7 +131,7 @@ namespace DxR
         public void StopTransition(string transitionName, bool goToEnd = true)
         {
             if (!activeMarkTransitions.ContainsKey(transitionName))
-                throw new Exception(string.Format("Vis Morphs: Mark does not contain subscriptions for the transition {0}. This shouldn't happen", transitionName));
+                throw new Exception(string.Format("Deimos: Mark does not contain subscriptions for the transition {0}. This shouldn't happen", transitionName));
 
             var stoppingMarkTransition = activeMarkTransitions[transitionName];
 
@@ -459,7 +459,7 @@ namespace DxR
                     case "facetwrap":
                         {
                             Debug.Log(initialValue);
-                            throw new Exception(string.Format("Vis Morphs: Channel {0} cannot be interpolated in a transition independently. These must be done as part of an x, y, or z channel.", channel));
+                            throw new Exception(string.Format("Deimos: Channel {0} cannot be interpolated in a transition independently. These must be done as part of an x, y, or z channel.", channel));
                         }
                 }
 

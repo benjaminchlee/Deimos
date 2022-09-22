@@ -693,7 +693,7 @@ namespace DxR.Deimos
                 }
                 else
                 {
-                    throw new Exception(string.Format("Vis Morphs: Morph {0} either canot find a timing Signal with the name {1}, or it is not a number.", candidateMorph.Name, controlSpec["timing"]));
+                    throw new Exception(string.Format("Deimos: Morph {0} either canot find a timing Signal with the name {1}, or it is not a number.", candidateMorph.Name, controlSpec["timing"]));
                 }
             }
         }
@@ -751,18 +751,18 @@ namespace DxR.Deimos
         {
             if (DebugTransitionCalls)
             {
-                Debug.Log(string.Format("Vis Morphs: Transition {0} called Activate function.", transitionName));
+                Debug.Log(string.Format("Deimos: Transition {0} called Activate function.", transitionName));
             }
 
             if (ActiveTransitionNames.Contains(transitionName))
             {
-                Debug.LogError(string.Format("Vis Morphs: Transition {0} tried to activate, but it is already active.", transitionName));
+                Debug.LogError(string.Format("Deimos: Transition {0} tried to activate, but it is already active.", transitionName));
                 return;
             }
 
             if (ActiveTransitionNames.Count > 0 && !AllowSimultaneousTransitions)
             {
-                Debug.LogWarning(string.Format("Vis Morphs: Transition {0} could not be applied as there is already a transition active, and the AllowSimultaneousTransitions flag is set to false.", transitionName));
+                Debug.LogWarning(string.Format("Deimos: Transition {0} could not be applied as there is already a transition active, and the AllowSimultaneousTransitions flag is set to false.", transitionName));
                 return;
             }
 
@@ -793,8 +793,8 @@ namespace DxR.Deimos
                     _initialState["data"].Remove("values");
                 if (_finalState["data"]["values"] != null)
                     _finalState["data"].Remove("values");
-                Debug.Log(string.Format("Vis Morphs: Initial state specification for transition {0}:\n{1}", transitionName, _initialState.ToString()));
-                Debug.Log(string.Format("Vis Morphs: Final state specification for transition {0}:\n{1}", transitionName, _finalState.ToString()));
+                Debug.Log(string.Format("Deimos: Initial state specification for transition {0}:\n{1}", transitionName, _initialState.ToString()));
+                Debug.Log(string.Format("Deimos: Final state specification for transition {0}:\n{1}", transitionName, _finalState.ToString()));
             }
 
             // Call update to final state using a tweening observable
@@ -835,12 +835,12 @@ namespace DxR.Deimos
         {
             if (DebugTransitionCalls)
             {
-                Debug.Log(string.Format("Vis Morphs: Transition {0} called Deactivate function.", transitionName));
+                Debug.Log(string.Format("Deimos: Transition {0} called Deactivate function.", transitionName));
             }
 
             if (!ActiveTransitionNames.Contains(transitionName))
             {
-                Debug.LogError(string.Format("Vis Morphs: Transition {0} tried to deactivate, but it is not active in the first place", transitionName));
+                Debug.LogError(string.Format("Deimos: Transition {0} tried to deactivate, but it is not active in the first place", transitionName));
                 return;
             }
 
@@ -1250,7 +1250,7 @@ namespace DxR.Deimos
                             // There is probably a slim chance that this returns a false positive. Good enough for our purposes though
                             if (sourceValue.ToString().Contains("this.") || sourceValue.ToString().StartsWith("other."))
                             {
-                                throw new Exception(string.Format("Vis Morphs: A JSON path reference in a state specification cannot refer to another property that also has a JSON path reference (i.e., no loops). Error found in {0}.", descendant.Path + "." + descendant.ToString()));
+                                throw new Exception(string.Format("Deimos: A JSON path reference in a state specification cannot refer to another property that also has a JSON path reference (i.e., no loops). Error found in {0}.", descendant.Path + "." + descendant.ToString()));
                             }
                             // If this isn't the only token in the split, we need to make sure that the data type is correct
                             else if (tokens.Length > 1)
@@ -1262,7 +1262,7 @@ namespace DxR.Deimos
                                 }
                                 else
                                 {
-                                    throw new Exception(string.Format("Vis Morphs: A JSON path reference in a state specification cannot refer to a non string/number value while also using an expression. Error found in:\n{0}", descendant.Path + "." + descendant.ToString()));
+                                    throw new Exception(string.Format("Deimos: A JSON path reference in a state specification cannot refer to a non string/number value while also using an expression. Error found in:\n{0}", descendant.Path + "." + descendant.ToString()));
                                 }
                             }
                             else
@@ -1272,7 +1272,7 @@ namespace DxR.Deimos
                         }
                         else
                         {
-                            throw new Exception(string.Format("Vis Morphs: Cound not find property from the JSON path reference \"{0}\"", token));
+                            throw new Exception(string.Format("Deimos: Cound not find property from the JSON path reference \"{0}\"", token));
                         }
                     }
                 }
@@ -1448,7 +1448,7 @@ namespace DxR.Deimos
                     return new JArray(quaternion.x, quaternion.y, quaternion.z, quaternion.w);
 
                 default:
-                    throw new Exception(string.Format("Vis Morphs: Could not convert type {0} to a JToken. Please add your type into the switch statement.", value.GetType().ToString()));
+                    throw new Exception(string.Format("Deimos: Could not convert type {0} to a JToken. Please add your type into the switch statement.", value.GetType().ToString()));
             }
         }
 
@@ -1466,19 +1466,19 @@ namespace DxR.Deimos
                 foreach (var kvp in transitionSpec["control"]["staging"])
                 {
                     if (stages.ContainsKey(kvp.Key))
-                        throw new Exception(string.Format("Vis Morphs: Transition \"{0}\" has the staging channel \"{1}\" multiple times. All stages must be unique.", transitionName, kvp.Key));
+                        throw new Exception(string.Format("Deimos: Transition \"{0}\" has the staging channel \"{1}\" multiple times. All stages must be unique.", transitionName, kvp.Key));
 
                     if (kvp.Value.Count != 2 || !kvp.Value[0].IsNumber || !kvp.Value[1].IsNumber)
-                        throw new Exception(string.Format("Vis Morphs: Transition \"{0}\" has a staging channel \"{1}\" that does not have two numbers in an array.", transitionName, kvp.Key));
+                        throw new Exception(string.Format("Deimos: Transition \"{0}\" has a staging channel \"{1}\" that does not have two numbers in an array.", transitionName, kvp.Key));
 
                     float initialValue = kvp.Value[0].AsFloat;
                     float finalValue = kvp.Value[1].AsFloat;
 
                     if (initialValue < 0 || initialValue > 1 || finalValue < 0 || finalValue > 1)
-                        throw new Exception(string.Format("Vis Morphs: Transition \"{0}\" has a staging channel \"{1}\" that has values not within 0 to 1 (inclusive).", transitionName, kvp.Key));
+                        throw new Exception(string.Format("Deimos: Transition \"{0}\" has a staging channel \"{1}\" that has values not within 0 to 1 (inclusive).", transitionName, kvp.Key));
 
                     if (initialValue > finalValue)
-                        throw new Exception(string.Format("Vis Morphs: Transition \"{0}\" has a staging channel \"{1}\" with a end value larger than the start value", transitionName, kvp.Key));
+                        throw new Exception(string.Format("Deimos: Transition \"{0}\" has a staging channel \"{1}\" with a end value larger than the start value", transitionName, kvp.Key));
 
                     stages.Add(kvp.Key, new Tuple<float, float>(initialValue, finalValue));
                 }

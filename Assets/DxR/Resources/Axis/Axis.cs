@@ -83,7 +83,7 @@ namespace DxR
         public void InitialiseTransition(ActiveTransition newActiveTransition, string channel, JSONNode initialAxisSpecs, JSONNode finalAxisSpecs, Scale initialScale, Scale finalScale, Vector3 initialTranslation, Vector3 finalTranslation, Quaternion initialRotate, Quaternion finalRotate)
         {
             if (activeAxisTransition != null)
-                throw new Exception(string.Format("Vis Morphs: Axis is already undergoing a transition \"{0}\" and cannot apply transition \"{1}\".", activeAxisTransition.Name,  newActiveTransition.Name));
+                throw new Exception(string.Format("Deimos: Axis is already undergoing a transition \"{0}\" and cannot apply transition \"{1}\".", activeAxisTransition.Name,  newActiveTransition.Name));
 
             // Create the disposable which will be used to store and quickly unsubscribe from our tween
             // We will set up separate subscriptions for each tweener
@@ -101,11 +101,11 @@ namespace DxR
         {
             if (activeAxisTransition == null)
                 return false;
-                // throw new Exception("Vis Morphs: Axis cannot stop the transition as there is no transition to begin with.");
+                // throw new Exception("Deimos: Axis cannot stop the transition as there is no transition to begin with.");
 
             if (activeAxisTransition.Name != transitionName)
                 return false;
-                // throw new Exception(string.Format("Vis Morphs: Axis is already undergoing transition {0}, and therefore cannot stop transition {1}.", activeAxisTransition.Name, transitionName));
+                // throw new Exception(string.Format("Deimos: Axis is already undergoing transition {0}, and therefore cannot stop transition {1}.", activeAxisTransition.Name, transitionName));
 
             // Dispose all active subscriptions
             activeAxisTransition.Disposable.Dispose();

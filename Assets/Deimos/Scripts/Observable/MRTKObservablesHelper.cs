@@ -286,7 +286,7 @@ namespace DxR.Deimos
                 }
                 else
                 {
-                    throw new Exception(string.Format("Vis Morphs: The UI GameObject {0} does not have a supported UI script on it. Currently supported are ToggleCollection and PressableButton.", uiName));
+                    throw new Exception(string.Format("Deimos: The UI GameObject {0} does not have a supported UI script on it. Currently supported are ToggleCollection and PressableButton.", uiName));
                 }
 
                 // Force this observable to be a hot observable
