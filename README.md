@@ -15,7 +15,7 @@ A Unity version of at least 2021.3.6f1 is required.
 
 The example scene can be found in the *Assets/Deimos/Examples* folder. The subfolders contain all JSON specifications for the Morphs and DxR visualisations used in the example scene.
 
-⚠️ For the purposes of anonymity, the URL to the Deimos JSON schema has been removed from all examples and the starting morph specification (when using the Asset Create window), as these were originally using a GitHub reference. You will need to manually add the schema reference using either a relative or absolute path by adding this line as the first property of the specification: "$schema": <URL GOES HERE> ⚠️
+⚠️ For the purposes of anonymity, the URL to the Deimos JSON schema has been removed from all examples and the starting morph specification (when using the Asset Create window), as these were originally using a GitHub reference. You will need to manually add the schema reference using either a relative or absolute path by adding this line as the first property of the specification: "$schema": [URL GOES HERE] ⚠️
 
 Deimos is built around MRTK 2 and has been tested using a tethered Oculus Quest 2 (with both controller and hand tracking input). The MRTK simulator can also be used to simulate hand input. **Deimos has not been tested for use in standalone VR/MR applications**.
 
