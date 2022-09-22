@@ -92,6 +92,15 @@ namespace DxR.Deimos
                 }
             }
 
+            // After reading all morph specifications, make sure all of their names are unique
+            // This is kind of a stupid limitation in hindsight but that's just how it is for now
+            // var stateNames = Morphs.SelectMany(m => m.States).Select(s => (string)s["name"]);
+            // if (stateNames.Count() != stateNames.Distinct().Count())
+            //     throw new Exception("Vis Morphs: All state names in the enabled morphs must be unique.");
+            var transitionNames = Morphs.SelectMany(m => m.Transitions).Select(s => (string)s["name"]);
+            if (transitionNames.Count() != transitionNames.Distinct().Count())
+                throw new Exception("Vis Morphs: All transition names in the enabled morphs must be unique.");
+
             if (Morphs.Count > 0)
             {
                 foreach (Morphable morphable in GameObject.FindObjectsOfType<Morphable>())
@@ -1054,7 +1063,14 @@ namespace DxR.Deimos
             }
             else
             {
-                return Utils.CreateAnonymousObservable(interpreter.Eval(expression));
+                try
+                {
+                    return Utils.CreateAnonymousObservable(interpreter.Eval(expression));
+                }
+                catch (DynamicExpresso.Exceptions.UnknownIdentifierException e)
+                {
+                    throw new Exception(string.Format("Vis Morphs: A morph has a state or signal with the expression \"{0}\" that references a signal which doesn't exist.", expression));
+                }
             }
         }
 
