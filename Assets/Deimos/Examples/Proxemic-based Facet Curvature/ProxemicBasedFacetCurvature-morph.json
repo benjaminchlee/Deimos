@@ -1,6 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/benjaminchlee/Deimos/master/Assets/Deimos/Schema/morph-schema.json",
-    "name": "Auto Facet Layout when Close",
+    "name": "Proxemic-based Facet Curvature",
     "states": [
         {
             "name": "flat",

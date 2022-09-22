@@ -1,6 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/benjaminchlee/Deimos/master/Assets/Deimos/Schema/morph-schema.json",
-    "name": "Highlight Marks on Click",
+    "name": "Highlight Marks on Pinch",
 
     "states": [
         {
@@ -22,13 +22,13 @@
     ],
 
     "signals": [{
-            "name": "leftMouseDown",
-            "source": "mouse",
+            "name": "leftHandSelect",
+            "source": "hand",
             "handedness": "left",
             "value": "select"
         }, {
-            "name": "leftHandSelect",
-            "source": "hand",
+            "name": "leftMouseDown",
+            "source": "mouse",
             "handedness": "left",
             "value": "select"
         }
@@ -38,7 +38,7 @@
         {
             "name": "highlighting",
             "states": ["unhighlighted", "highlighted"],
-            "trigger": "leftMouseDown || leftHandSelect",
+            "trigger": "leftHandSelect || leftMouseDown",
             "control": {
                 "timing": 0.25,
                 "interrupted": "ignore"

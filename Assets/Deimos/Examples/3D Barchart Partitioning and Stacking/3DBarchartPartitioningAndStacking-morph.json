@@ -1,7 +1,7 @@
 
 {
     "$schema": "https://raw.githubusercontent.com/benjaminchlee/Deimos/master/Assets/Deimos/Schema/morph-schema.json",
-    "name": "Barchart Surface Techniques",
+    "name": "3D Barchart Partitioning And Stacking",
 
     "states": [
         {

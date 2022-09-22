@@ -1,0 +1,48 @@
+{
+    "width": 330,
+    "height": 400,
+    "depth": 440,
+    "mark": "cube",
+    "data": {
+        "url": "mtcars_2d.csv"
+    },
+    "encoding": {
+        "x": {
+            "field": "cyl",
+            "type": "nominal"
+        },
+        "width": {
+            "value": 100
+        },
+        "y": {
+            "field": "count",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 12]
+            }
+        },
+        "height": {
+            "field": "count",
+            "type": "quantitative",
+            "scale": {
+                "type": "linear",
+                "domain": [0, 12]
+            }
+        },
+        "yoffsetpct": {
+            "value": -0.5
+        },
+        "z": {
+            "field": "gear",
+            "type": "nominal"
+        },
+        "depth": {
+            "value": 100
+        },
+        "color": {
+            "field": "cyl",
+            "type": "nominal"
+        }
+    }
+}

@@ -1,6 +1,6 @@
 {
     "$schema": "https://raw.githubusercontent.com/benjaminchlee/Deimos/master/Assets/Deimos/Schema/morph-schema.json",
-    "name": "Unstack Barchart on Grab and Pull",
+    "name": "Barchart Unstacking",
 
     "states": [
         {
@@ -95,7 +95,7 @@
             "value": "closestdistance"
         }, {
             "name": "tweener",
-            "expression":"normalise(handSurfaceDistance, 0, 0.35, 0, 1)"
+            "expression":"normalise(handSurfaceDistance, 0, 0.5, 0, 1)"
         }
     ],
 
