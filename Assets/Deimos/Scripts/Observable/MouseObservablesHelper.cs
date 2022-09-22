@@ -31,15 +31,18 @@ namespace DxR.Deimos
                 switch (button)
                 {
                     case "left":
-                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButton(0));
+                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButton(0))
+                            .StartWith(Input.GetMouseButton(0));
                         break;
 
                     case "right":
-                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButton(1));
+                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButton(1))
+                            .StartWith(Input.GetMouseButton(1));
                         break;
 
                     case "any":
-                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButton(0) || Input.GetMouseButton(1));
+                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButton(0) || Input.GetMouseButton(1))
+                            .StartWith(Input.GetMouseButton(0) || Input.GetMouseButton(1));
                         break;
                 }
 
@@ -61,15 +64,18 @@ namespace DxR.Deimos
                 switch (button)
                 {
                     case "left":
-                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButtonDown(0));
+                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButtonDown(0))
+                            .StartWith(Input.GetMouseButtonDown(0));
                         break;
 
                     case "right":
-                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButtonDown(1));
+                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButtonDown(1))
+                            .StartWith(Input.GetMouseButtonDown(1));
                         break;
 
                     case "any":
-                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1));
+                        observable = Observable.EveryUpdate().Select(_ => Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1))
+                            .StartWith(Input.GetMouseButtonDown(0) || Input.GetMouseButtonDown(1));
                         break;
                 }
 

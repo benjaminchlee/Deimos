@@ -178,6 +178,7 @@ namespace DxR.Deimos
                                                             .Repeat()
                                                             .Merge(pointerUpObservable);
 
+                observable = observable.StartWith(false);
                 observable = observable.Replay(1).RefCount();
                 selectObservables.Add(handedness, observable);
             }
