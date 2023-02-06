@@ -20,6 +20,11 @@ namespace DxR
         /// Each large chunk of geoPositions.Length * 4 corresponds to a single polygon as part of the overall multipolygon (if applicable)
         /// </summary>
         private List<Vector3> vertices;
+        /// A list of triangle indices. Used in conjunction with areTrianglesClockwiseWinding to track whether the trianges are ordered clockwise or anticlockwise. This
+        /// is important as the faces are reversed when the depth channel is changed from positive to negative.
+        /// </summary>
+        private List<int> triangles;
+        private bool areTrianglesClockwiseWinding = true;
         /// <summary>
         /// A list of lists of 2D coordinates that defines the border of the geographic regions
         /// </summary>
@@ -175,9 +180,10 @@ namespace DxR
             geoshapeMesh = GetComponent<MeshFilter>().mesh;
 
             vertices = new List<Vector3>();
-            List<int> triangles = new List<int>();
+            triangles = new List<int>();
             geoPositions = new List<List<Vector2>>();
             int vertexIdx = 0;
+            areTrianglesClockwiseWinding = true;
 
             foreach (List<IPosition> polygon in polygons)
             {
@@ -201,16 +207,16 @@ namespace DxR
                 for (int i = 0; i < tris.Length; i += 3)
                 {
                     triangles.Add(vertexIdx + tris[i]);
-                    triangles.Add(vertexIdx + tris[i + 2]);
                     triangles.Add(vertexIdx + tris[i + 1]);
+                    triangles.Add(vertexIdx + tris[i + 2]);
                 }
 
                 // Back vertices
                 for (int i = 0; i < tris.Length; i += 3)
                 {
                     triangles.Add(vertexIdx + polygonPositionCount + tris[i + 2]);
-                    triangles.Add(vertexIdx + polygonPositionCount + tris[i]);
                     triangles.Add(vertexIdx + polygonPositionCount + tris[i + 1]);
+                    triangles.Add(vertexIdx + polygonPositionCount + tris[i]);
                 }
 
                 // Side vertices
@@ -222,11 +228,11 @@ namespace DxR
                     int v4 = v3 + 1;
 
                     triangles.Add(v1);
+                    triangles.Add(v4);
                     triangles.Add(v3);
-                    triangles.Add(v4);
                     triangles.Add(v1);
-                    triangles.Add(v4);
                     triangles.Add(v2);
+                    triangles.Add(v4);
                 }
                 // Complete the side vertices where they loop back with the start
                 {
@@ -236,11 +242,11 @@ namespace DxR
                     int v4 = (polygonPositionCount * 2) + vertexIdx + polygonPositionCount;
 
                     triangles.Add(v1);
+                    triangles.Add(v4);
                     triangles.Add(v3);
-                    triangles.Add(v4);
                     triangles.Add(v1);
-                    triangles.Add(v4);
                     triangles.Add(v2);
+                    triangles.Add(v4);
                 }
 
                 vertexIdx += (polygonPositionCount * 4);
@@ -485,6 +491,27 @@ namespace DxR
                         }
 
                         vertexIdx += (polygonPositionCount * 4);
+                    }
+
+                    // We also need to flip the winding order of the triangles if the depth (dim = 2) is negative or positive
+                    if (float.TryParse(value, out float result))
+                    {
+                        if ((result >= 0 && !areTrianglesClockwiseWinding) ||
+                            (result < 0 && areTrianglesClockwiseWinding))
+                        {
+                            for(int i = 0; i < triangles.Count; i = i + 3)
+                            {
+                                int tmp = triangles[i + 1];
+                                triangles[i + 1] = triangles[i + 2];
+                                triangles[i + 2] = tmp;
+                            }
+
+                            geoshapeMesh.SetIndices(triangles, MeshTopology.Triangles, 0);
+                            geoshapeMesh.RecalculateNormals();
+                            geoshapeMesh.RecalculateBounds();
+
+                            areTrianglesClockwiseWinding = !areTrianglesClockwiseWinding;
+                        }
                     }
                 }
             }
